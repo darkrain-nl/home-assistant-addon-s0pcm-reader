@@ -7,22 +7,22 @@ declare log_level="warning"
 #declare log_count
 declare mqtt_host="core-mosquitto"
 declare mqtt_port="1883"
-declare mqtt_base_topic
+#declare mqtt_base_topic
 declare mqtt_username=""
 declare mqtt_password=""
 #declare mqtt_client_id
 #declare mqtt_retain
 #declare mqtt_split_topic
-declare mqtt_tls
-declare mqtt_tls_ca
-declare mqtt_tls_check_peer
+#declare mqtt_tls
+#declare mqtt_tls_ca
+#declare mqtt_tls_check_peer
 #declare mqtt_connect_retry
 declare serial_port
 #declare serial_baudrate
 #declare serial_connect_retry
 #declare serial_publish_interval
 #declare serial_publish_onchange
-declare serial_include
+#declare serial_include
 #declare serial_dailystat
 
 if bashio::fs.directory_exists "/data/config"; then
