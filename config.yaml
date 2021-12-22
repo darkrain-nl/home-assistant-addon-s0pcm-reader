@@ -12,7 +12,6 @@ init: false
 options:
   device: null
   log_level: warning
-  Current readings:
   meter_1: 123456
   meter_2: 123456
 schema:
