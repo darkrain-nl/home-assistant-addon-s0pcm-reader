@@ -19,5 +19,8 @@ schema:
   log_level: list(critical|error|warning|info|debug)?
   meter_1: int?
   meter_2: int?
+  meter_3: int?
+  meter_4: int?
+  meter_5: int?
 services:
   - mqtt:want
