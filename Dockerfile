@@ -1,6 +1,8 @@
 ARG BUILD_FROM
 FROM ${BUILD_FROM} 
 
+MAINTAINER "darkrain-nl <jan@darkrain.nl>"
+
 WORKDIR /
 COPY rootfs /
 
