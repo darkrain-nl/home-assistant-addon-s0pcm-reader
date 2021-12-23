@@ -20,7 +20,7 @@ If you understand this and want to help test it, great! If you don't want any ha
 
 * Now you have the add-on sending data into MQTT you need to setup some sensors in Home Assistant
 * How exactly really depends on your use case...
-* An example for a Water Meter can be found below:
+* An example for a single Water Meter can be found below:
 ```#S0PCM
 sensor:
   - platform: mqtt
