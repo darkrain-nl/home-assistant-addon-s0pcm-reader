@@ -10,11 +10,9 @@ declare mqtt_password=""
 declare serial_port
 
 
-if bashio::fs.directory_exists "/share/s0pcm"; then
-  bashio::exit.ok
+if ! bashio::fs.directory_exists "/share/s0pcm"; then
+  mkdir /share/s0pcm || bashio::exit.nok "Could not create S0PCM data store."
 fi
-
-mkdir /share/s0pcm || bashio::exit.nok "Could not create S0PCM data store."
 
 log_level=$(bashio::config 'log_level')
 serial_port=$(bashio::config 'device')
