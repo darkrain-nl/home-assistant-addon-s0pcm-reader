@@ -4,6 +4,8 @@ Please be aware this Add-on is work in progress and may not yet do what you expe
 
 If you understand this and want to help test it, great! If you don't want any hassle then please wait till it is a bit more user friendly.
 
+## Installation instructions
+
 * Add this repository to the Add-on repositories in Home Assistant
 * Click reload
 * Install the Add-on
