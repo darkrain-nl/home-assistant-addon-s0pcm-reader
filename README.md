@@ -21,7 +21,7 @@ If you understand this and want to help test it, great! If you don't want any ha
 * Now you have the add-on sending data into MQTT you need to setup some sensors in Home Assistant
 * How exactly really depends on your use case...
 * An example for a Water Meter can be found below:
-`#S0PCM
+```#S0PCM
 sensor:
   - platform: mqtt
     state_topic: "s0pcmreader/1/total"
@@ -37,6 +37,6 @@ sensor:
     unique_id: "water_vandaag"
     unit_of_measurement: L
     icon: mdi:water-pump
-`
+```
 The configuration.json and measurement.yaml files will be store in /share/s0pcm on your Home Assistant OS.
 You can edit measurement.yaml to enter the current meter readings, they will then be used in the add-on after a restart.
