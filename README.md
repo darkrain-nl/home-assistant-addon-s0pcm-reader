@@ -10,10 +10,10 @@ If you understand this and want to help test it, great! If you don't want any ha
 * Click reload
 * Install the Add-on
 * Do the minimal needed configuration by selecting the S0PCM USB device
-* At this stage it might be smart to set the log level to Debug
+* At this stage it might be a good idea to set the log level to Debug
 * Start the Add-on and observe the log tab
 * 3 files are now created in /share/s0pcm
-* IF you want to have correct totals you can add then to the measurement.yaml file
+* If you want to have correct totals you can add them to the measurement.yaml file
 * Restart the add-on for the new totals to be used
 
 The configuration.json and measurement.yaml files will be store in /share/s0pcm on your Home Assistant OS.
