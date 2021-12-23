@@ -1,6 +1,6 @@
 name: "S0PCM Reader"
 description: "S0PCM reader based on docker-s0pcm-reader"
-version: "0.2.0"
+version: "0.3.0"
 slug: "s0pcm_reader"
 arch:
   - aarch64
@@ -9,18 +9,14 @@ arch:
   - armv7
   - i386
 init: false
+startup: application
 options:
   device: null
   log_level: warning
-  meter_1: 123456
-  meter_2: 123456
 schema:
   device: device(subsystem=tty)
   log_level: list(critical|error|warning|info|debug)?
-  meter_1: int?
-  meter_2: int?
-  meter_3: int?
-  meter_4: int?
-  meter_5: int?
 services:
   - mqtt:want
+map:
+  - share:rw
