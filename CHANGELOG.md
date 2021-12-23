@@ -19,10 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial local test version
 
-### Changed
-- Improve argument against commit logs.
-- Start following [SemVer](https://semver.org) properly.
-
 [Unreleased]:
 [0.2.0]: First version on Github
 [0.1.0]: Local first test
