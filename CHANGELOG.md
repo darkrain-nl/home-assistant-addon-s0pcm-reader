@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2021-12-24
+### Added
+- Added apparmor.txt file for increased security
+
+### Removed
+- Removed dailystat from s0pcm_config.conf, this means we no longer get a CSV file with the daily count
+
 ## [0.3.1] - 2021-12-23
 ### Fixed
 - Fixed a bug that caused the add-on to fail after rebooting Home Assistant (https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/issues/3)
