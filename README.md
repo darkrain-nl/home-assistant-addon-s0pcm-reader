@@ -42,5 +42,16 @@ sensor:
     unit_of_measurement: L
     icon: mdi:water-pump
 ```
-The configuration.json and measurement.yaml files will be store in /share/s0pcm on your Home Assistant OS.
-You can edit measurement.yaml to enter the current meter readings, they will then be used in the add-on after a restart.
+## MQTT Message
+The following MQTT messages are send:
+```
+<s0pcmreader>/1/total
+<s0pcmreader>/1/today
+<s0pcmreader>/1/yesterday
+<s0pcmreader>/2/total
+<s0pcmreader>/2/today
+<s0pcmreader>/2/yesterday
+<s0pcmreader>/X/total
+<s0pcmreader>/X/today
+<s0pcmreader>/X/yesterday
+```
