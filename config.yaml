@@ -1,6 +1,6 @@
 name: "S0PCM Reader"
 description: "S0PCM reader based on docker-s0pcm-reader"
-version: "0.3.3"
+version: "0.3.4"
 slug: "s0pcm_reader"
 arch:
   - aarch64
