@@ -1,17 +1,5 @@
 # S0PCM Reader add-on documentation
 
-## Installation instructions
-
-* Add this repository to the Add-on repositories in Home Assistant
-* Click reload
-* Install the Add-on
-* Do the minimal needed configuration by selecting the S0PCM USB device
-* At this stage it might be a good idea to set the log level to Debug
-* Start the Add-on and observe the log tab
-* 3 files are now created in /share/s0pcm
-* If you want to have correct totals you can add them to the measurement.yaml file
-* Restart the add-on for the new totals to be used
-
 ## Configuration in Home Assistant
 
 * Now you have the add-on sending data into MQTT you need to setup some sensors in Home Assistant manually via configuration.yaml
