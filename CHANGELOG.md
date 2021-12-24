@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2021-12-24
+### Added
+- Added DOCS.md for documentation
+
 ## [0.3.2] - 2021-12-24
 ### Added
 - Added apparmor.txt file for increased security
