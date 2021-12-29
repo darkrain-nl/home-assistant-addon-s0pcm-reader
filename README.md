@@ -1,8 +1,6 @@
 # home-assistant-addon-s0pcm-reader
 
-Please be aware this Add-on is work in progress and may not yet do what you expect from it.
-
-If you understand this and want to help test it, great! If you don't want any hassle then please wait till it is a bit more user friendly.
+Based on the work of @ualex73 (https://github.com/ualex73/docker-s0pcm-reader) if you cannot run Home Assistant Add-ons maybe his docker is a nice alternative.
 
 ## Prerequisites
 - You need an S0PCM reader (either S0PCM-2 or S0PCM-5)
