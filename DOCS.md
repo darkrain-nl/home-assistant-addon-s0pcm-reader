@@ -5,6 +5,7 @@
 * Now you have the add-on sending data into MQTT you need to setup some sensors in Home Assistant manually via configuration.yaml
 * How exactly really depends on your use case...
 * An example for a single Water Meter can be found below:
+
 ```
 # S0PCM
 
@@ -48,6 +49,7 @@ utility_meter:
 ```
 ## MQTT Message
 The following MQTT messages are send:
+
 ```
 <s0pcmreader>/1/total
 <s0pcmreader>/1/today
