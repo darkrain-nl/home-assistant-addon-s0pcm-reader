@@ -18,6 +18,7 @@ mqtt:
       unit_of_measurement: m³
       icon: mdi:water-pump
       state_class: total_increasing
+      device_class: water
     - state_topic: "s0pcmreader/1/total"
       name: "Waterquantity"
       unique_id: "water_quantity"
