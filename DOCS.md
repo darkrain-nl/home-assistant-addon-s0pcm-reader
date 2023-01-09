@@ -61,3 +61,32 @@ The following MQTT messages are send:
 <s0pcmreader>/X/today
 <s0pcmreader>/X/yesterday
 ```
+
+## Another example, this is for a heatpump (thanks to @wiljums for this)
+
+```
+mqtt:
+  sensor:
+    - name: "Heatpump usage"
+      state_topic: "s0pcmreader/1/total"
+      unique_id: "heatpump_usage"
+      value_template: "{{ value_json | float / 100 }}"
+      unit_of_measurement: kWh
+      icon: mdi:water-pump
+      device_class: energy
+      state_class: total
+    - name: "Heatpump vandaag"
+      state_topic: "s0pcmreader/1/today"
+      unique_id: "heatpump_vandaag"
+      value_template: "{{ value_json | float * 10 }}"
+      unit_of_measurement: Wh
+      icon: mdi:water-pump
+
+sensor:  
+  platform: derivative
+  source: sensor.heatpump_vandaag
+  name: 'Warmtepomp verbruik (W)'
+  unit: W
+  unit_time: h
+
+```
