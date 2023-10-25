@@ -1,11 +1,11 @@
 image: homeassistant/{arch}-homeassistant-base
 shadow_repository: ghcr.io/home-assistant
 build_from:
-  aarch64: ghcr.io/home-assistant/aarch64-base-python:3.11-alpine3.18
-  armhf: ghcr.io/home-assistant/armhf-base-python:3.11-alpine3.18
-  armv7: ghcr.io/home-assistant/armv7-base-python:3.11-alpine3.18
-  amd64: ghcr.io/home-assistant/amd64-base-python:3.11-alpine3.18
-  i386: ghcr.io/home-assistant/i386-base-python:3.11-alpine3.18
+  aarch64: ghcr.io/home-assistant/aarch64-base-python:3.12-alpine3.18
+  armhf: ghcr.io/home-assistant/armhf-base-python:3.12-alpine3.18
+  armv7: ghcr.io/home-assistant/armv7-base-python:3.12-alpine3.18
+  amd64: ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.18
+  i386: ghcr.io/home-assistant/i386-base-python:3.12-alpine3.18
 codenotary:
   signer: notary@home-assistant.io
   base_image: notary@home-assistant.io
@@ -19,9 +19,9 @@ labels:
   org.opencontainers.image.documentation: https://www.home-assistant.io/docs/
   org.opencontainers.image.licenses: Apache License 2.0
 args:
-  SSOCR_VERSION: 2.22.1
-  ARPSCAN_VERSION: 1.9.8
+  SSOCR_VERSION: 2.23.1
+  ARPSCAN_VERSION: 1.10.0
   LIBCEC_VERSION: 6.0.2
-  TELLDUS_COMMIT: 2598bbed16ffd701f2a07c99582f057a3decbaf3
+  TELLDUS_COMMIT: 52f9b1896f4beda246aa85ce80cd041261f30f2a
   PICOTTS_HASH: e3ba46009ee868911fa0b53db672a55f9cc13b1c
-  IPERF3_VERSION: '3.13'
+  IPERF3_VERSION: '3.15'
