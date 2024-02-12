@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2024-02-12
+### Changed
+- Bump paho-mqtt from 1.6.1 to 2.0.0
+- Added 'mqtt.CallbackAPIVersion.VERSION1'to Client() to support paho-mqtt 2.0.0
+
 ## [0.6.4] - 2023-12-15
 ### Changed
 - Changed base image from 3.12-alpine3.18 to 3.12-alpine3.19
