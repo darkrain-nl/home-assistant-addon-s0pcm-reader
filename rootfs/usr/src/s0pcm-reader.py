@@ -180,7 +180,7 @@ def ReadConfig():
     if not 'password' in config['mqtt']: config['mqtt']['password'] = None
     if not 'base_topic' in config['mqtt']: config['mqtt']['base_topic'] = 's0pcm-reader'
     if not 'client_id' in config['mqtt']: config['mqtt']['client_id'] = None
-    if not 'version' in config['mqtt']: config['mqtt']['version'] = mqtt.MQTTv311
+    if not 'version' in config['mqtt']: config['mqtt']['version'] = mqtt.MQTTv5
     if not 'retain' in config['mqtt']: config['mqtt']['retain'] = True
     if not 'split_topic' in config['mqtt']: config['mqtt']['split_topic'] = True
     if not 'connect_retry' in config['mqtt']: config['mqtt']['connect_retry'] = 5
@@ -190,8 +190,10 @@ def ReadConfig():
 
     if str(config['mqtt']['version']) == '3.1':
       config['mqtt']['version'] = mqtt.MQTTv31
-    else:
+    elif str(config['mqtt']['version']) == '3.1.1':
       config['mqtt']['version'] = mqtt.MQTTv311
+    else:
+      config['mqtt']['version'] = mqtt.MQTTv5
  
     # TLS configuration
     if not 'tls' in config['mqtt']: config['mqtt']['tls'] = False
