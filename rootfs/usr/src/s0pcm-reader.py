@@ -488,7 +488,7 @@ class TaskDoMQTT(threading.Thread):
         measurementprevious = measurement
 
         # Define our MQTT Client
-        self._mqttc = mqtt.Client(client_id=config['mqtt']['client_id'], protocol=config['mqtt']['version'])
+        self._mqttc = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id=config['mqtt']['client_id'], protocol=config['mqtt']['version'])
         self._mqttc.on_connect = self.on_connect
         self._mqttc.on_disconnect = self.on_disconnect
         #self._mqttc.on_message = self.on_message
