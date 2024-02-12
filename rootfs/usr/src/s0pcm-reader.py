@@ -454,25 +454,25 @@ class TaskDoMQTT(threading.Thread):
         self._stopper = stopper
         self._connected = False
 
-    def on_connect(self, mqttc, obj, flags, rc):
-        if rc == 0:
+    def on_connect(self, mqttc, obj, flags, reason_code, properties):
+        if reason_code == 0:
             self._connected = True
             logger.debug('MQTT successfully connected to broker')
             self._mqttc.publish(config['mqtt']['base_topic'] + '/status', config['mqtt']['online'], retain=config['mqtt']['retain'])
         else:
             self._connected = False
 
-    def on_disconnect(self, mqttc, userdata, rc):
+    def on_disconnect(self, mqttc, userdata, reason_code, properties):
         self._connected = False
-        if rc == 0:
+        if reason_code == 0:
             logger.debug('MQTT successfully disconnected to broker')
         else:
-            logger.error('MQTT failed to connect to broker \'%s\', retrying.', mqtt.connack_string(rc))
+            logger.error('MQTT failed to connect to broker \'%s\', retrying.', mqtt.connack_string(reason_code))
 
     def on_message(self, mqttc, obj, msg):
         logger.debug('MQTT on_message: ' + msg.topic + ' ' + str(msg.qos) + ' ' + str(msg.payload))
 
-    def on_publish(self, mqttc, obj, mid):
+    def on_publish(self, mqttc, obj, mid, reason_codes, properties):
         logger.debug('MQTT on_publish: mid: ' + str(mid))
 
     def on_subscribe(self, mqttc, obj, mid, granted_qos):
@@ -490,7 +490,7 @@ class TaskDoMQTT(threading.Thread):
         measurementprevious = measurement
 
         # Define our MQTT Client
-        self._mqttc = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id=config['mqtt']['client_id'], protocol=config['mqtt']['version'])
+        self._mqttc = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=config['mqtt']['client_id'], protocol=config['mqtt']['version'])
         self._mqttc.on_connect = self.on_connect
         self._mqttc.on_disconnect = self.on_disconnect
         #self._mqttc.on_message = self.on_message
