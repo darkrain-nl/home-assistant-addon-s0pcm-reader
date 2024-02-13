@@ -12,6 +12,7 @@ arch:
   - i386
 init: false
 startup: application
+hassio_api: true
 options:
   device: null
   log_level: warning
