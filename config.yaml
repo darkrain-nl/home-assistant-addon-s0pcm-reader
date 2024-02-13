@@ -13,7 +13,6 @@ arch:
 init: false
 startup: application
 hassio_api: true
-hassio_role: default
 options:
   device: null
   log_level: warning
