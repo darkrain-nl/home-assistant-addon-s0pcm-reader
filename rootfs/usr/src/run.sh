@@ -6,6 +6,7 @@ if [ ! -f /share/s0pcm/configuration.json ]; then
   cp /usr/src/configuration.json.example /share/s0pcm/configuration.json
 fi
 
+echo "${SUPERVISOR_TOKEN}"
 
 VERSION=$(bashio::addon.version)
 echo "ADDON VERSION: ${VERSION}"
