@@ -15,7 +15,7 @@ startup: application
 hassio_api: true
 options:
   device: null
-  log_level: warning
+  log_level: info
 schema:
   device: device(subsystem=tty)
   log_level: list(critical|error|warning|info|debug)?
