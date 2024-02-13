@@ -1,4 +1,4 @@
-#!/usr/bin/env bashio
+#!/usr/bin/with-contenv bashio
 
 if bashio::supervisor.ping; then
     bashio::log.blue \
