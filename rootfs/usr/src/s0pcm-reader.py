@@ -92,7 +92,7 @@ lock = threading.Lock()
 config = {}
 measurement = {}
 measurementshare = {}
-s0pcmreaderversion = '2024.02.12'
+s0pcmreaderversion = '2024.02.13'
 
 # ------------------------------------------------------------------------------------
 # Parameters
