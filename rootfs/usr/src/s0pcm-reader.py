@@ -92,6 +92,7 @@ lock = threading.Lock()
 config = {}
 measurement = {}
 measurementshare = {}
+s0pcmreaderversion = '2024.02.13'
 
 # ------------------------------------------------------------------------------------
 # Parameters
@@ -230,7 +231,7 @@ def ReadConfig():
     if not 'publish_interval' in config['s0pcm']: config['s0pcm']['publish_interval'] = None
     if not 'publish_onchange' in config['s0pcm']: config['s0pcm']['publish_onchange'] = True
 
-    logger.debug('Start: s0pcm-reader')
+    logger.info(f'Start: s0pcm-reader - version: {s0pcmreaderversion}')
     
     logger.debug('Config: %s', str(config))
 
