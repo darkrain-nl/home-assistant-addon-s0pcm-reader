@@ -1,5 +1,4 @@
 
-import sys
 import datetime
 import time
 import threading
@@ -92,7 +91,7 @@ lock = threading.Lock()
 config = {}
 measurement = {}
 measurementshare = {}
-s0pcmreaderversion = '2024.02.13'
+s0pcmreaderversion = '2024.02.17'
 
 # ------------------------------------------------------------------------------------
 # Parameters
@@ -668,6 +667,6 @@ t2.start()
 t1.join()
 t2.join()
 
-logger.debug('Stop: s0pcm-reader')
+logger.info('Stop: s0pcm-reader')
 
 # End
