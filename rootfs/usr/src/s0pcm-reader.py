@@ -91,7 +91,7 @@ lock = threading.Lock()
 config = {}
 measurement = {}
 measurementshare = {}
-s0pcmreaderversion = '2024.02.17'
+s0pcmreaderversion = '2024.04.06'
 
 # ------------------------------------------------------------------------------------
 # Parameters
@@ -247,19 +247,23 @@ def ReadMeasurement():
     except FileNotFoundError:
         logger.warning('No \'%s\' found, using defaults.', measurementname)
 
-    # check date format
-    if 'date' in measurement:
+    # check if measurement['date'] is None
+    if measurement is not None:
         # check date format
-        try:
-            measurement['date'] = datetime.datetime.strptime(str(measurement['date']), '%Y-%m-%d')
-            measurement['date'] = measurement['date'].date()
-        except ValueError:
-            logger.error('\'%s\' has an invalid date field \'%s\', default to today \'%s\'', measurementname, str(measurement['date']), str(datetime.date.today()))
+        if 'date' in measurement:
+            # check date format
+            try:
+                measurement['date'] = datetime.datetime.strptime(str(measurement['date']), '%Y-%m-%d')
+                measurement['date'] = measurement['date'].date()
+            except ValueError:
+                logger.error('\'%s\' has an invalid date field \'%s\', default to today \'%s\'', measurementname, str(measurement['date']), str(datetime.date.today()))
+                measurement['date'] = datetime.date.today()
+        else:
             measurement['date'] = datetime.date.today()
-    else:
-        measurement['date'] = datetime.date.today()
 
-    logger.debug('Measurement: %s', str(measurement))
+        logger.debug('Measurement: %s', str(measurement))
+    else:
+        logger.error('measurement is None %s', str(measurement))
 
 # ------------------------------------------------------------------------------------
 # Task to read the serial port. We continue to try to open the serialport, because
