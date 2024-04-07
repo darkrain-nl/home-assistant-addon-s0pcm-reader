@@ -91,7 +91,7 @@ lock = threading.Lock()
 config = {}
 measurement = {}
 measurementshare = {}
-s0pcmreaderversion = '2024.04.06'
+s0pcmreaderversion = '2024.04.07'
 
 # ------------------------------------------------------------------------------------
 # Parameters
@@ -247,7 +247,7 @@ def ReadMeasurement():
     except FileNotFoundError:
         logger.warning('No \'%s\' found, using defaults.', measurementname)
 
-    # check if measurement['date'] is None
+    # check if measurement is None
     if measurement is not None:
         # check date format
         if 'date' in measurement:
@@ -263,7 +263,8 @@ def ReadMeasurement():
 
         logger.debug('Measurement: %s', str(measurement))
     else:
-        logger.error('measurement is None %s', str(measurement))
+        logger.error('\'%s\' is empty: \'%s\' fix this by removing the file or restoring a backup if you have one...', measurementname, str(measurement))
+        raise SystemExit('Cannot continue, the error above needs to be fixed first')
 
 # ------------------------------------------------------------------------------------
 # Task to read the serial port. We continue to try to open the serialport, because
