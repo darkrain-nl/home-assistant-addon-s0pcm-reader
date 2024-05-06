@@ -91,7 +91,7 @@ lock = threading.Lock()
 config = {}
 measurement = {}
 measurementshare = {}
-s0pcmreaderversion = '2024.04.07'
+s0pcmreaderversion = '2024.05.06'
 
 # ------------------------------------------------------------------------------------
 # Parameters
@@ -466,13 +466,14 @@ class TaskDoMQTT(threading.Thread):
             self._mqttc.publish(config['mqtt']['base_topic'] + '/status', config['mqtt']['online'], retain=config['mqtt']['retain'])
         else:
             self._connected = False
+            logger.error('MQTT failed to connect to broker \'%s\', retrying.', mqtt.connack_string(reason_code))
 
-    def on_disconnect(self, mqttc, userdata, reason_code, properties):
+    def on_disconnect(self, mqttc, obj, flags, reason_code, properties):
         self._connected = False
         if reason_code == 0:
             logger.debug('MQTT successfully disconnected to broker')
         else:
-            logger.error('MQTT failed to connect to broker \'%s\', retrying.', mqtt.connack_string(reason_code))
+            logger.error('MQTT failed to disconnect from broker \'%s\', retrying.', mqtt.connack_string(reason_code))
 
     def on_message(self, mqttc, obj, msg):
         logger.debug('MQTT on_message: ' + msg.topic + ' ' + str(msg.qos) + ' ' + str(msg.payload))

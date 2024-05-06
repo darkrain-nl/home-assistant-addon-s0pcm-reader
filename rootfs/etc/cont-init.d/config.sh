@@ -30,7 +30,7 @@ bashio::var.json \
     log_level "${log_level}" \
     mqtt_host "${mqtt_host}" \
     mqtt_password "${mqtt_password}" \
-    mqtt_port "^${mqtt_port}" \
+    mqtt_port "${mqtt_port}" \
     mqtt_username "${mqtt_username}" \
     | tempio \
         -template /usr/share/tempio/s0pcm_config.conf \
