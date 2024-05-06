@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.8.5] - 2024-05-06
 ### Changed
 - Bump paho-mqtt from 2.0.0 to 2.1.0
-- Fixed an issue which prevented the addon to get the username and password from Home Assitant, closes #17
+- Fixed an issue which prevented the addon to get the username and password from Home Assistant, closes #17
 - Added logging to see authentication issues for MQTT
 
 ## [0.8.4] - 2024-04-07
