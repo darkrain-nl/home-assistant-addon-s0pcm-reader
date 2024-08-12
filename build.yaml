@@ -7,7 +7,7 @@ build_from:
   amd64: ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.20
   i386: ghcr.io/home-assistant/i386-base-python:3.12-alpine3.20
 codenotary:
-  signer: jan@darkrain.nl
+  signer: codenotary@darkrain.nl
   base_image: notary@home-assistant.io
 labels:
   io.hass.type: homeassistant-base
