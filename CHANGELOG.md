@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2025-11-08
+### Changed
+- Changed base image from 3.13-alpine3.22 to 3.14-alpine3.22 for aarch64 and amd64 only
+### Deprecated
+- With the release of Home Assistant 2025.12 support for armhf, armv7 an i386 will be dropped and this addon will remove support for them in the future as well.
+  Please update your environment to either aarch64 or amd64.
+  More info https://www.home-assistant.io/blog/2025/05/22/deprecating-core-and-supervised-installation-methods-and-32-bit-systems/
+
 ## [0.12.0] - 2025-10-02
 ### Changed
 - Bump pyyaml from 6.0.2 to 6.0.3
