@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2025-11-09
+### Changed
+- Changed the version to 0.14.0 as 0.13.0 gave me bad luck, all good now
+
+## [0.13.7] - 2025-11-09
+### Fixed
+- Fixed with CRLF line endings, coverted to LF fixes #23
+
 ## [0.13.6] - 2025-11-09
 ### Fixed
 - Fixed with CRLF line endings, coverted to LF fixes #23
