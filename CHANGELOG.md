@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.13.6] - 2025-11-09
 ### Fixed
-- Fixed issue with executables not being executable
+- Fixed with CRLF line endings, coverted to LF fixes #23
 
 ## [0.13.5] - 2025-11-09
 ### Fixed
