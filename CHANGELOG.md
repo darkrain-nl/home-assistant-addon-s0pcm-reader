@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2025-12-03
+### Removed
+- Removed support for 32 bit systems as Home Assistant doesn't support them anymore see https://www.home-assistant.io/blog/2025/05/22/deprecating-core-and-supervised-installation-methods-and-32-bit-systems/ for more info.
+
 ## [0.14.0] - 2025-11-09
 ### Changed
 - Changed the version to 0.14.0 as 0.13.0 gave me bad luck, all good now
