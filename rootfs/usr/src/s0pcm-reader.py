@@ -579,6 +579,22 @@ class TaskDoMQTT(threading.Thread):
             "sw_version": s0pcmreaderversion
         }
 
+        # Status Binary Sensor Discovery
+        status_unique_id = f"s0pcm_{identifier}_status"
+        status_topic = f"{config['mqtt']['discovery_prefix']}/binary_sensor/{identifier}/{status_unique_id}/config"
+        logger.debug('MQTT discovery topic (status): ' + status_topic)
+
+        status_payload = {
+            "name": "S0PCM Reader Status",
+            "unique_id": status_unique_id,
+            "device": device_info,
+            "device_class": "connectivity",
+            "state_topic": config['mqtt']['base_topic'] + '/status',
+            "payload_on": config['mqtt']['online'],
+            "payload_off": config['mqtt']['offline']
+        }
+        self._mqttc.publish(status_topic, json.dumps(status_payload), retain=config['mqtt']['retain'])
+
         for key in measurementlocal:
             if isinstance(key, int):
 

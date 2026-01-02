@@ -8,6 +8,7 @@ When the add-on starts, it automatically creates a device named **S0PCM Reader**
 -   **Total**: Total accumulated count.
 -   **Today**: Count for the current day.
 -   **Yesterday**: Count for the previous day.
+-   **Status**: A binary sensor showing if the reader is connected to MQTT (connectivity class).
 
 **Naming:**
 The entity names are derived from the `name` field in your `measurement.yaml`. If you haven't configured a name, it defaults to the input number (e.g., "1 Total").
