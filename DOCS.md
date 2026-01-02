@@ -103,3 +103,40 @@ sensor:
   unit_time: h
 
 ```
+
+## Watchdog / Auto-restart
+
+This add-on uses the [S6 Overlay](https://github.com/just-containers/s6-overlay) for process supervision. This means if the S0PCM reader script crashes or exits unexpectedly, it will be automatically restarted by the supervisor.
+
+If you see repeated restarts in the logs, check the log output for errors from the python script.
+
+## Resetting / Setting Meter Totals via MQTT
+
+You can update the total value of any meter (e.g., to sync with a physical meter) by sending an MQTT message.
+
+**Topic:**
+`<base_topic>/<meter_id>/total/set`
+
+**Payload:**
+The new integer value for the total.
+
+**Example:**
+To set meter 1 total to 1000:
+`mosquitto_pub -t "s0pcmreader/1/total/set" -m "1000"`
+
+This will immediately update the internal counter and the `measurement.yaml` file.
+
+## Setting Meter Totals using Home Assistant
+
+To set the meter total using Home Assistant directly:
+
+1.  Go to **Developer Tools** > **Actions**.
+2.  Search for **MQTT: Publish**.
+3.  Fill in the details:
+    *   **Topic**: `s0pcmreader/1/total/set` (adjust base topic and meter ID as needed)
+    *   **Payload**: `123456` (your new total value)
+    *   **QoS**: `0` or `1`
+    *   **Retain**: `Disabled`
+4.  Click **Perform Action**.
+
+> **Note:** This command only updates the **Total** counter. The **Today** and **Yesterday** counters remain unchanged and will continue to count based on the pulses received relative to the previous day's total.

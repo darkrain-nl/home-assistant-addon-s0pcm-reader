@@ -1,0 +1,4 @@
+#!/usr/bin/with-contenv bashio
+
+bashio::log.warning "S0PCM Reader exited with code: ${1} signal: ${2}"
+bashio::log.info "S6 will automatically restart the service..."

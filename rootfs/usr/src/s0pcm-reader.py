@@ -468,6 +468,11 @@ class TaskDoMQTT(threading.Thread):
             self._discovery_sent = False
             logger.debug('MQTT successfully connected to broker')
             self._mqttc.publish(config['mqtt']['base_topic'] + '/status', config['mqtt']['online'], retain=config['mqtt']['retain'])
+            
+            # Subscribe to 'set' commands
+            topic_set = config['mqtt']['base_topic'] + '/+/total/set'
+            self._mqttc.subscribe(topic_set)
+            logger.debug('Subscribed to: ' + topic_set)
         else:
             self._connected = False
             logger.error('MQTT failed to connect to broker \'%s\', retrying.', mqtt.connack_string(reason_code))
@@ -480,13 +485,77 @@ class TaskDoMQTT(threading.Thread):
             logger.error('MQTT failed to disconnect from broker \'%s\', retrying.', mqtt.connack_string(reason_code))
 
     def on_message(self, mqttc, obj, msg):
+        global measurementshare
         logger.debug('MQTT on_message: ' + msg.topic + ' ' + str(msg.qos) + ' ' + str(msg.payload))
+
+        # Check for set command
+        if msg.topic.endswith('/total/set'):
+            try:
+                # Topic format: base_topic/ID/total/set
+                parts = msg.topic.split('/')
+                # parts[-1] = 'set', parts[-2] = 'total', parts[-3] = ID
+                meter_id_str = parts[-3]
+                
+                try:
+                    meter_id = int(meter_id_str)
+                except ValueError:
+                    logger.warning(f"Ignored set command for non-integer meter ID: {meter_id_str}")
+                    return
+
+                payload_str = msg.payload.decode('utf-8')
+                try:
+                    # Support int or float input, but store as likely int or float
+                    # Since original pulses are ints, we cast to float then int? 
+                    # If user provides 123.45, we probably should store 123.45 if we want to be exact?
+                    # But the script generally deals with pulses.
+                    # Let's verify what the script does.
+                    # It reads INT from serial: pulsecount = int(s0arr[offset + 2])
+                    # So the meters count int pulses.
+                    # If we set total, we are setting the "Pulse Count Total" theoretically?
+                    # But 'total' in measurement is usually derived from pulses.
+                    # NOTE: If we set 'total' to 1000. And pulsecount comes in. 
+                    # The script adds DELTA of PULSES to TOTAL.
+                    # So 'total' doesn't HAVE to be int, but it makes sense.
+                    # Let's stick to int to match serial behavior, or float if user really wants.
+                    # Given the "s0 pulse counter" nature, int is safer.
+                    new_total = int(float(payload_str))
+                except ValueError:
+                    logger.warning(f"Ignored invalid payload for set command: {payload_str}")
+                    return
+
+                logger.info(f"Received MQTT set command for meter {meter_id}. Setting total to {new_total}.")
+
+                lock.acquire()
+                try:
+                    if meter_id not in measurement:
+                        measurement[meter_id] = {}
+                        # Init default fields to prevent key errors
+                        measurement[meter_id]['pulsecount'] = 0
+                        measurement[meter_id]['today'] = 0
+                        measurement[meter_id]['yesterday'] = 0
+
+                    measurement[meter_id]['total'] = new_total
+                    
+                    # Persist immediately
+                    with open(measurementname, 'w') as f:
+                        yaml.dump(measurement, f, default_flow_style=False)
+                    logger.debug(f"Updated measurement.yaml with new total for meter {meter_id}")
+
+                    # Update share and trigger publish
+                    measurementshare = copy.deepcopy(measurement)
+                    self._trigger.set()
+
+                finally:
+                    lock.release()
+
+            except Exception as e:
+                logger.error(f"Failed to process set command: {e}")
 
     def on_publish(self, mqttc, obj, mid, reason_codes, properties):
         logger.debug('MQTT on_publish: mid: ' + str(mid))
 
-    def on_subscribe(self, mqttc, obj, mid, granted_qos):
-        logger.debug('MQTT on_subscribe: ' + str(mid) + ' ' + str(granted_qos))
+    def on_subscribe(self, mqttc, obj, mid, reason_codes, properties):
+        logger.debug('MQTT on_subscribe: ' + str(mid) + ' ' + str(reason_codes))
 
     def on_log(self, mqttc, obj, level, string):
         logger.debug('MQTT on_log: ' + string)
@@ -573,7 +642,7 @@ class TaskDoMQTT(threading.Thread):
         self._mqttc = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=config['mqtt']['client_id'], protocol=config['mqtt']['version'])
         self._mqttc.on_connect = self.on_connect
         self._mqttc.on_disconnect = self.on_disconnect
-        #self._mqttc.on_message = self.on_message
+        self._mqttc.on_message = self.on_message
         #self._mqttc.on_publish = self.on_publish
         #self._mqttc.on_subscribe = self.on_subscribe
 

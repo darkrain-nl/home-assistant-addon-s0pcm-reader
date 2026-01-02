@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-01-02
+### Added
+- Added ability to set meter totals via MQTT set command.
+
+## [1.1.0] - 2026-01-02
+### Added
+- Added watchdog support using S6 overlay, the addon will now automatically restart if the python script crashes.
+- Updated documentation to reflect watchdog behavior.
+
 ## [1.0.0] - 2026-01-02
 ### Added
 - Added MQTT Discovery support, this will automatically add the S0PCM Reader to Home Assistant with the relevant entities.
