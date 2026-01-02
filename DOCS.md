@@ -1,6 +1,18 @@
 # S0PCM Reader add-on documentation
 
-## Configuration in Home Assistant
+## MQTT Discovery
+
+The add-on supports Home Assistant MQTT Discovery, which is **enabled by default**. This means you generally do **not** need to manually configure sensors in your `configuration.yaml` anymore.
+
+When the add-on starts, it automatically creates a device named **S0PCM Reader** in Home Assistant with the following sensors for each enabled input:
+-   **Total**: Total accumulated count.
+-   **Today**: Count for the current day.
+-   **Yesterday**: Count for the previous day.
+
+**Naming:**
+The entity names are derived from the `name` field in your `measurement.yaml`. If you haven't configured a name, it defaults to the input number (e.g., "1 Total").
+
+## Manual Configuration (Legacy / Optional)
 
 * Now you have the add-on sending data into MQTT you need to setup some sensors in Home Assistant manually via configuration.yaml
 * How exactly really depends on your use case...

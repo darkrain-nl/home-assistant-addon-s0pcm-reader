@@ -91,7 +91,7 @@ lock = threading.Lock()
 config = {}
 measurement = {}
 measurementshare = {}
-s0pcmreaderversion = '2024.05.06'
+s0pcmreaderversion = '2026.01.02'
 
 # ------------------------------------------------------------------------------------
 # Parameters
@@ -187,6 +187,8 @@ def ReadConfig():
     if not 'online' in config['mqtt']: config['mqtt']['online'] = 'online'
     if not 'offline' in config['mqtt']: config['mqtt']['offline'] = 'offline'
     if not 'lastwill' in config['mqtt']: config['mqtt']['lastwill'] = 'offline'
+    if not 'discovery' in config['mqtt']: config['mqtt']['discovery'] = True
+    if not 'discovery_prefix' in config['mqtt']: config['mqtt']['discovery_prefix'] = 'homeassistant'
 
     if str(config['mqtt']['version']) == '3.1':
       config['mqtt']['version'] = mqtt.MQTTv31
@@ -458,10 +460,12 @@ class TaskDoMQTT(threading.Thread):
         self._trigger = trigger
         self._stopper = stopper
         self._connected = False
+        self._discovery_sent = False
 
     def on_connect(self, mqttc, obj, flags, reason_code, properties):
         if reason_code == 0:
             self._connected = True
+            self._discovery_sent = False
             logger.debug('MQTT successfully connected to broker')
             self._mqttc.publish(config['mqtt']['base_topic'] + '/status', config['mqtt']['online'], retain=config['mqtt']['retain'])
         else:
@@ -486,6 +490,76 @@ class TaskDoMQTT(threading.Thread):
 
     def on_log(self, mqttc, obj, level, string):
         logger.debug('MQTT on_log: ' + string)
+
+    def send_discovery(self, measurementlocal):
+
+        if not config['mqtt']['discovery']:
+            return
+
+        if not measurementlocal:
+            return
+
+        logger.debug('Sending MQTT discovery messages')
+
+        identifier = config['mqtt']['base_topic']
+        device_info = {
+            "identifiers": [identifier],
+            "name": "S0PCM Reader",
+            "model": "S0PCM",
+            "manufacturer": "SmartMeterDashboard",
+            "sw_version": s0pcmreaderversion
+        }
+
+        for key in measurementlocal:
+            if isinstance(key, int):
+
+                try:
+                    if not measurement[key]['enabled']:
+                        continue
+                except:
+                    pass
+
+                # Skip an input if not configured
+                if config['s0pcm']['include'] != None:
+                    if not key in config['s0pcm']['include']:
+                        continue
+
+                try:
+                    instancename = measurementlocal[key]['name']
+                except:
+                    instancename = str(key)
+
+                for subkey in ['total', 'today', 'yesterday']:
+
+                    unique_id = f"s0pcm_{identifier}_{key}_{subkey}"
+                    
+                    # Discovery Topic
+                    topic = f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/{unique_id}/config"
+                    logger.debug('MQTT discovery topic: ' + topic)
+
+                    payload = {
+                        "name": f"{instancename} {subkey.capitalize()}",
+                        "unique_id": unique_id,
+                        "device": device_info
+                    }
+
+                    if subkey == 'total':
+                        payload['state_class'] = 'total_increasing'
+                    elif subkey == 'today':
+                        payload['state_class'] = 'total_increasing'
+                    else:
+                        payload['state_class'] = 'measurement'
+
+                    if config['mqtt']['split_topic'] == True:
+                        payload['state_topic'] = config['mqtt']['base_topic'] + '/' + instancename + '/' + subkey
+                    else:
+                        payload['state_topic'] = config['mqtt']['base_topic'] + '/' + instancename
+                        payload['value_template'] = f"{{{{ value_json.{subkey} }}}}"
+
+                    self._mqttc.publish(topic, json.dumps(payload), retain=config['mqtt']['retain'])
+
+        self._discovery_sent = True
+        logger.info('Sent MQTT discovery messages')
 
     def DoMQTT(self):
 
@@ -563,6 +637,9 @@ class TaskDoMQTT(threading.Thread):
                     if config['s0pcm']['publish_interval'] != None:
                         time.sleep(config['s0pcm']['publish_interval'])
                     continue
+
+                if not self._discovery_sent:
+                    self.send_discovery(measurementlocal)
 
                 for key in measurementlocal:
                     if isinstance(key, int):
@@ -653,6 +730,7 @@ class TaskDoMQTT(threading.Thread):
 try:
     ReadConfig()
     ReadMeasurement()
+    measurementshare = copy.deepcopy(measurement)
 except:
     logger.error('Fatal exception has occured', exc_info=True)
     # we need to quit, because we detected an error
