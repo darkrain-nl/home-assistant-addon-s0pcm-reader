@@ -92,6 +92,9 @@ lock = threading.Lock()
 config = {}
 measurement = {}
 measurementshare = {}
+lasterror_serial = None
+lasterror_mqtt = None
+lasterrorshare = None
 # ------------------------------------------------------------------------------------
 # Version Handling
 # ------------------------------------------------------------------------------------
@@ -142,6 +145,44 @@ if not configdirectory.endswith('/'):
 configname = configdirectory + 'configuration.json'
 measurementname = configdirectory + 'measurement.yaml'
 logname= configdirectory + 's0pcm-reader.log'
+
+# ------------------------------------------------------------------------------------
+# Error Handling
+# ------------------------------------------------------------------------------------
+def SetError(message, category='serial'):
+    global lasterror_serial
+    global lasterror_mqtt
+    global lasterrorshare
+
+    changed = False
+    if category == 'serial':
+        if message != lasterror_serial:
+            lasterror_serial = message
+            changed = True
+    else:
+        if message != lasterror_mqtt:
+            lasterror_mqtt = message
+            changed = True
+
+    if changed:
+        # Update the shared state
+        errors = []
+        if lasterror_serial:
+            errors.append(lasterror_serial)
+        if lasterror_mqtt:
+            errors.append(lasterror_mqtt)
+        
+        new_error = " | ".join(errors) if errors else None
+        
+        lock.acquire()
+        lasterrorshare = new_error
+        lock.release()
+
+        if message:
+            logger.error(f"[{category.upper()}] {message}")
+        
+        # Trigger MQTT publish
+        trigger.set()
 
 # ------------------------------------------------------------------------------------
 # Logging
@@ -340,7 +381,7 @@ class TaskReadSerial(threading.Thread):
                 self._serialerror = 0
             except Exception as e:
                 self._serialerror += 1
-                logger.error('Serialport connection failed. %s: \'%s\'', type(e).__name__, str(e))
+                SetError(f"Serialport connection failed: {type(e).__name__}: '{str(e)}'", category='serial')
                 logger.error('Retry in %d seconds', config['serial']['connect_retry'])
                 time.sleep(config['serial']['connect_retry'])
                 continue
@@ -351,14 +392,14 @@ class TaskReadSerial(threading.Thread):
                 try:
                     datain = ser.readline()
                 except Exception as e:
-                    logger.error('Serialport read error. %s: \'%s\'', type(e).__name__, str(e))
+                    SetError(f"Serialport read error: {type(e).__name__}: '{str(e)}'", category='serial')
                     ser.close()
                     break
              
                 # check if there is data received
                 # If there is really nothing, most likely a timeout on reading the input data
                 if len(datain) == 0:
-                    logger.error('Failed to read any data (timeout)')
+                    SetError("Serialport read timeout: Failed to read any data", category='serial')
                     ser.close()
                     break
 
@@ -366,7 +407,7 @@ class TaskReadSerial(threading.Thread):
                 try:
                     datastr = datain.decode('ascii')
                 except UnicodeDecodeError:
-                    logger.error('Failed to decode \'%s\'', str(datain))
+                    SetError(f"Failed to decode serial data: '{str(datain)}'", category='serial')
                     continue
 
                 # Need to remove '\r\n' from the input
@@ -391,7 +432,7 @@ class TaskReadSerial(threading.Thread):
                         size = 2
 
                     else:
-                        logger.error('Packet has invalid length. Excepted 10 or 19, got %d.', len(s0arr))
+                        SetError(f"Packet has invalid length: Expected 10 or 19, got {len(s0arr)}. Packet: '{datastr}'", category='serial')
                         continue
 
                     # Key a copy of the measurement file, then we known we need to write the file
@@ -447,7 +488,7 @@ class TaskReadSerial(threading.Thread):
                                 measurement[count]['today'] += delta
 
                             elif pulsecount < measurement[count]['pulsecount']:
-                                logger.warning('Stored pulsecount \'%s\' is higher then read, this normally happens if the s0pcm is restarted. We will continue counting, but for an precise value, use the new set totals method via MQTT and Actions in Home Assistant. See Documentation near "Setting Meter Totals using Home Assistant" for instructions.', s0arr[offset])
+                                SetError(f"Pulsecount anomaly detected for meter {count}: Stored pulsecount '{measurement[count]['pulsecount']}' is higher than read '{pulsecount}'. This normally happens if S0PCM is restarted.", category='serial')
                                 delta = pulsecount
                                 measurement[count]['pulsecount'] = pulsecount
                                 measurement[count]['total'] += delta
@@ -460,6 +501,9 @@ class TaskReadSerial(threading.Thread):
                     # Update todays date - but we don't convert to str yet, it looks nicer without it in the yaml file ;-)
                     if str(measurement['date']) != str(datetime.date.today()):
                         measurement['date'] = datetime.date.today()
+
+                    # We reached this point, so we have a valid packet
+                    SetError(None, category='serial')
 
                     # Write the 'measurement.yaml' file with the new data. Only when data has changed.
                     if measurementstr == str(measurement):
@@ -480,7 +524,7 @@ class TaskReadSerial(threading.Thread):
                 elif datastr == '':
                     logger.warning('Empty Packet received, this can happen during start-up')
                 else:
-                    logger.error('Invalid Packet: \'%s\'', datastr)
+                    SetError(f"Invalid Packet: '{datastr}'", category='serial')
 
     def run(self):
         try:
@@ -508,6 +552,7 @@ class TaskDoMQTT(threading.Thread):
             self._connected = True
             self._discovery_sent = False
             logger.debug('MQTT successfully connected to broker')
+            self._trigger.set()
             self._mqttc.publish(config['mqtt']['base_topic'] + '/status', config['mqtt']['online'], retain=config['mqtt']['retain'])
             
             # Subscribe to 'set' commands
@@ -516,14 +561,14 @@ class TaskDoMQTT(threading.Thread):
             logger.debug('Subscribed to: ' + topic_set)
         else:
             self._connected = False
-            logger.error('MQTT failed to connect to broker \'%s\', retrying.', mqtt.connack_string(reason_code))
+            SetError(f"MQTT failed to connect to broker: {mqtt.connack_string(reason_code)}", category='mqtt')
 
     def on_disconnect(self, mqttc, obj, flags, reason_code, properties):
         self._connected = False
         if reason_code == 0:
             logger.debug('MQTT successfully disconnected to broker')
         else:
-            logger.error('MQTT failed to disconnect from broker \'%s\', retrying.', mqtt.connack_string(reason_code))
+            SetError(f"MQTT failed to disconnect from broker: {mqtt.connack_string(reason_code)}", category='mqtt')
 
     def on_message(self, mqttc, obj, msg):
         global measurementshare
@@ -540,7 +585,7 @@ class TaskDoMQTT(threading.Thread):
                 try:
                     meter_id = int(meter_id_str)
                 except ValueError:
-                    logger.warning(f"Ignored set command for non-integer meter ID: {meter_id_str}")
+                    SetError(f"Ignored set command for non-integer meter ID: {meter_id_str}", category='mqtt')
                     return
 
                 payload_str = msg.payload.decode('utf-8')
@@ -561,7 +606,7 @@ class TaskDoMQTT(threading.Thread):
                     # Given the "s0 pulse counter" nature, int is safer.
                     new_total = int(float(payload_str))
                 except ValueError:
-                    logger.warning(f"Ignored invalid payload for set command: {payload_str}")
+                    SetError(f"Ignored invalid payload for set command on meter {meter_id}: {payload_str}", category='mqtt')
                     return
 
                 logger.info(f"Received MQTT set command for meter {meter_id}. Setting total to {new_total}.")
@@ -590,7 +635,7 @@ class TaskDoMQTT(threading.Thread):
                     lock.release()
 
             except Exception as e:
-                logger.error(f"Failed to process set command: {e}")
+                SetError(f"Failed to process MQTT set command: {e}", category='mqtt')
 
     def on_publish(self, mqttc, obj, mid, reason_codes, properties):
         logger.debug('MQTT on_publish: mid: ' + str(mid))
@@ -635,6 +680,21 @@ class TaskDoMQTT(threading.Thread):
             "payload_off": config['mqtt']['offline']
         }
         self._mqttc.publish(status_topic, json.dumps(status_payload), retain=config['mqtt']['retain'])
+
+        # Error Sensor Discovery
+        error_unique_id = f"s0pcm_{identifier}_error"
+        error_topic = f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/{error_unique_id}/config"
+        logger.debug('MQTT discovery topic (error): ' + error_topic)
+
+        error_payload = {
+            "name": "S0PCM Reader Error",
+            "unique_id": error_unique_id,
+            "device": device_info,
+            "entity_category": "diagnostic",
+            "state_topic": config['mqtt']['base_topic'] + '/error',
+            "icon": "mdi:alert-circle"
+        }
+        self._mqttc.publish(error_topic, json.dumps(error_payload), retain=config['mqtt']['retain'])
 
         for key in measurementlocal:
             if isinstance(key, int):
@@ -770,12 +830,12 @@ class TaskDoMQTT(threading.Thread):
                     fallback_happened = True
                     continue
                 else:
-                    logger.error('MQTT connection failed. %s: \'%s\'', type(e).__name__, str(e))
+                    SetError(f"MQTT connection failed: {type(e).__name__}: '{str(e)}'", category='mqtt')
                     logger.error('Retry in %d seconds', config['mqtt']['connect_retry'])
                     time.sleep(config['mqtt']['connect_retry'])
                     continue
             except Exception as e:
-                logger.error('MQTT connection failed. %s: \'%s\'', type(e).__name__, str(e))
+                SetError(f"MQTT connection failed: {type(e).__name__}: '{str(e)}'", category='mqtt')
                 logger.error('Retry in %d seconds', config['mqtt']['connect_retry'])
                 time.sleep(config['mqtt']['connect_retry'])
                 continue
@@ -787,28 +847,29 @@ class TaskDoMQTT(threading.Thread):
             time.sleep(1)
 
             while not self._stopper.is_set():
-                #Do our publish here with information we get from other Thread
-
-                # If no interval is defined, we wait on an event from the other thread
-                # We need to clear it (directly), otherwise it will run at  100% cpu
-                if config['s0pcm']['publish_interval'] == None:
-                    self._trigger.wait()
-                    self._trigger.clear()
-
                 # Do some lock/release on global variables
                 lock.acquire()
                 measurementlocal = copy.deepcopy(measurementshare)
+                errorlocal = lasterrorshare
                 lock.release()
 
                 # Check if we are connected
                 if self._connected == False:
-                    logger.debug('Not connected to MQTT Broker')
-                    if config['s0pcm']['publish_interval'] != None:
-                        time.sleep(config['s0pcm']['publish_interval'])
+                    logger.debug('Not connected to MQTT Broker, waiting...')
+                    # Wait for a change or the connect retry interval
+                    self._trigger.wait(timeout=config['mqtt']['connect_retry'])
+                    self._trigger.clear()
                     continue
 
                 if not self._discovery_sent:
                     self.send_discovery(measurementlocal)
+
+                # Publish current error state
+                try:
+                    error_payload = errorlocal if errorlocal else ""
+                    self._mqttc.publish(config['mqtt']['base_topic'] + '/error', error_payload, retain=config['mqtt']['retain'])
+                except Exception as e:
+                    logger.error(f"Failed to publish error state to MQTT: {e}")
 
                 for key in measurementlocal:
                     if isinstance(key, int):
@@ -857,7 +918,7 @@ class TaskDoMQTT(threading.Thread):
                                         jsondata[subkey] = measurementlocal[key][subkey]
 
                             except Exception as e:
-                                logger.error('MQTT Publish Failed. Key=%s, SubKey=%s. %s: \'%s\'', str(key), subkey, type(e).__name__, str(e))
+                                SetError(f"MQTT Publish Failed for {instancename}/{subkey}. {type(e).__name__}: '{str(e)}'", category='mqtt')
 
                         # We should publish the json value
                         if config['mqtt']['split_topic'] == False:
@@ -867,14 +928,34 @@ class TaskDoMQTT(threading.Thread):
                                 # Do a MQTT Publish
                                 self._mqttc.publish(config['mqtt']['base_topic'] + '/' + instancename, json.dumps(jsondata), retain=config['mqtt']['retain'])
                             except Exception as e:
-                                logger.error('MQTT Publish Failed. %s: \'%s\'', type(e).__name__, str(e))
+                                SetError(f"MQTT Publish Failed for {instancename} (JSON). {type(e).__name__}: '{str(e)}'", category='mqtt')
+
+                # Publish current error state
+                error_published = False
+                try:
+                    error_payload = errorlocal if errorlocal else ""
+                    self._mqttc.publish(config['mqtt']['base_topic'] + '/error', error_payload, retain=config['mqtt']['retain'])
+                    error_published = True
+                except Exception as e:
+                    SetError(f"MQTT Publish Failed for error topic. {type(e).__name__}: '{str(e)}'", category='mqtt')
+
+                if self._connected and error_published:
+                    # Clear MQTT errors (connection, commands, previous publish failures)
+                    # We do this here in the loop to ensure they are published at least once after resolution.
+                    SetError(None, category='mqtt')
 
                 # Lets make also a copy of this one, then we can compare if there is a delta
                 measurementprevious = copy.deepcopy(measurementlocal)
 
-                # Now sleep according to publish interval
-                if config['s0pcm']['publish_interval'] != None:
-                    time.sleep(config['s0pcm']['publish_interval'])
+                # Now wait for the next event or interval
+                if config['s0pcm']['publish_interval'] == None:
+                    # Reactive mode: wait indefinitely for a trigger
+                    self._trigger.wait()
+                else:
+                    # Periodic mode: wait for trigger or interval timeout
+                    self._trigger.wait(timeout=config['s0pcm']['publish_interval'])
+                
+                self._trigger.clear()
 
             self._mqttc.loop_stop()
 
