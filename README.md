@@ -1,25 +1,44 @@
-# home-assistant-addon-s0pcm-reader
+# S0PCM Reader for Home Assistant
 
 [![GitHub Release][releases-shield]][releases]
 ![Reported Installations][installations-shield-stable]
 
-Based on the work of @ualex73 (https://github.com/ualex73/docker-s0pcm-reader) if you cannot run Home Assistant Add-ons maybe his docker is a nice alternative.
+An easy-to-use Home Assistant Add-on that reads pulse counters from an **S0PCM-2** or **S0PCM-5** device and sends the data to Home Assistant via MQTT.
 
-## Prerequisites
-- You need an S0PCM reader (either S0PCM-2 or S0PCM-5)
-- The Mosquitto broker add-on needs to be installed
+This add-on is based on the [docker-s0pcm-reader](https://github.com/ualex73/docker-s0pcm-reader) by @ualex73.
 
-## Installation instructions
+## ✨ Features
 
-* Add this repository to the Add-on repositories in Home Assistant
-* Click reload
-* Install the Add-on
-* Do the minimal needed configuration by selecting the S0PCM USB device
-* At this stage it might be a good idea to set the log level to Debug
-* Start the Add-on and observe the log tab
-* 3 files are now created in /share/s0pcm
-* If you want to have correct totals you can add them to the measurement.yaml file
-* Restart the add-on for the new totals to be used
+- **MQTT Auto-Discovery**: Automatically creates sensors in Home Assistant for all enabled inputs.
+- **TLS Support**: Secure your MQTT connection with TLS, featuring automatic fallback to plain MQTT if TLS fails.
+- **Watchdog / Auto-restart**: Built on S6-overlay for robust process supervision and automatic recovery.
+- **Remote Configuration**: Update meter totals directly via MQTT topics or Home Assistant actions.
+- **Flexible MQTT**: Supports external brokers, authentication, and custom base topics.
+
+## 🛠️ Prerequisites
+
+- An **S0PCM reader** (S0PCM-2 or S0PCM-5) connected via USB.
+- An **MQTT Broker** (e.g., the official Mosquitto broker add-on).
+
+## 🚀 Installation
+
+1. Add this repository to your Home Assistant Add-on store:
+   `https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader`
+2. Search for **S0PCM Reader** and click **Install**.
+3. Navigate to the **Configuration** tab.
+4. Select your **S0PCM USB device** (e.g., `/dev/ttyACM0`).
+5. **Start** the add-on.
+
+## 📖 Documentation
+
+Detailed documentation, including configuration guides and advanced settings, can be found in the **Documentation** tab within the Home Assistant add-on interface.
+
+### [Full Documentation (GitHub)](https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/blob/main/DOCS.md)
+*Use this link if you are viewing the repository on GitHub.*
+
+## 🤝 Support
+
+If you encounter issues or have suggestions, please [open an issue](https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/issues) on GitHub.
 
 [releases-shield]: https://img.shields.io/github/v/release/darkrain-nl/home-assistant-addon-s0pcm-reader?include_prereleases
 [releases]: https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/releases
