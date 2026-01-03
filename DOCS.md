@@ -159,9 +159,19 @@ You can configure the following options directly in the **Settings > Add-ons > S
 
 - **Device**: The serial port device (e.g., `/dev/ttyACM0`).
 - **Log Level**: The detail of the logs (debug, info, warning, error, critical).
-- **MQTT Port**: The port for unencrypted MQTT (defaults to `1883`).
-- **MQTT TLS Port**: The port for encrypted MQTT (defaults to `8883`).
+- **MQTT Host**: (Optional) Manual host for an external broker. If not set, it uses the internally discovered broker (e.g., Mosquitto).
+- **MQTT Port**: (Optional) The port for unencrypted MQTT (defaults to `1883`).
+- **MQTT Username**: (Optional) Manual username for an external broker.
+- **MQTT Password**: (Optional) Manual password for an external broker.
+- **MQTT Client ID**: (Optional) Unique ID for the MQTT client. If not set, a random ID is generated.
+- **MQTT Base Topic**: (Optional) The base topic for all MQTT messages (defaults to `s0pcmreader`).
+- **MQTT Protocol**: (Optional) MQTT protocol version (5.0, 3.1.1, or 3.1). Defaults to `5.0`.
+- **MQTT Discovery**: (Optional) Enable or disable Home Assistant auto-discovery (defaults to `true`).
+- **MQTT Discovery Prefix**: (Optional) The prefix for auto-discovery (defaults to `homeassistant`).
+- **MQTT Retain**: (Optional) Enable or disable message retention (defaults to `true`).
+- **MQTT Split Topic**: (Optional) Enable or disable publishing pulses on separate topics (defaults to `true`).
 - **MQTT TLS**: Enable or disable TLS for MQTT (defaults to `false`).
+- **MQTT TLS Port**: (Optional) The port for encrypted MQTT (defaults to `8883`).
 - **MQTT TLS CA**: Filename or full path to your CA certificate.
     - *Example (Relative):* `ca.crt` (placed in `/share/s0pcm/`)
     - *Example (Absolute):* `/ssl/ca.crt`

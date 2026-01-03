@@ -207,25 +207,28 @@ def ReadConfig():
     else:
         config['mqtt'] = {}
     if not 'host' in config['mqtt']: config['mqtt']['host'] = '127.0.0.1'
-    if not 'port' in config['mqtt']: config['mqtt']['port'] = 1883
+    if config['mqtt'].get('port') in [None, ""]: config['mqtt']['port'] = 1883
+    if config['mqtt'].get('tls_port') in [None, ""]: config['mqtt']['tls_port'] = 8883
     if not 'username' in config['mqtt']: config['mqtt']['username'] = None
     if not 'password' in config['mqtt']: config['mqtt']['password'] = None
-    if not 'base_topic' in config['mqtt']: config['mqtt']['base_topic'] = 's0pcm-reader'
-    if not 'client_id' in config['mqtt']: config['mqtt']['client_id'] = None
+    if not 'base_topic' in config['mqtt']: config['mqtt']['base_topic'] = 's0pcmreader'
+    if config['mqtt'].get('client_id') in [None, "", "None"]: config['mqtt']['client_id'] = None
     if not 'version' in config['mqtt']: config['mqtt']['version'] = mqtt.MQTTv5
-    if not 'retain' in config['mqtt']: config['mqtt']['retain'] = True
-    if not 'split_topic' in config['mqtt']: config['mqtt']['split_topic'] = True
-    if not 'connect_retry' in config['mqtt']: config['mqtt']['connect_retry'] = 5
-    if not 'online' in config['mqtt']: config['mqtt']['online'] = 'online'
-    if not 'offline' in config['mqtt']: config['mqtt']['offline'] = 'offline'
-    if not 'lastwill' in config['mqtt']: config['mqtt']['lastwill'] = 'offline'
-    if not 'discovery' in config['mqtt']: config['mqtt']['discovery'] = True
-    if not 'discovery_prefix' in config['mqtt']: config['mqtt']['discovery_prefix'] = 'homeassistant'
+    if config['mqtt'].get('retain') in [None, ""]: config['mqtt']['retain'] = True
+    if config['mqtt'].get('split_topic') in [None, ""]: config['mqtt']['split_topic'] = True
+    if config['mqtt'].get('connect_retry') in [None, ""]: config['mqtt']['connect_retry'] = 5
+    if config['mqtt'].get('online') in [None, ""]: config['mqtt']['online'] = 'online'
+    if config['mqtt'].get('offline') in [None, ""]: config['mqtt']['offline'] = 'offline'
+    if config['mqtt'].get('lastwill') in [None, ""]: config['mqtt']['lastwill'] = 'offline'
+    if config['mqtt'].get('discovery') in [None, ""]: config['mqtt']['discovery'] = True
+    if config['mqtt'].get('discovery_prefix') in [None, ""]: config['mqtt']['discovery_prefix'] = 'homeassistant'
 
     if str(config['mqtt']['version']) == '3.1':
       config['mqtt']['version'] = mqtt.MQTTv31
     elif str(config['mqtt']['version']) == '3.1.1':
       config['mqtt']['version'] = mqtt.MQTTv311
+    elif str(config['mqtt']['version']) == '5.0':
+      config['mqtt']['version'] = mqtt.MQTTv5
     else:
       config['mqtt']['version'] = mqtt.MQTTv5
  
@@ -233,7 +236,6 @@ def ReadConfig():
     if not 'tls' in config['mqtt']: config['mqtt']['tls'] = False
     if not 'tls_ca' in config['mqtt']: config['mqtt']['tls_ca'] = ''
     if not 'tls_check_peer' in config['mqtt']: config['mqtt']['tls_check_peer'] = False
-    if not 'tls_port' in config['mqtt']: config['mqtt']['tls_port'] = 8883
 
     # Append the configuration path if no '/' is in front of the CA file
     if config['mqtt']['tls_ca'] != '':
