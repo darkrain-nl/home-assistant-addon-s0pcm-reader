@@ -75,7 +75,7 @@ The add-on monitors its internal operations and reports any issues to the `<base
 - **MQTT Command Errors:** If an invalid payload is sent to a `/total/set` topic.
 - **Pulsecount Anomalies:** If a sudden jump or reset in pulse count is detected (e.g., after an S0PCM restart).
 
-Once the issue is resolved and a valid data packet is successfully processed, the error sensor will automatically clear itself (it will become empty).
+Once the issue is resolved and a valid data packet is successfully processed, the error sensor will automatically clear itself and display **"No Error"**.
 
 ## MQTT TLS Support
 

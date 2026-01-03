@@ -913,7 +913,7 @@ class TaskDoMQTT(threading.Thread):
 
                 # Publish current error state
                 try:
-                    error_payload = errorlocal if errorlocal else ""
+                    error_payload = errorlocal if errorlocal else "No Error"
                     self._mqttc.publish(config['mqtt']['base_topic'] + '/error', error_payload, retain=config['mqtt']['retain'])
                 except Exception as e:
                     logger.error(f"Failed to publish error state to MQTT: {e}")
@@ -1010,7 +1010,7 @@ class TaskDoMQTT(threading.Thread):
                 # Publish current error state
                 error_published = False
                 try:
-                    error_payload = errorlocal if errorlocal else ""
+                    error_payload = errorlocal if errorlocal else "No Error"
                     self._mqttc.publish(config['mqtt']['base_topic'] + '/error', error_payload, retain=config['mqtt']['retain'])
                     error_published = True
                 except Exception as e:

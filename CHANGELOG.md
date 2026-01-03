@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
+## [1.5.2] - 2026-01-03
+### Changed
+- Improved error sensor clarity: The error sensor now displays "No Error" instead of an empty value when the system is operating normally.
+
 ## [1.5.1] - 2026-01-03
 ### Added
 - Expanded MQTT information: added a new `base_topic/info` topic containing addon version, hardware firmware, startup time, uptime, and serial port.
