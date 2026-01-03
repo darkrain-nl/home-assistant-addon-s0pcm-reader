@@ -690,6 +690,7 @@ class TaskDoMQTT(threading.Thread):
             "unique_id": status_unique_id,
             "device": device_info,
             "device_class": "connectivity",
+            "entity_category": "diagnostic",
             "state_topic": config['mqtt']['base_topic'] + '/status',
             "payload_on": config['mqtt']['online'],
             "payload_off": config['mqtt']['offline']
