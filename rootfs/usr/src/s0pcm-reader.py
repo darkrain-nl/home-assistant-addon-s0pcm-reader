@@ -91,7 +91,7 @@ lock = threading.Lock()
 config = {}
 measurement = {}
 measurementshare = {}
-s0pcmreaderversion = '2026.01.02'
+s0pcmreaderversion = '2026.01.03'
 
 # ------------------------------------------------------------------------------------
 # Parameters
@@ -234,7 +234,12 @@ def ReadConfig():
 
     logger.info(f'Start: s0pcm-reader - version: {s0pcmreaderversion}')
     
-    logger.debug('Config: %s', str(config))
+    # Redact password from logging
+    config_log = copy.deepcopy(config)
+    if 'mqtt' in config_log and 'password' in config_log['mqtt'] and config_log['mqtt']['password'] is not None:
+        config_log['mqtt']['password'] = '********'
+
+    logger.debug('Config: %s', str(config_log))
 
 # ------------------------------------------------------------------------------------
 # Read the 'measurement.yaml' file
