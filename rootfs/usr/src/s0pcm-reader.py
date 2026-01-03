@@ -91,7 +91,7 @@ lock = threading.Lock()
 config = {}
 measurement = {}
 measurementshare = {}
-s0pcmreaderversion = '2026.01.02'
+s0pcmreaderversion = '2026.01.03'
 
 # ------------------------------------------------------------------------------------
 # Parameters
@@ -234,7 +234,12 @@ def ReadConfig():
 
     logger.info(f'Start: s0pcm-reader - version: {s0pcmreaderversion}')
     
-    logger.debug('Config: %s', str(config))
+    # Redact password from logging
+    config_log = copy.deepcopy(config)
+    if 'mqtt' in config_log and 'password' in config_log['mqtt'] and config_log['mqtt']['password'] is not None:
+        config_log['mqtt']['password'] = '********'
+
+    logger.debug('Config: %s', str(config_log))
 
 # ------------------------------------------------------------------------------------
 # Read the 'measurement.yaml' file
@@ -406,7 +411,7 @@ class TaskReadSerial(threading.Thread):
                                 measurement[count]['today'] += delta
 
                             elif pulsecount < measurement[count]['pulsecount']:
-                                logger.warning('Stored pulsecount \'%s\' is higher then read, this normally happens if the s0pcm is restarted. We will continue counting, but for an precise value, read the meter value and correct the totals in the \'%s\' file', s0arr[offset], measurementname)
+                                logger.warning('Stored pulsecount \'%s\' is higher then read, this normally happens if the s0pcm is restarted. We will continue counting, but for an precise value, use the new set totals method via MQTT and Actions in Home Assistant. See Documentation near "Setting Meter Totals using Home Assistant" for instructions.', s0arr[offset])
                                 delta = pulsecount
                                 measurement[count]['pulsecount'] = pulsecount
                                 measurement[count]['total'] += delta
