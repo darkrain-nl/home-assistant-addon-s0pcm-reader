@@ -411,7 +411,7 @@ class TaskReadSerial(threading.Thread):
                                 measurement[count]['today'] += delta
 
                             elif pulsecount < measurement[count]['pulsecount']:
-                                logger.warning('Stored pulsecount \'%s\' is higher then read, this normally happens if the s0pcm is restarted. We will continue counting, but for an precise value, read the meter value and correct the totals in the \'%s\' file', s0arr[offset], measurementname)
+                                logger.warning('Stored pulsecount \'%s\' is higher then read, this normally happens if the s0pcm is restarted. We will continue counting, but for an precise value, use the new set totals method via MQTT and Actions in Home Assistant. See Documentation near "Setting Meter Totals using Home Assistant" for instructions.', s0arr[offset])
                                 delta = pulsecount
                                 measurement[count]['pulsecount'] = pulsecount
                                 measurement[count]['total'] += delta

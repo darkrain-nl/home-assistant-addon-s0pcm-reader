@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.1] - 2026-01-03
 ### Changed
 - Fixed security issue where MQTT password was visible in debug logs.
+- Updated error message to point to the new set totals method via MQTT and Actions in Home Assistant, with a reference to the documentation.
 
 
 ## [1.3.0] - 2026-01-02
