@@ -11,6 +11,7 @@ import ssl
 import argparse
 import copy
 import json
+import os
 
 """
 Description
@@ -91,7 +92,38 @@ lock = threading.Lock()
 config = {}
 measurement = {}
 measurementshare = {}
-s0pcmreaderversion = '2026.01.03'
+# ------------------------------------------------------------------------------------
+# Version Handling
+# ------------------------------------------------------------------------------------
+def GetVersion():
+    # 1. Try environment variable (provided by HA addon startup)
+    version = os.getenv('S0PCM_READER_VERSION')
+    if version:
+        return version
+
+    # 2. Try to read from config.yaml (for local development)
+    # Search in common locations relative to this script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    search_paths = [
+        os.path.join(script_dir, '../../../config.yaml'), # Local repo structure
+        os.path.join(script_dir, '../../config.yaml'),
+        os.path.join(script_dir, 'config.yaml'),
+        './config.yaml'
+    ]
+
+    for path in search_paths:
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    config_yaml = yaml.safe_load(f)
+                    if config_yaml and 'version' in config_yaml:
+                        return f"{config_yaml['version']} (local)"
+            except Exception:
+                pass
+    
+    return 'dev'
+
+s0pcmreaderversion = GetVersion()
 
 # ------------------------------------------------------------------------------------
 # Parameters
