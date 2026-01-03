@@ -8,7 +8,8 @@ When the add-on starts, it automatically creates a device named **S0PCM Reader**
 - **Total**: Total accumulated count.
 - **Today**: Count for the current day.
 - **Yesterday**: Count for the previous day.
-- **Status**: A binary sensor showing if the reader is connected to MQTT (connectivity class).
+- **Status**: A binary sensor showing if the reader is connected to MQTT.
+- **Error**: A diagnostic sensor that displays the last error encountered (e.g., serial connection failure, invalid MQTT command). This sensor clears automatically when a valid packet is received.
 
 **Naming:**
 The entity names are derived from the `name` field in your `measurement.yaml`. If you haven't configured a name, it defaults to the input number (e.g., "1 Total").
@@ -58,6 +59,19 @@ Send an MQTT message to the following topic:
 `mosquitto_pub -t "s0pcmreader/1/total/set" -m "1000"`
 
 > **Note:** This command only updates the **Total** counter. The **Today** and **Yesterday** counters remain unchanged and will continue to count based on the pulses received relative to the previous day's total.
+
+## MQTT Error Reporting
+
+The add-on monitors its internal operations and reports any issues to the `<base_topic>/error` topic. If MQTT Discovery is enabled, this will appear as an **Error** sensor in Home Assistant.
+
+**Reported errors include:**
+- **Serial Connection Failures:** If the S0PCM device is unplugged or the port is invalid.
+- **MQTT Connection Issues:** If the broker is unreachable or the connection is lost (reported once reconnected).
+- **Packet Parsing Issues:** If the data received from the S0PCM is corrupted or in an unknown format.
+- **MQTT Command Errors:** If an invalid payload is sent to a `/total/set` topic.
+- **Pulsecount Anomalies:** If a sudden jump or reset in pulse count is detected (e.g., after an S0PCM restart).
+
+Once the issue is resolved and a valid data packet is successfully processed, the error sensor will automatically clear itself (it will become empty).
 
 ## MQTT TLS Support
 
