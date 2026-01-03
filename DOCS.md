@@ -9,7 +9,11 @@ When the add-on starts, it automatically creates a device named **S0PCM Reader**
 - **Today**: Count for the current day.
 - **Yesterday**: Count for the previous day.
 - **Status**: A binary sensor showing if the reader is connected to MQTT.
-- **Error**: A diagnostic sensor that displays the last error encountered (e.g., serial connection failure, invalid MQTT command). This sensor clears automatically when a valid packet is received.
+- **Error**: A diagnostic sensor that displays the last error encountered.
+- **Addon Version**: Current version of the S0PCM Reader addon.
+- **S0PCM Firmware**: Firmware version reported by the hardware.
+- **Startup Time**: Timestamp of when the addon started.
+- **Serial Port**: The configured USB/serial port.
 
 **Naming:**
 The entity names are derived from the `name` field in your `measurement.yaml`. If you haven't configured a name, it defaults to the input number (e.g., "1 Total").
@@ -95,9 +99,13 @@ The following MQTT messages are sent:
 ```
 <base_topic>/1/total
 <base_topic>/1/today
-<base_topic>/1/yesterday
-...
 <base_topic>/X/total
+<base_topic>/status
+<base_topic>/error
+<base_topic>/version
+<base_topic>/firmware
+<base_topic>/startup_time
+<base_topic>/port
 ```
 
 If `mqtt_split_topic` is set to `false`, the data is sent as a JSON string:
