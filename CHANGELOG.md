@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-01-03
+### Added
+- Implemented robust MQTT TLS support with automatic fallback to plain connections if TLS fails.
+- Disabled TLS certificate verification and hostname checking by default to improve compatibility with self-signed certificates.
+- Added support for external MQTT brokers with manual host, username, and password configuration options.
+- Added support for manual MQTT Client ID configuration.
+- Standardized MQTT base topic default to `s0pcmreader` across all files and exposed it as a UI configuration option.
+- Exposed advanced MQTT parameters including Protocol version, Discovery (prefix and toggle), Retention, and Split Topic settings.
+- Added configuration options for encrypted and unencrypted MQTT ports with automatic port swapping during fallback.
+- Exposed TLS, Device, and Log Level options in the Home Assistant addon configuration UI for easier management.
+- Added MQTT TLS documentation and HA UI configuration instructions.
+
 ## [1.3.2] - 2026-01-03
 ### Added
 - Implemented automatic version syncing between `config.yaml` and the Python script at runtime.

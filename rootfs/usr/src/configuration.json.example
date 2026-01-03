@@ -15,7 +15,8 @@
     "split_topic": true,
     "tls": false,
     "tls_ca": "",
-    "tls_check_peer": true,
+    "tls_check_peer": false,
+    "tls_port": 8883,
     "connect_retry": 5
   },
   "serial": {
