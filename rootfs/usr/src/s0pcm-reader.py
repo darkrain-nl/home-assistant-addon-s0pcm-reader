@@ -232,7 +232,8 @@ def ReadConfig():
     # TLS configuration
     if not 'tls' in config['mqtt']: config['mqtt']['tls'] = False
     if not 'tls_ca' in config['mqtt']: config['mqtt']['tls_ca'] = ''
-    if not 'tls_check_peer' in config['mqtt']: config['mqtt']['tls_check_peer'] = True
+    if not 'tls_check_peer' in config['mqtt']: config['mqtt']['tls_check_peer'] = False
+    if not 'tls_port' in config['mqtt']: config['mqtt']['tls_port'] = 8883
 
     # Append the configuration path if no '/' is in front of the CA file
     if config['mqtt']['tls_ca'] != '':
@@ -263,6 +264,7 @@ def ReadConfig():
     if not 'dailystat' in config['s0pcm']: config['s0pcm']['dailystat'] = None
     if not 'publish_interval' in config['s0pcm']: config['s0pcm']['publish_interval'] = None
     if not 'publish_onchange' in config['s0pcm']: config['s0pcm']['publish_onchange'] = True
+
 
     logger.info(f'Start: s0pcm-reader - version: {s0pcmreaderversion}')
     
@@ -683,14 +685,7 @@ class TaskDoMQTT(threading.Thread):
         self._discovery_sent = True
         logger.info('Sent MQTT discovery messages')
 
-    def DoMQTT(self):
-
-        global measurementshare
-        measurementprevious = {}
-
-        # Copy the measurements to previous one, preventing send values when on change is enabled
-        measurementprevious = measurement
-
+    def _setup_mqtt_client(self, use_tls):
         # Define our MQTT Client
         self._mqttc = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=config['mqtt']['client_id'], protocol=config['mqtt']['version'])
         self._mqttc.on_connect = self.on_connect
@@ -705,28 +700,78 @@ class TaskDoMQTT(threading.Thread):
             self._mqttc.username_pw_set(config['mqtt']['username'], config['mqtt']['password'])
 
         # Setup TLS if requested
-        if config['mqtt']['tls']:
-            context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+        if use_tls:
+            try:
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            except AttributeError:
+                # Fallback for older Python versions
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS)
 
             if config['mqtt']['tls_ca'] == '':
-                context.verify_mode = ssl.CERT_NONE
                 context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
             else:
-                context.verify_mode = ssl.CERT_REQUIRED
-                context.load_verify_locations(cafile=config['mqtt']['tls_ca'])
-                context.check_hostname = config['mqtt']['tls_check_peer']
+                if config['mqtt']['tls_check_peer']:
+                    context.verify_mode = ssl.CERT_REQUIRED
+                    context.check_hostname = True
+                else:
+                    context.check_hostname = False
+                    context.verify_mode = ssl.CERT_NONE
+                
+                try:
+                    context.load_verify_locations(cafile=config['mqtt']['tls_ca'])
+                except Exception as e:
+                    logger.error('Failed to load TLS CA file \'%s\': %s', config['mqtt']['tls_ca'], str(e))
+                    return False
 
             self._mqttc.tls_set_context(context=context)
 
         # Set last will
         self._mqttc.will_set(config['mqtt']['base_topic'] + '/status', config['mqtt']['lastwill'], retain=config['mqtt']['retain'])
+        return True
+
+    def DoMQTT(self):
+
+        global measurementshare
+        measurementprevious = {}
+
+        # Copy the measurements to previous one, preventing send values when on change is enabled
+        measurementprevious = measurement
+
+        use_tls = config['mqtt']['tls']
+        fallback_happened = False
 
         while not self._stopper.is_set():
 
-            logger.debug('Connecting to MQTT Broker \'%s:%s\'', config['mqtt']['host'], str(config['mqtt']['port']))
+            if not self._setup_mqtt_client(use_tls):
+                logger.error('Failed to setup MQTT client, retrying in %d seconds', config['mqtt']['connect_retry'])
+                time.sleep(config['mqtt']['connect_retry'])
+                continue
+
+            # Handle automatic port swapping (configured plain port vs configured TLS port)
+            plain_port = int(config['mqtt']['port'])
+            tls_port = int(config['mqtt']['tls_port'])
+            
+            if use_tls:
+                current_port = tls_port
+            else:
+                current_port = plain_port
+
+            logger.debug('Connecting to MQTT Broker \'%s:%s\' (TLS: %s)', config['mqtt']['host'], str(current_port), str(use_tls))
 
             try:
-                self._mqttc.connect(config['mqtt']['host'], int(config['mqtt']['port']), 60)
+                self._mqttc.connect(config['mqtt']['host'], current_port, 60)
+            except (ssl.SSLError, ssl.CertificateError, ConnectionResetError) as e:
+                if use_tls and not fallback_happened:
+                    logger.warning('MQTT TLS connection failed: %s: \'%s\'. Falling back to plain MQTT.', type(e).__name__, str(e))
+                    use_tls = False
+                    fallback_happened = True
+                    continue
+                else:
+                    logger.error('MQTT connection failed. %s: \'%s\'', type(e).__name__, str(e))
+                    logger.error('Retry in %d seconds', config['mqtt']['connect_retry'])
+                    time.sleep(config['mqtt']['connect_retry'])
+                    continue
             except Exception as e:
                 logger.error('MQTT connection failed. %s: \'%s\'', type(e).__name__, str(e))
                 logger.error('Retry in %d seconds', config['mqtt']['connect_retry'])
