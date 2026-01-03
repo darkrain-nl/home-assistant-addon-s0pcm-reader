@@ -13,6 +13,7 @@ This add-on is based on the [docker-s0pcm-reader](https://github.com/ualex73/doc
 - **TLS Support**: Secure your MQTT connection with TLS, featuring automatic fallback to plain MQTT if TLS fails.
 - **Watchdog / Auto-restart**: Built on S6-overlay for robust process supervision and automatic recovery.
 - **Remote Configuration**: Update meter totals directly via MQTT topics or Home Assistant actions.
+- **Real-time Error Reporting**: Dedicated MQTT topic and diagnostic sensor for instant feedback on serial or configuration issues.
 - **Flexible MQTT**: Supports external brokers, authentication, and custom base topics.
 
 ## 🛠️ Prerequisites
