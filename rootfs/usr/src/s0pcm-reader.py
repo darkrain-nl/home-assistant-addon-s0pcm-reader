@@ -685,6 +685,9 @@ class TaskDoMQTT(threading.Thread):
         status_topic = f"{config['mqtt']['discovery_prefix']}/binary_sensor/{identifier}/{status_unique_id}/config"
         logger.debug('MQTT discovery topic (status): ' + status_topic)
 
+        # First, clear any existing retained discovery message to force HA to re-register
+        self._mqttc.publish(status_topic, "", retain=True)
+        
         status_payload = {
             "name": "S0PCM Reader Status",
             "unique_id": status_unique_id,
