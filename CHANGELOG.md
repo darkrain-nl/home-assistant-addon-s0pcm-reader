@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
+## [1.5.4] - 2026-01-04
+### Fixed
+- Fixed configuration defaults: Optional MQTT settings (mqtt_protocol, mqtt_discovery, mqtt_discovery_prefix, mqtt_retain, mqtt_split_topic) are now hidden under "Show unused optional configuration options" for a cleaner UI, while still applying correct defaults (5.0, true, homeassistant, true, true respectively) when not explicitly set.
+- Changed default log_level from "warning" to "info" to match the UI default.
+
+### Changed
+- Updated DOCS.md with comprehensive configuration documentation including all optional parameters organized by category (General, Connection Settings, Advanced MQTT Settings, Security Settings) with their correct default values clearly documented.
+
 ## [1.5.3] - 2026-01-03
 ### Changed
 - Moved Status entity to Diagnostic category in Home Assistant for better organization alongside other diagnostic sensors.

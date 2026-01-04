@@ -22,19 +22,37 @@ The entity names are derived from the `name` field in your `measurement.yaml`. I
 
 You can configure the following options directly in the **Settings > Add-ons > S0PCM Reader > Configuration** tab in Home Assistant:
 
+### Required Settings
 - **Device**: The serial port device (e.g., `/dev/ttyACM0`).
-- **Log Level**: The detail of the logs (debug, info, warning, error, critical).
-- **MQTT Host**: (Optional) Manual host for an external broker. If not set, it uses the internally discovered broker.
-- **MQTT Port**: (Optional) The port for unencrypted MQTT (defaults to `1883`).
-- **MQTT Username**: (Optional) Manual username for an external broker.
-- **MQTT Password**: (Optional) Manual password for an external broker.
-- **MQTT Client ID**: (Optional) Unique ID for the MQTT client.
-- **MQTT Base Topic**: (Optional) The base topic for all MQTT messages (defaults to `s0pcmreader`).
-- **MQTT Discovery**: (Optional) Enable or disable Home Assistant auto-discovery (defaults to `true`).
-- **MQTT TLS**: Enable or disable TLS for MQTT (defaults to `false`).
-- **MQTT TLS Port**: (Optional) The port for encrypted MQTT (defaults to `8883`).
+
+### Optional Settings
+
+> [!NOTE]
+> Most optional settings are hidden by default for a cleaner interface. Click **"Show unused optional configuration options"** in the Home Assistant UI to reveal additional settings like MQTT host, port, protocol, discovery options, and more. All hidden settings have sensible defaults that work out-of-the-box.
+
+#### General
+- **Log Level**: The detail of the logs (debug, info, warning, error, critical). Defaults to `info`.
+
+#### Connection Settings
+- **MQTT Host**: Manual host for an external broker. If not set, it uses the internally discovered broker (typically `core-mosquitto`).
+- **MQTT Port**: The port for unencrypted MQTT. Defaults to `1883`.
+- **MQTT Username**: Manual username for an external broker.
+- **MQTT Password**: Manual password for an external broker.
+- **MQTT Client ID**: Unique ID for the MQTT client. Defaults to auto-generated.
+- **MQTT Base Topic**: The base topic for all MQTT messages. Defaults to `s0pcmreader`.
+- **MQTT Protocol**: MQTT protocol version (5.0, 3.1.1, or 3.1). Defaults to `5.0`.
+
+#### Advanced MQTT Settings
+- **MQTT Discovery**: Enable or disable Home Assistant auto-discovery. Defaults to `true`.
+- **MQTT Discovery Prefix**: Discovery prefix for Home Assistant. Defaults to `homeassistant`.
+- **MQTT Retain**: Enable or disable message retention on the broker. Defaults to `true`.
+- **MQTT Split Topic**: Enable or disable split topics (separate topics for total/today/yesterday vs. JSON). Defaults to `true`.
+
+#### Security Settings
+- **MQTT TLS**: Enable or disable TLS for MQTT. Defaults to `false`.
+- **MQTT TLS Port**: The port for encrypted MQTT. Defaults to `8883`.
 - **MQTT TLS CA**: Filename or full path to your CA certificate.
-- **MQTT TLS Check Peer**: Enable or disable certificate and hostname verification (defaults to `false`).
+- **MQTT TLS Check Peer**: Enable or disable certificate and hostname verification. Defaults to `false`.
 
 > **Note:** If these options are set in the Home Assistant UI, they will override any corresponding settings in your `configuration.json` file.
 

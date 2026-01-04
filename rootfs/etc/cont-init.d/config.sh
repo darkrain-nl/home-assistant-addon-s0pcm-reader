@@ -2,7 +2,7 @@
 # ==============================================================================
 # Generate S0PCM Reader config file
 # ==============================================================================
-declare log_level="warning"
+declare log_level="info"
 declare mqtt_host="core-mosquitto"
 declare mqtt_port="1883"
 declare mqtt_username=""
