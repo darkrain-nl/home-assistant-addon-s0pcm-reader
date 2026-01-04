@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
+## [1.5.5] - 2026-01-04
+### Changed
+- Harmonized note styles in `DOCS.md` to use the `[!NOTE]` blockquote format for better readability and consistency.
+
 ## [1.5.4] - 2026-01-04
 ### Fixed
 - Fixed configuration defaults: Optional MQTT settings (mqtt_protocol, mqtt_discovery, mqtt_discovery_prefix, mqtt_retain, mqtt_split_topic) are now hidden under "Show unused optional configuration options" for a cleaner UI, while still applying correct defaults (5.0, true, homeassistant, true, true respectively) when not explicitly set.

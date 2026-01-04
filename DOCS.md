@@ -54,7 +54,8 @@ You can configure the following options directly in the **Settings > Add-ons > S
 - **MQTT TLS CA**: Filename or full path to your CA certificate.
 - **MQTT TLS Check Peer**: Enable or disable certificate and hostname verification. Defaults to `false`.
 
-> **Note:** If these options are set in the Home Assistant UI, they will override any corresponding settings in your `configuration.json` file.
+> [!NOTE]
+> If these options are set in the Home Assistant UI, they will override any corresponding settings in your `configuration.json` file.
 
 ## Setting Meter Totals
 
@@ -80,7 +81,8 @@ Send an MQTT message to the following topic:
 **Example:**
 `mosquitto_pub -t "s0pcmreader/1/total/set" -m "1000"`
 
-> **Note:** This command only updates the **Total** counter. The **Today** and **Yesterday** counters remain unchanged and will continue to count based on the pulses received relative to the previous day's total.
+> [!NOTE]
+> This command only updates the **Total** counter. The **Today** and **Yesterday** counters remain unchanged and will continue to count based on the pulses received relative to the previous day's total.
 
 ## MQTT Error Reporting
 
