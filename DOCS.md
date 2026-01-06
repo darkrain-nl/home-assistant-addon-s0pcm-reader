@@ -33,7 +33,7 @@ You can configure the following options directly in the **Settings > Add-ons > S
 #### General
 - **Log Level**: The detail of the logs (debug, info, warning, error, critical). Defaults to `info`.
 
-#### Connection Settings
+#### Connection Options
 - **MQTT Host**: Manual host for an external broker. If not set, it uses the internally discovered broker (typically `core-mosquitto`).
 - **MQTT Port**: The port for unencrypted MQTT. Defaults to `1883`.
 - **MQTT Username**: Manual username for an external broker.
@@ -42,13 +42,13 @@ You can configure the following options directly in the **Settings > Add-ons > S
 - **MQTT Base Topic**: The base topic for all MQTT messages. Defaults to `s0pcmreader`.
 - **MQTT Protocol**: MQTT protocol version (5.0, 3.1.1, or 3.1). Defaults to `5.0`.
 
-#### Advanced MQTT Settings
+#### Advanced MQTT Options
 - **MQTT Discovery**: Enable or disable Home Assistant auto-discovery. Defaults to `true`.
 - **MQTT Discovery Prefix**: Discovery prefix for Home Assistant. Defaults to `homeassistant`.
 - **MQTT Retain**: Enable or disable message retention on the broker. Defaults to `true`.
 - **MQTT Split Topic**: Enable or disable split topics (separate topics for total/today/yesterday vs. JSON). Defaults to `true`.
 
-#### Security Settings
+#### Security Options
 - **MQTT TLS**: Enable or disable TLS for MQTT. Defaults to `false`.
 - **MQTT TLS Port**: The port for encrypted MQTT. Defaults to `8883`.
 - **MQTT TLS CA**: Filename or full path to your CA certificate.
@@ -101,9 +101,12 @@ Once the issue is resolved and a valid data packet is successfully processed, th
 
 The add-on supports secure MQTT connections using TLS.
 
+> [!WARNING]
+> **Security Notice**: This addon defaults to unencrypted MQTT for ease of setup with local brokers. If your MQTT broker is exposed to external networks or you want additional security, enable the **mqtt_tls** option in the **Configuration** tab.
+
 - **Automatic Fallback:** If TLS connection fails (e.g., certificate error), the add-on will automatically fall back to a plain non-encrypted connection to ensure stable operation.
 - **Port Swapping:** By default, the addon uses **MQTT Port** for plain connections and **MQTT TLS Port** for encrypted connections.
-- **Insecure by Default:** Certificate validation is disabled by default (`tls_check_peer: false`) for compatibility with local brokers using self-signed certificates.
+- **Insecure by Default:** Certificate validation is disabled by default (`tls_check_peer: false`) for compatibility with local brokers using self-signed certificates. To enable strict verification, set `mqtt_tls_check_peer` to `true`.
 - **CA Certificate:** Provide the path in **MQTT TLS CA**.
   - **Relative path:** `ca.crt` (looked for in `/share/s0pcm/ca.crt`).
   - **Absolute path:** e.g., `/ssl/mosquitto.crt`.
@@ -119,16 +122,18 @@ The following MQTT messages are sent:
 ```
 <base_topic>/1/total
 <base_topic>/1/today
-<base_topic>/X/total
+<base_topic>/<meter_id>/total
 <base_topic>/status
 <base_topic>/error
 <base_topic>/version
 <base_topic>/firmware
 <base_topic>/startup_time
 <base_topic>/port
+<base_topic>/info  (JSON containing all diagnostic info)
 ```
 
-If `mqtt_split_topic` is set to `false`, the data is sent as a JSON string:
+If `mqtt_split_topic` is set to `false`, the **meter readings** are sent as a JSON string to a single topic. Diagnostic sensors (Status, Error, Version, etc.) are **always** sent to their own separate topics regardless of this setting.
+
 `base_topic/1` -> `{"total": 12345, "today": 15, "yesterday": 77}`
 
 ---
@@ -138,7 +143,7 @@ If `mqtt_split_topic` is set to `false`, the data is sent as a JSON string:
 > [!NOTE]
 > This section is only for users who prefer manual configuration or are using older versions of Home Assistant.
 
-If you are not using MQTT Discovery, you can setup sensors manually in `configuration.yaml`:
+If you are not using MQTT Discovery and stick to the default `mqtt_split_topic: true`, you can setup sensors manually in `configuration.yaml`:
 
 ```yaml
 mqtt:
@@ -146,7 +151,7 @@ mqtt:
     - state_topic: "s0pcmreader/1/total"
       name: "Water Totaal"
       unique_id: "water_totaal"
-      value_template: "{{ value_json | float / 1000 }}"
+      value_template: "{{ value | float / 1000 }}"
       unit_of_measurement: m³
       state_class: total_increasing
       device_class: water
@@ -167,7 +172,7 @@ mqtt:
   sensor:
     - name: "Heatpump usage"
       state_topic: "s0pcmreader/1/total"
-      value_template: "{{ value_json | float / 100 }}"
+      value_template: "{{ value | float / 100 }}"
       unit_of_measurement: kWh
       device_class: energy
       state_class: total

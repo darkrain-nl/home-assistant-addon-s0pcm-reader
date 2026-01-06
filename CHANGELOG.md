@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
+## [1.5.6] - 2026-01-06
+### Changed
+- Improved documentation clarity: refined configuration section headers, standardized MQTT topic placeholders, and clarified manual configuration examples.
+- Added prominent security warning regarding unencrypted MQTT defaults and clarified TLS setup instructions.
+
 ## [1.5.5] - 2026-01-04
 ### Changed
 - Harmonized note styles in `DOCS.md` to use the `[!NOTE]` blockquote format for better readability and consistency.

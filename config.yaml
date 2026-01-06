@@ -1,6 +1,6 @@
 name: "S0PCM Reader"
 description: "S0PCM reader based on docker-s0pcm-reader"
-version: "1.5.5"
+version: "1.5.6"
 slug: "s0pcm_reader"
 url: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader"
 arch:
