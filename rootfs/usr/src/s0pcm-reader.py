@@ -209,6 +209,31 @@ logger.setLevel(logging.DEBUG)
 logger.propagate = False
 
 # ------------------------------------------------------------------------------------
+# Custom Rotating File Handler to log rotation events
+# ------------------------------------------------------------------------------------
+class DetailedRotatingFileHandler(RotatingFileHandler):
+    def doRollover(self):
+        try:
+            # Manually format timestamp to match logging format
+            now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]
+            
+            # Log that rotation is starting in the OLD file (write directly to stream)
+            if self.stream:
+                self.stream.write(f"{now} INFO: --- Log Rotation Started ---\n")
+                self.stream.flush()
+
+            # Perform the actual rotation
+            super().doRollover()
+
+            # Log that a new file has started in the NEW file (write directly to stream)
+            if self.stream:
+                self.stream.write(f"{now} INFO: --- New Log File Started ---\n")
+                self.stream.flush()
+        except Exception:
+            # Fallback to standard rollover if manual write fails
+            super().doRollover()
+
+# ------------------------------------------------------------------------------------
 # Read the 'configuration.yaml' file
 # ------------------------------------------------------------------------------------
 def ReadConfig():
@@ -224,7 +249,7 @@ def ReadConfig():
 
     # Setup 'log' variables
     config.setdefault('log', {})
-    config['log'].setdefault('size', 10)
+    config['log'].setdefault('size', 5)
     config['log'].setdefault('count', 3)
     
     # Handle log level
@@ -241,7 +266,7 @@ def ReadConfig():
     config['log']['size'] = config['log']['size'] * 1024 * 1024
 
     # Setup logfile and rotation
-    handler = RotatingFileHandler(logname, maxBytes=config['log']['size'], backupCount=config['log']['count'])
+    handler = DetailedRotatingFileHandler(logname, maxBytes=config['log']['size'], backupCount=config['log']['count'])
     handler.setLevel(config['log']['level'])
     handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
     logger.addHandler(handler)

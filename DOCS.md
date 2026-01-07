@@ -61,6 +61,8 @@ You can configure the following options directly in the **Settings > Add-ons > S
 
 #### General
 - **Log Level**: The detail of the logs (debug, info, warning, error, critical). Defaults to `info`.
+- **Log Size**: Maximum size of a single log file in MB. Defaults to `5`.
+- **Log Count**: Number of backup log files to keep. Defaults to `3`.
 
 #### Connection Options
 - **MQTT Host**: Manual host for an external broker. If not set, it uses the internally discovered broker (typically `core-mosquitto`).

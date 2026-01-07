@@ -3,6 +3,8 @@
 # Generate S0PCM Reader config file
 # ==============================================================================
 declare log_level="info"
+declare log_size=5
+declare log_count=3
 declare mqtt_host="core-mosquitto"
 declare mqtt_port="1883"
 declare mqtt_username=""
@@ -26,6 +28,8 @@ if ! bashio::fs.directory_exists "/share/s0pcm"; then
 fi
 
 log_level=$(bashio::config 'log_level')
+log_size=$(bashio::config 'log_size')
+log_count=$(bashio::config 'log_count')
 serial_port=$(bashio::config 'device')
 mqtt_tls=$(bashio::config 'mqtt_tls')
 mqtt_tls_ca=$(bashio::config 'mqtt_tls_ca')
@@ -97,6 +101,8 @@ fi
 bashio::var.json \
     serial_port "${serial_port}" \
     log_level "${log_level}" \
+    log_size "${log_size}" \
+    log_count "${log_count}" \
     mqtt_host "${mqtt_host}" \
     mqtt_password "${mqtt_password}" \
     mqtt_port "${mqtt_port}" \

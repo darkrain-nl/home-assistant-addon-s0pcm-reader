@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
+## [1.6.5] - 2026-01-07
+### Fixed
+- Fixed an infinite loop ("log rotation storm") caused by logging during the rotation process.
+
+## [1.6.4] - 2026-01-07
+### Added
+- Log rotation events are now explicitly recorded in the log files with "--- Log Rotation Started ---" and "--- New Log File Started ---" markers.
+
+## [1.6.3] - 2026-01-07
+### Changed
+- Improved logging: Reduced default log size to 5MB and made both log size and backup count configurable via the Home Assistant UI.
+
 ## [1.6.2] - 2026-01-07
 ### Fixed
 - Fixed energy dashboard spikes by removing redundant discovery purging on restart.
