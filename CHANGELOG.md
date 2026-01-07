@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
+## [1.6.2] - 2026-01-07
+### Fixed
+- Fixed energy dashboard spikes by removing redundant discovery purging on restart.
+
+## [1.6.1] - 2026-01-07
+### Added
+- **Name-Based Updates**: You can now set meter totals via MQTT using either the numerical ID or the custom Name in the topic (e.g., `s0pcmreader/Water/total/set`).
+- **Discovery Reliability**: Improved MQTT discovery by clearing previous configurations before publishing new ones, ensuring entity names update correctly in Home Assistant.
+- **Force Startup Publish**: Addon now immediately publishes the current state upon connection to ensure all topics are populated.
+
+## [1.6.0] - 2026-01-07
+### Changed
+- Major refactoring of `TaskReadSerial` and `TaskDoMQTT` classes for improved modularity, readability, and maintainability.
+- Enhanced robustness of serial reading and MQTT connection loops, including improved error reporting for disconnections.
+- Added graceful shutdown handling for system signals (SIGINT/SIGTERM).
+
 ## [1.5.6] - 2026-01-06
 ### Changed
 - Improved documentation clarity: refined configuration section headers, standardized MQTT topic placeholders, and clarified manual configuration examples.

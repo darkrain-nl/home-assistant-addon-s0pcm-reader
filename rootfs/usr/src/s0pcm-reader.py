@@ -12,6 +12,8 @@ import argparse
 import copy
 import json
 import os
+import sys
+import signal
 
 """
 Description
@@ -77,6 +79,14 @@ base_topic/status - online/offline
 base_topic/error - if any?
 base_topic/1 - json string e.g. '{"total": 12345, "today": 15, "yesterday": 77}'
 base_topic/X - json string e.g. '{"total": 12345, "today": 15, "yesterday": 77}'
+base_topic/X/total/set - write new total to meter X
+
+MQTT Diagnostics:
+base_topic/version
+base_topic/firmware
+base_topic/startup_time
+base_topic/port
+base_topic/info - json string with all diagnostic info
 
 """
 
@@ -99,7 +109,7 @@ lasterrorshare = None
 # Metadata
 startup_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
 s0pcm_firmware = "Unknown"
-last_diagnostics = {}
+
 # ------------------------------------------------------------------------------------
 # Version Handling
 # ------------------------------------------------------------------------------------
@@ -154,7 +164,7 @@ logname= configdirectory + 's0pcm-reader.log'
 # ------------------------------------------------------------------------------------
 # Error Handling
 # ------------------------------------------------------------------------------------
-def SetError(message, category='serial'):
+def SetError(message, category='serial', trigger_event=True):
     global lasterror_serial
     global lasterror_mqtt
     global lasterrorshare
@@ -186,8 +196,9 @@ def SetError(message, category='serial'):
         if message:
             logger.error(f"[{category.upper()}] {message}")
         
-        # Trigger MQTT publish
-        trigger.set()
+        if trigger_event:
+            # Trigger MQTT publish
+            trigger.set()
 
 # ------------------------------------------------------------------------------------
 # Logging
@@ -209,29 +220,24 @@ def ReadConfig():
             # config = yaml.safe_load(f)
             config = json.load(f)
     except FileNotFoundError:
-        print('WARN: No \'' + configname + '\' found, using defaults.')
+        print(f"WARN: No '{configname}' found, using defaults.")
 
-    # Setup 'log' variables if not existing
-    if not 'log' in config: config['log'] = {}
-    if not 'size' in config['log']: config['log']['size'] = 10
-    if not 'count' in config['log']: config['log']['count'] = 3
-
+    # Setup 'log' variables
+    config.setdefault('log', {})
+    config['log'].setdefault('size', 10)
+    config['log'].setdefault('count', 3)
+    
+    # Handle log level
     if 'level' in config['log']:
         config['log']['level'] = str(config['log']['level']).upper()
-
-        if config['log']['level'] != 'CRITICAL' and \
-           config['log']['level'] != 'ERROR' and \
-           config['log']['level'] != 'WARNING' and \
-           config['log']['level'] != 'CRITICAL' and \
-           config['log']['level'] != 'INFO' and \
-           config['log']['level'] != 'DEBUG':
-            print('WARN: Invalid \'level\' ' + config['log']['level'] + ' supplied. Only \'critical\', \'error\', \'warning\', \'info\' and \'debug\' are supported. Using \'warning\' now.')
+        valid_levels = ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG']
+        if config['log']['level'] not in valid_levels:
+            print(f"WARN: Invalid 'level' {config['log']['level']} supplied. Using 'WARNING'.")
             config['log']['level'] = 'WARNING'
     else:
-        # Setup loglevel, default is 'warning'
         config['log']['level'] = 'WARNING'
 
-    #  Convert MB to Bytes
+    # Convert MB to Bytes
     config['log']['size'] = config['log']['size'] * 1024 * 1024
 
     # Setup logfile and rotation
@@ -246,20 +252,18 @@ def ReadConfig():
     stream.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
     logger.addHandler(stream)
 
-    # Setup 'mqtt' variables if not existing
-    if 'mqtt' in config:
-        if config['mqtt'] == None:
-            config['mqtt'] = {}
-    else:
-        config['mqtt'] = {}
-    if not 'host' in config['mqtt']: config['mqtt']['host'] = '127.0.0.1'
+    # Setup 'mqtt' variables
+    config.setdefault('mqtt', {})
+    if config['mqtt'] is None: config['mqtt'] = {}
+
+    config['mqtt'].setdefault('host', '127.0.0.1')
     if config['mqtt'].get('port') in [None, ""]: config['mqtt']['port'] = 1883
     if config['mqtt'].get('tls_port') in [None, ""]: config['mqtt']['tls_port'] = 8883
-    if not 'username' in config['mqtt']: config['mqtt']['username'] = None
-    if not 'password' in config['mqtt']: config['mqtt']['password'] = None
-    if not 'base_topic' in config['mqtt']: config['mqtt']['base_topic'] = 's0pcmreader'
+    config['mqtt'].setdefault('username', None)
+    config['mqtt'].setdefault('password', None)
+    config['mqtt'].setdefault('base_topic', 's0pcmreader')
     if config['mqtt'].get('client_id') in [None, "", "None"]: config['mqtt']['client_id'] = None
-    if not 'version' in config['mqtt']: config['mqtt']['version'] = mqtt.MQTTv5
+    config['mqtt'].setdefault('version', mqtt.MQTTv5)
     if config['mqtt'].get('retain') in [None, ""]: config['mqtt']['retain'] = True
     if config['mqtt'].get('split_topic') in [None, ""]: config['mqtt']['split_topic'] = True
     if config['mqtt'].get('connect_retry') in [None, ""]: config['mqtt']['connect_retry'] = 5
@@ -269,59 +273,53 @@ def ReadConfig():
     if config['mqtt'].get('discovery') in [None, ""]: config['mqtt']['discovery'] = True
     if config['mqtt'].get('discovery_prefix') in [None, ""]: config['mqtt']['discovery_prefix'] = 'homeassistant'
 
-    if str(config['mqtt']['version']) == '3.1':
-      config['mqtt']['version'] = mqtt.MQTTv31
-    elif str(config['mqtt']['version']) == '3.1.1':
-      config['mqtt']['version'] = mqtt.MQTTv311
-    elif str(config['mqtt']['version']) == '5.0':
-      config['mqtt']['version'] = mqtt.MQTTv5
-    else:
-      config['mqtt']['version'] = mqtt.MQTTv5
+    # Map version strings to constants
+    version_str = str(config['mqtt']['version'])
+    if version_str == '3.1':
+        config['mqtt']['version'] = mqtt.MQTTv31
+    elif version_str == '3.1.1':
+        config['mqtt']['version'] = mqtt.MQTTv311
+    else: # Default or 5.0
+        config['mqtt']['version'] = mqtt.MQTTv5
  
     # TLS configuration
-    if not 'tls' in config['mqtt']: config['mqtt']['tls'] = False
-    if not 'tls_ca' in config['mqtt']: config['mqtt']['tls_ca'] = ''
-    if not 'tls_check_peer' in config['mqtt']: config['mqtt']['tls_check_peer'] = False
+    config['mqtt'].setdefault('tls', False)
+    config['mqtt'].setdefault('tls_ca', '')
+    config['mqtt'].setdefault('tls_check_peer', False)
 
     # Append the configuration path if no '/' is in front of the CA file
-    if config['mqtt']['tls_ca'] != '':
-        if not config['mqtt']['tls_ca'].startswith('/'):
-            config['mqtt']['tls_ca'] = configdirectory + config['mqtt']['tls_ca']
+    if config['mqtt']['tls_ca'] != '' and not config['mqtt']['tls_ca'].startswith('/'):
+        config['mqtt']['tls_ca'] = configdirectory + config['mqtt']['tls_ca']
 
-    # Setup 'serial' variables if not existing
-    if 'serial' in config:
-        if config['serial'] == None:
-            config['serial'] = {}
-    else:
-        config['serial'] = {}
-    if not 'port' in config['serial']: config['serial']['port'] = '/dev/ttyACM0'
-    if not 'baudrate' in config['serial']: config['serial']['baudrate'] = 9600
-    if not 'parity' in config['serial']: config['serial']['parity'] = serial.PARITY_EVEN
-    if not 'stopbits' in config['serial']: config['serial']['stopbits'] = serial.STOPBITS_ONE
-    if not 'bytesize' in config['serial']: config['serial']['bytesize'] = serial.SEVENBITS
-    if not 'timeout' in config['serial']: config['serial']['timeout'] = None
-    if not 'connect_retry' in config['serial']: config['serial']['connect_retry'] = 5
+    # Setup 'serial' variables
+    config.setdefault('serial', {})
+    if config['serial'] is None: config['serial'] = {}
+
+    config['serial'].setdefault('port', '/dev/ttyACM0')
+    config['serial'].setdefault('baudrate', 9600)
+    config['serial'].setdefault('parity', serial.PARITY_EVEN)
+    config['serial'].setdefault('stopbits', serial.STOPBITS_ONE)
+    config['serial'].setdefault('bytesize', serial.SEVENBITS)
+    config['serial'].setdefault('timeout', None)
+    config['serial'].setdefault('connect_retry', 5)
 
     # Setup 's0pcm'
-    if 's0pcm' in config:
-        if config['s0pcm'] == None:
-            config['s0pcm'] = {}
-    else:
-        config['s0pcm'] = {}
-    if not 'include' in config['s0pcm']: config['s0pcm']['include'] = None
-    if not 'dailystat' in config['s0pcm']: config['s0pcm']['dailystat'] = None
-    if not 'publish_interval' in config['s0pcm']: config['s0pcm']['publish_interval'] = None
-    if not 'publish_onchange' in config['s0pcm']: config['s0pcm']['publish_onchange'] = True
+    config.setdefault('s0pcm', {})
+    if config['s0pcm'] is None: config['s0pcm'] = {}
 
+    config['s0pcm'].setdefault('include', None)
+    config['s0pcm'].setdefault('dailystat', None)
+    config['s0pcm'].setdefault('publish_interval', None)
+    config['s0pcm'].setdefault('publish_onchange', True)
 
     logger.info(f'Start: s0pcm-reader - version: {s0pcmreaderversion}')
     
     # Redact password from logging
     config_log = copy.deepcopy(config)
-    if 'mqtt' in config_log and 'password' in config_log['mqtt'] and config_log['mqtt']['password'] is not None:
+    if config_log.get('mqtt') and config_log['mqtt'].get('password'):
         config_log['mqtt']['password'] = '********'
 
-    logger.debug('Config: %s', str(config_log))
+    logger.debug(f'Config: {str(config_log)}')
 
 # ------------------------------------------------------------------------------------
 # Read the 'measurement.yaml' file
@@ -332,28 +330,41 @@ def ReadMeasurement():
 
     try:
         with open(measurementname, 'r') as f:
-            measurement = yaml.safe_load(f)
+            data = yaml.safe_load(f)
+            # Handle empty file (None) or valid content
+            measurement = data if data is not None else {}
     except FileNotFoundError:
-        logger.warning('No \'%s\' found, using defaults.', measurementname)
+        logger.warning(f"No '{measurementname}' found, using defaults.")
+        measurement = {}
+    except Exception as e:
+         logger.error(f"Failed to read '{measurementname}': {e}. Using defaults.")
+         measurement = {}
 
-    # check if measurement is None
-    if measurement is not None:
-        # check date format
-        if 'date' in measurement:
-            # check date format
-            try:
-                measurement['date'] = datetime.datetime.strptime(str(measurement['date']), '%Y-%m-%d')
-                measurement['date'] = measurement['date'].date()
-            except ValueError:
-                SetError(f"'{measurementname}' has an invalid date field '{str(measurement['date'])}', default to today '{str(datetime.date.today())}'", category='serial')
-                measurement['date'] = datetime.date.today()
-        else:
+    if not isinstance(measurement, dict):
+        logger.error(f"'{measurementname}' content is not a dictionary ({type(measurement)}). Using defaults.")
+        measurement = {}
+
+    # Handle Date
+    saved_date = measurement.get('date')
+    if saved_date:
+        try:
+            # Handle both string 'YYYY-MM-DD' and existing date objects
+            if isinstance(saved_date, str):
+                measurement['date'] = datetime.datetime.strptime(saved_date, '%Y-%m-%d').date()
+            elif isinstance(saved_date, datetime.date):
+                pass # Already a date object (yaml might parse it automatically)
+            elif isinstance(saved_date, datetime.datetime):
+                measurement['date'] = saved_date.date()
+            else:
+                # Try casting to string as a fallback for other types
+                measurement['date'] = datetime.datetime.strptime(str(saved_date), '%Y-%m-%d').date()
+        except ValueError:
+            SetError(f"'{measurementname}' has an invalid date field '{saved_date}', defaulting to today.", category='serial')
             measurement['date'] = datetime.date.today()
-
-        logger.debug('Measurement: %s', str(measurement))
     else:
-        logger.error('\'%s\' is empty: \'%s\' fix this by removing the file or restoring a backup if you have one...', measurementname, str(measurement))
-        raise SystemExit('Cannot continue, the error above needs to be fixed first')
+        measurement['date'] = datetime.date.today()
+
+    logger.debug(f"Measurement: {str(measurement)}")
 
 # ------------------------------------------------------------------------------------
 # Task to read the serial port. We continue to try to open the serialport, because
@@ -365,18 +376,12 @@ class TaskReadSerial(threading.Thread):
         super().__init__()
         self._trigger = trigger
         self._stopper = stopper
-
         self._serialerror = 0
 
-    def ReadSerial(self):
-
-        global measurementshare
-        global s0pcm_firmware
-
+    def _connect(self):
+        """Argument-less method to connect to serial port with retry logic."""
         while not self._stopper.is_set():
-
-            logger.debug('Opening serialport \'%s\'', config['serial']['port'])
-
+            logger.debug(f"Opening serialport '{config['serial']['port']}'")
             try:
                 ser = serial.Serial(config['serial']['port'], 
                                     baudrate=config['serial']['baudrate'],
@@ -385,165 +390,168 @@ class TaskReadSerial(threading.Thread):
                                     bytesize=config['serial']['bytesize'],
                                     timeout=config['serial']['timeout'])
                 self._serialerror = 0
+                return ser
             except Exception as e:
                 self._serialerror += 1
                 SetError(f"Serialport connection failed: {type(e).__name__}: '{str(e)}'", category='serial')
-                logger.error('Retry in %d seconds', config['serial']['connect_retry'])
+                logger.error(f"Retry in {config['serial']['connect_retry']} seconds")
                 time.sleep(config['serial']['connect_retry'])
+        return None
+
+    def _handle_header(self, datastr):
+        """Parse header packet to extract firmware version."""
+        global s0pcm_firmware
+        logger.debug(f"Header Packet: '{datastr}'")
+        # Example: /8237:S0 Pulse Counter V0.6 - 30/30/30/30/30ms
+        try:
+            if ':' in datastr:
+                s0pcm_firmware = datastr.split(':', 1)[1].strip()
+            else:
+                s0pcm_firmware = datastr[1:].strip()
+        except Exception:
+            s0pcm_firmware = datastr
+
+    def _handle_data_packet(self, datastr):
+        """Parse data packet and update measurements."""
+        global measurementshare
+        
+        logger.debug(f"S0PCM Packet: '{datastr}'")
+
+        # Split data into an array
+        s0arr = datastr.split(':')
+        size = 0
+
+        # s0pcm-5 (19 parts) or s0pcm-2 (10 parts)
+        if len(s0arr) == 19:
+            size = 5
+        elif len(s0arr) == 10:
+            size = 2
+        else:
+            SetError(f"Packet has invalid length: Expected 10 or 19, got {len(s0arr)}. Packet: '{datastr}'", category='serial')
+            return
+
+        # Keep a copy to check for changes later
+        measurementstr = str(measurement)
+
+        # Loop through 2/5 s0pcm data
+        for count in range(1, size + 1):
+            offset = 4 + ((count - 1) * 3)
+            
+            # expected format: M1:x:x
+            if s0arr[offset] != 'M' + str(count):
+                SetError(f"Expecting 'M{str(count)}', received '{s0arr[offset]}'", category='serial')
                 continue
 
-            # Only do a read of the data when the port is opened succesfully
-            while not self._stopper.is_set():
+            try:
+                pulsecount = int(s0arr[offset + 2])
+            except ValueError:
+                SetError(f"Cannot convert pulsecount '{s0arr[offset + 2]}' into integer for meter {count}", category='serial')
+                pulsecount = 0
 
+            self._update_meter(count, pulsecount)
+
+        # Update todays date if needed
+        if str(measurement['date']) != str(datetime.date.today()):
+            measurement['date'] = datetime.date.today()
+
+        # Valid packet processed
+        SetError(None, category='serial')
+
+        # Persist if changed
+        if measurementstr == str(measurement):
+            logger.debug(f"No change to the '{measurementname}' file (no write)")
+        else:
+            logger.debug(f"Updated '{measurementname}' file")
+            with open(measurementname, 'w') as f:
+                yaml.dump(measurement, f, default_flow_style=False)
+
+        # Update shared state
+        lock.acquire()
+        measurementshare = copy.deepcopy(measurement)
+        lock.release()
+
+        # Signal new data
+        self._trigger.set()
+
+    def _update_meter(self, count, pulsecount):
+        """Update logic for a single meter."""
+        # Initialize if missing
+        if count not in measurement: measurement[count] = {}
+        if 'pulsecount' not in measurement[count]: measurement[count]['pulsecount'] = 0
+        if 'total' not in measurement[count]: measurement[count]['total'] = 0
+        if 'today' not in measurement[count]: measurement[count]['today'] = 0
+        if 'yesterday' not in measurement[count]: measurement[count]['yesterday'] = 0
+        
+        # Check date change
+        if str(measurement['date']) != str(datetime.date.today()):
+            logger.debug(f"Day changed from '{str(measurement['date'])}' to '{str(datetime.date.today())}', resetting today counter '{count}' to '0'. Yesterday counter is '{measurement[count]['today']}'")
+            measurement[count]['yesterday'] = measurement[count]['today']
+            measurement[count]['today'] = 0
+
+            # Write daily stats
+            if config['s0pcm']['dailystat'] is not None and count in config['s0pcm']['dailystat']:
                 try:
-                    datain = ser.readline()
+                    with open(configdirectory + 'daily-' + str(count) + '.txt', 'a') as fstat:
+                        fstat.write(str(measurement['date']) + ';' + str(measurement[count]['yesterday']) + '\n')
                 except Exception as e:
-                    SetError(f"Serialport read error: {type(e).__name__}: '{str(e)}'", category='serial')
-                    ser.close()
-                    break
-             
-                # check if there is data received
-                # If there is really nothing, most likely a timeout on reading the input data
-                if len(datain) == 0:
-                    SetError("Serialport read timeout: Failed to read any data", category='serial')
-                    ser.close()
-                    break
+                    SetError(f"Stats file '{configdirectory}daily-{str(count)}.txt' write/create failed: {type(e).__name__}: '{str(e)}'", category='serial')
 
-                # need to decode the data to ascii string
-                try:
-                    datastr = datain.decode('ascii')
-                except UnicodeDecodeError:
-                    SetError(f"Failed to decode serial data: '{str(datain)}'", category='serial')
-                    continue
+        # Calculate delta
+        if pulsecount > measurement[count]['pulsecount']:
+            logger.debug(f"Pulsecount changed from '{measurement[count]['pulsecount']}' to '{pulsecount}'")
+            delta = pulsecount - measurement[count]['pulsecount']
+            measurement[count]['pulsecount'] = pulsecount
+            measurement[count]['total'] += delta
+            measurement[count]['today'] += delta
 
-                # Need to remove '\r\n' from the input
-                datastr = datastr.rstrip('\r\n')
+        elif pulsecount < measurement[count]['pulsecount']:
+            # Pulsecount reset (e.g. device restart)
+            SetError(f"Pulsecount anomaly detected for meter {count}: Stored pulsecount '{measurement[count]['pulsecount']}' is higher than read '{pulsecount}'. This normally happens if S0PCM is restarted.", category='serial')
+            delta = pulsecount
+            measurement[count]['pulsecount'] = pulsecount
+            measurement[count]['total'] += delta
+            measurement[count]['today'] += delta
 
-                if datastr.startswith('/'):
-                    logger.debug('Header Packet: \'%s\'', datastr)
-                    # Example: /8237:S0 Pulse Counter V0.6 - 30/30/30/30/30ms
-                    try:
-                        if ':' in datastr:
-                            s0pcm_firmware = datastr.split(':', 1)[1].strip()
-                        else:
-                            s0pcm_firmware = datastr[1:].strip()
-                    except Exception:
-                        s0pcm_firmware = datastr
-                elif datastr.startswith('ID:'):
-                    logger.debug('S0PCM Packet: \'%s\'', datastr)
+    def _read_loop(self, ser):
+        """Read loop using the connected serial object."""
+        while not self._stopper.is_set():
+            try:
+                datain = ser.readline()
+            except Exception as e:
+                SetError(f"Serialport read error: {type(e).__name__}: '{str(e)}'", category='serial')
+                break # Break to reconnect
+            
+            if len(datain) == 0:
+                # Timeout
+                # SetError("Serialport read timeout: Failed to read any data", category='serial')
+                # Actually, a timeout might just mean silence. But if we expect periodic data...
+                # The original code treated 0 length as an error and reconnected.
+                SetError("Serialport read timeout: Failed to read any data", category='serial')
+                break
 
-                    # Split data into an array
-                    s0arr = datastr.split(':')
+            try:
+                datastr = datain.decode('ascii').rstrip('\r\n')
+            except UnicodeDecodeError:
+                SetError(f"Failed to decode serial data: '{str(datain)}'", category='serial')
+                continue
 
-                    # s0pcm-5 - 19
-                    if len(s0arr) == 19:
-                        # ID:8237:I:10:M1:0:0:M2:0:0:M3:0:0:M4:0:0:M5:0:0
-                        size = 5
-
-                    # s0pcm-2 - 10
-                    elif len(s0arr) == 10: 
-                        # ID:8237:I:10:M1:0:0:M2:0:0
-                        size = 2
-
-                    else:
-                        SetError(f"Packet has invalid length: Expected 10 or 19, got {len(s0arr)}. Packet: '{datastr}'", category='serial')
-                        continue
-
-                    # Key a copy of the measurement file, then we known we need to write the file
-                    measurementstr = str(measurement)
-
-                    # Loop through 2/5 s0pcm data
-                    for count in range(1, size + 1):
-                        offset = 4 + ((count - 1) * 3)
-                        if s0arr[offset] == 'M' + str(count):
-                            # We are interested in the total pulse count, because that is most reliable
-
-                            try:
-                                pulsecount = int(s0arr[offset + 2])
-                            except:
-                                SetError(f"Cannot convert pulsecount '{s0arr[offset + 2]}' into integer for meter {count}", category='serial')
-                                pulsecount = 0
-
-                            # Initialize the variables, if they doesn't exist
-                            if not count in measurement: measurement[count] = {}
-                            if not 'pulsecount' in measurement[count]: measurement[count]['pulsecount'] = 0
-                            if not 'total' in measurement[count]: measurement[count]['total'] = 0
-                            if not 'today' in measurement[count]: measurement[count]['today'] = 0
-                            if not 'yesterday' in measurement[count]: measurement[count]['yesterday'] = 0
-                            
-                            # We got a date change
-                            if str(measurement['date']) != str(datetime.date.today()):
-                                logger.debug('Day changed from \'%s\' to \'%s\', resetting today counter \'%d\' to \'0\'. Yesterday counter is \'%d\'', str(measurement['date']), str(datetime.date.today()), count, measurement[count]['today'])
-                                measurement[count]['yesterday'] = measurement[count]['today']
-                                measurement[count]['today'] = 0
-
-                                # Write the counters to a text file if required
-                                todayfile = False
-                                if config['s0pcm']['dailystat'] != None:
-                                    if count in config['s0pcm']['dailystat']:
-                                        todayfile = True
-
-                                if todayfile == True:
-                                    try:
-                                        fstat = open(configdirectory + 'daily-' + str(count) + '.txt', 'a')
-                                        fstat.write(str(measurement['date']) + ';' + str(measurement[count]['yesterday']) + '\n')
-                                        fstat.close()
-                                    except Exception as e:
-                                        SetError(f"Stats file '{configdirectory}daily-{str(count)}.txt' write/create failed: {type(e).__name__}: '{str(e)}'", category='serial')
-                            
-                            if pulsecount > measurement[count]['pulsecount']:
-
-                                logger.debug('Pulsecount changed from \'%d\' to \'%d\'', measurement[count]['pulsecount'], pulsecount)
-
-                                # Pulsecount has changed, lets do some magic :-)
-                                delta = pulsecount - measurement[count]['pulsecount']
-                                measurement[count]['pulsecount'] = pulsecount
-                                measurement[count]['total'] += delta
-                                measurement[count]['today'] += delta
-
-                            elif pulsecount < measurement[count]['pulsecount']:
-                                SetError(f"Pulsecount anomaly detected for meter {count}: Stored pulsecount '{measurement[count]['pulsecount']}' is higher than read '{pulsecount}'. This normally happens if S0PCM is restarted.", category='serial')
-                                delta = pulsecount
-                                measurement[count]['pulsecount'] = pulsecount
-                                measurement[count]['total'] += delta
-                                measurement[count]['today'] += delta
-
-                        else:
-                            SetError(f"Expecting 'M{str(count)}', received '{s0arr[offset]}'", category='serial')
-                            continue
-
-                    # Update todays date - but we don't convert to str yet, it looks nicer without it in the yaml file ;-)
-                    if str(measurement['date']) != str(datetime.date.today()):
-                        measurement['date'] = datetime.date.today()
-
-                    # We reached this point, so we have a valid packet
-                    SetError(None, category='serial')
-
-                    # Write the 'measurement.yaml' file with the new data. Only when data has changed.
-                    if measurementstr == str(measurement):
-                        logger.debug('No change to the \'%s\' file (no write)', measurementname)
-                    else:
-                        logger.debug('Updated \'%s\' file', measurementname)
-                        with open(measurementname, 'w') as f:
-                            yaml.dump(measurement, f, default_flow_style=False)
-
-                    # Do some lock/release on global variables
-                    lock.acquire()
-                    measurementshare = copy.deepcopy(measurement)
-                    lock.release()
-
-                    # Trigger that new data is available for MQTT
-                    self._trigger.set()
-
-                elif datastr == '':
-                    logger.warning('Empty Packet received, this can happen during start-up')
-                else:
-                    SetError(f"Invalid Packet: '{datastr}'", category='serial')
+            if datastr.startswith('/'):
+                self._handle_header(datastr)
+            elif datastr.startswith('ID:'):
+                self._handle_data_packet(datastr)
+            elif datastr == '':
+                logger.warning('Empty Packet received, this can happen during start-up')
+            else:
+                SetError(f"Invalid Packet: '{datastr}'", category='serial')
 
     def run(self):
         try:
-            self.ReadSerial()
-        except:
+            while not self._stopper.is_set():
+                ser = self._connect()
+                if ser:
+                    self._read_loop(ser)
+                    ser.close()
+        except Exception:
             logger.error('Fatal exception has occured', exc_info=True)
         finally:
             self._stopper.set()
@@ -560,6 +568,8 @@ class TaskDoMQTT(threading.Thread):
         self._stopper = stopper
         self._connected = False
         self._discovery_sent = False
+        self._mqttc = None
+        self._last_diagnostics = {}
 
     def on_connect(self, mqttc, obj, flags, reason_code, properties):
         if reason_code == 0:
@@ -586,71 +596,65 @@ class TaskDoMQTT(threading.Thread):
             logger.error(f"MQTT disconnected unexpectedly. Reason: {reason_code} ({mqtt.connack_string(reason_code)})")
 
     def on_message(self, mqttc, obj, msg):
-        global measurementshare
         logger.debug('MQTT on_message: ' + msg.topic + ' ' + str(msg.qos) + ' ' + str(msg.payload))
 
         # Check for set command
         if msg.topic.endswith('/total/set'):
+            self._handle_set_command(msg)
+
+    def _handle_set_command(self, msg):
+        global measurementshare
+        try:
+            # Topic format: base_topic/ID_or_NAME/total/set
+            parts = msg.topic.split('/')
+            identifier = parts[-3]
+            meter_id = None
+            
             try:
-                # Topic format: base_topic/ID/total/set
-                parts = msg.topic.split('/')
-                # parts[-1] = 'set', parts[-2] = 'total', parts[-3] = ID
-                meter_id_str = parts[-3]
+                meter_id = int(identifier)
+            except ValueError:
+                # If not an integer, try to find a meter with a matching name (case-insensitive)
+                for key, data in measurement.items():
+                    if isinstance(key, int):
+                        name = data.get('name')
+                        if name and name.lower() == identifier.lower():
+                            meter_id = key
+                            break
+            
+            if meter_id is None:
+                SetError(f"Ignored set command for unknown meter ID or Name: {identifier}", category='mqtt')
+                return
+
+            payload_str = msg.payload.decode('utf-8')
+            try:
+                # Support int or float input, but store as likely int
+                new_total = int(float(payload_str))
+            except ValueError:
+                SetError(f"Ignored invalid payload for set command on meter {meter_id}: {payload_str}", category='mqtt')
+                return
+
+            logger.info(f"Received MQTT set command for meter {meter_id}. Setting total to {new_total}.")
+
+            with lock:
+                if meter_id not in measurement:
+                    measurement[meter_id] = {}
+                    measurement[meter_id].setdefault('pulsecount', 0)
+                    measurement[meter_id].setdefault('today', 0)
+                    measurement[meter_id].setdefault('yesterday', 0)
+
+                measurement[meter_id]['total'] = new_total
                 
-                try:
-                    meter_id = int(meter_id_str)
-                except ValueError:
-                    SetError(f"Ignored set command for non-integer meter ID: {meter_id_str}", category='mqtt')
-                    return
+                # Persist immediately
+                with open(measurementname, 'w') as f:
+                    yaml.dump(measurement, f, default_flow_style=False)
+                logger.debug(f"Updated measurement.yaml with new total for meter {meter_id}")
 
-                payload_str = msg.payload.decode('utf-8')
-                try:
-                    # Support int or float input, but store as likely int or float
-                    # Since original pulses are ints, we cast to float then int? 
-                    # If user provides 123.45, we probably should store 123.45 if we want to be exact?
-                    # But the script generally deals with pulses.
-                    # Let's verify what the script does.
-                    # It reads INT from serial: pulsecount = int(s0arr[offset + 2])
-                    # So the meters count int pulses.
-                    # If we set total, we are setting the "Pulse Count Total" theoretically?
-                    # But 'total' in measurement is usually derived from pulses.
-                    # NOTE: If we set 'total' to 1000. And pulsecount comes in. 
-                    # The script adds DELTA of PULSES to TOTAL.
-                    # So 'total' doesn't HAVE to be int, but it makes sense.
-                    # Let's stick to int to match serial behavior, or float if user really wants.
-                    # Given the "s0 pulse counter" nature, int is safer.
-                    new_total = int(float(payload_str))
-                except ValueError:
-                    SetError(f"Ignored invalid payload for set command on meter {meter_id}: {payload_str}", category='mqtt')
-                    return
+                # Update share and trigger publish
+                measurementshare = copy.deepcopy(measurement)
+                self._trigger.set()
 
-                logger.info(f"Received MQTT set command for meter {meter_id}. Setting total to {new_total}.")
-
-                lock.acquire()
-                try:
-                    if meter_id not in measurement:
-                        measurement[meter_id] = {}
-                        # Init default fields to prevent key errors
-                        measurement[meter_id]['pulsecount'] = 0
-                        measurement[meter_id]['today'] = 0
-                        measurement[meter_id]['yesterday'] = 0
-
-                    measurement[meter_id]['total'] = new_total
-                    
-                    # Persist immediately
-                    with open(measurementname, 'w') as f:
-                        yaml.dump(measurement, f, default_flow_style=False)
-                    logger.debug(f"Updated measurement.yaml with new total for meter {meter_id}")
-
-                    # Update share and trigger publish
-                    measurementshare = copy.deepcopy(measurement)
-                    self._trigger.set()
-
-                finally:
-                    lock.release()
-
-            except Exception as e:
-                SetError(f"Failed to process MQTT set command: {e}", category='mqtt')
+        except Exception as e:
+            SetError(f"Failed to process MQTT set command: {e}", category='mqtt')
 
     def on_publish(self, mqttc, obj, mid, reason_codes, properties):
         logger.debug('MQTT on_publish: mid: ' + str(mid))
@@ -698,12 +702,12 @@ class TaskDoMQTT(threading.Thread):
             "payload_on": config['mqtt']['online'],
             "payload_off": config['mqtt']['offline']
         }
-        self._mqttc.publish(status_topic, json.dumps(status_payload), retain=config['mqtt']['retain'])
+        self._mqttc.publish(status_topic, json.dumps(status_payload), retain=True)
 
         # Cleanup legacy discovery topics
-        self._mqttc.publish(f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/s0pcm_{identifier}_info/config", "", retain=config['mqtt']['retain'])
-        self._mqttc.publish(f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/s0pcm_{identifier}_info_diag/config", "", retain=config['mqtt']['retain'])
-        self._mqttc.publish(f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/s0pcm_{identifier}_uptime/config", "", retain=config['mqtt']['retain'])
+        self._mqttc.publish(f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/s0pcm_{identifier}_info/config", "", retain=True)
+        self._mqttc.publish(f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/s0pcm_{identifier}_info_diag/config", "", retain=True)
+        self._mqttc.publish(f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/s0pcm_{identifier}_uptime/config", "", retain=True)
 
         # Error Sensor Discovery
         error_unique_id = f"s0pcm_{identifier}_error"
@@ -718,7 +722,7 @@ class TaskDoMQTT(threading.Thread):
             "state_topic": config['mqtt']['base_topic'] + '/error',
             "icon": "mdi:alert-circle"
         }
-        self._mqttc.publish(error_topic, json.dumps(error_payload), retain=config['mqtt']['retain'])
+        self._mqttc.publish(error_topic, json.dumps(error_payload), retain=True)
 
         # Diagnostic Sensors Discovery
         diagnostics = [
@@ -745,26 +749,24 @@ class TaskDoMQTT(threading.Thread):
             if "unit" in diag: diag_payload["unit_of_measurement"] = diag["unit"]
             if "class" in diag: diag_payload["device_class"] = diag["class"]
             
-            self._mqttc.publish(diag_topic, json.dumps(diag_payload), retain=config['mqtt']['retain'])
+            self._mqttc.publish(diag_topic, json.dumps(diag_payload), retain=True)
 
         for key in measurementlocal:
             if isinstance(key, int):
+                # Cleanup: Purge any orphaned "Meter ID" sensors from previous versions
+                # HA removes entities when their discovery topic is empty
+                id_unique_id = f"s0pcm_{identifier}_{key}_id"
+                id_purge_topic = f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/{id_unique_id}/config"
+                self._mqttc.publish(id_purge_topic, "", retain=True)
 
-                try:
-                    if not measurement[key]['enabled']:
-                        continue
-                except:
-                    pass
+                if config['s0pcm']['include'] is not None and key not in config['s0pcm']['include']:
+                    continue
 
-                # Skip an input if not configured
-                if config['s0pcm']['include'] != None:
-                    if not key in config['s0pcm']['include']:
-                        continue
+                # Check if enabled
+                if not measurement[key].get('enabled', True):
+                     continue
 
-                try:
-                    instancename = measurementlocal[key]['name']
-                except:
-                    instancename = str(key)
+                instancename = measurementlocal[key].get('name', str(key))
 
                 for subkey in ['total', 'today', 'yesterday']:
 
@@ -793,7 +795,10 @@ class TaskDoMQTT(threading.Thread):
                         payload['state_topic'] = config['mqtt']['base_topic'] + '/' + instancename
                         payload['value_template'] = f"{{{{ value_json.{subkey} }}}}"
 
-                    self._mqttc.publish(topic, json.dumps(payload), retain=config['mqtt']['retain'])
+                    # Publish discovery
+                    self._mqttc.publish(topic, json.dumps(payload), retain=True)
+
+
 
         self._discovery_sent = True
         logger.info('Sent MQTT discovery messages')
@@ -843,213 +848,183 @@ class TaskDoMQTT(threading.Thread):
         self._mqttc.will_set(config['mqtt']['base_topic'] + '/status', config['mqtt']['lastwill'], retain=config['mqtt']['retain'])
         return True
 
-    def DoMQTT(self):
-
-        global measurementshare
-        measurementprevious = {}
-
-        # Copy the measurements to previous one, preventing send values when on change is enabled
-        measurementprevious = measurement
-
+    def _connect_loop(self):
+        """Retry loop to establish connection."""
         use_tls = config['mqtt']['tls']
         fallback_happened = False
 
         while not self._stopper.is_set():
+            if not self._mqttc and not self._setup_mqtt_client(use_tls):
+                 time.sleep(config['mqtt']['connect_retry'])
+                 continue
 
-            if not self._setup_mqtt_client(use_tls):
-                SetError(f"Failed to setup MQTT client, retrying in {config['mqtt']['connect_retry']} seconds", category='mqtt')
-                time.sleep(config['mqtt']['connect_retry'])
-                continue
-
-            # Handle automatic port swapping (configured plain port vs configured TLS port)
             plain_port = int(config['mqtt']['port'])
             tls_port = int(config['mqtt']['tls_port'])
+            current_port = tls_port if use_tls else plain_port
+
+            logger.debug(f"Connecting to MQTT Broker '{config['mqtt']['host']}:{current_port}' (TLS: {use_tls})")
             
-            if use_tls:
-                current_port = tls_port
-            else:
-                current_port = plain_port
-
-            logger.debug('Connecting to MQTT Broker \'%s:%s\' (TLS: %s)', config['mqtt']['host'], str(current_port), str(use_tls))
-
             try:
                 self._mqttc.connect(config['mqtt']['host'], current_port, 60)
-            except (ssl.SSLError, ssl.CertificateError, ConnectionResetError) as e:
+                self._mqttc.loop_start()
+                
+                # Wait for connection to be established via on_connect callback
+                timeout = time.time() + 10 
+                while time.time() < timeout and not self._connected and not self._stopper.is_set():
+                    time.sleep(0.5)
+
+                if self._connected:
+                    logger.debug("MQTT connection established")
+                    return # Connected
+                else:
+                    raise ConnectionError("Timeout waiting for MQTT CONNACK")
+
+            except (ssl.SSLError, ssl.CertificateError, ConnectionResetError, ConnectionError, OSError) as e:
+                if self._mqttc:
+                    self._mqttc.loop_stop()
+                    self._mqttc = None # force reset
+
                 if use_tls and not fallback_happened:
                     SetError(f"MQTT TLS connection failed: {type(e).__name__}: '{str(e)}'. Falling back to plain MQTT.", category='mqtt')
                     use_tls = False
                     fallback_happened = True
-                    continue
                 else:
                     SetError(f"MQTT connection failed: {type(e).__name__}: '{str(e)}'", category='mqtt')
-                    logger.error('Retry in %d seconds', config['mqtt']['connect_retry'])
                     time.sleep(config['mqtt']['connect_retry'])
-                    continue
             except Exception as e:
-                SetError(f"MQTT connection failed: {type(e).__name__}: '{str(e)}'", category='mqtt')
-                logger.error('Retry in %d seconds', config['mqtt']['connect_retry'])
+                if self._mqttc:
+                    self._mqttc.loop_stop()
+                    self._mqttc = None
+                SetError(f"MQTT connection failed unexpectedly: {type(e).__name__}: '{str(e)}'", category='mqtt')
                 time.sleep(config['mqtt']['connect_retry'])
-                continue
 
-            #connect_async(host, port=1883, keepalive=60, bind_address="")
-            self._mqttc.loop_start()
+    def _publish_diagnostics(self):
+        """Publish dynamic diagnostics info."""
+        try:
+            current_diagnostics = {
+                'version': s0pcmreaderversion,
+                'firmware': s0pcm_firmware,
+                'startup_time': startup_time,
+                'port': config['serial']['port']
+            }
 
-            # Let's wait 1 second, otherwise we can be too fast?
-            time.sleep(1)
+            for key, val in current_diagnostics.items():
+                if key not in self._last_diagnostics or self._last_diagnostics[key] != val:
+                    topic = config['mqtt']['base_topic'] + '/' + key
+                    self._mqttc.publish(topic, str(val), retain=config['mqtt']['retain'])
+                    self._last_diagnostics[key] = val
+            
+            # Legacy JSON info
+            info_payload = {
+                "version": s0pcmreaderversion,
+                "s0pcm_firmware": s0pcm_firmware,
+                "startup_time": startup_time,
+                "serial_port": config['serial']['port']
+            }
+            self._mqttc.publish(config['mqtt']['base_topic'] + '/info', json.dumps(info_payload), retain=config['mqtt']['retain'])
+        except Exception as e:
+            logger.error(f"Failed to publish info state to MQTT: {e}")
 
-            while not self._stopper.is_set():
-                # Do some lock/release on global variables
-                lock.acquire()
+    def _publish_measurements(self, measurementlocal, measurementprevious):
+        """Publish meter values."""
+        for key in measurementlocal:
+            if isinstance(key, int):
+                # Filter logic
+                if config['s0pcm']['include'] is not None and key not in config['s0pcm']['include']:
+                        logger.debug(f"MQTT Publish for input '{key}' is disabled")
+                        continue
+                if not measurement[key].get('enabled', True):
+                        continue
+
+                jsondata = {}
+                instancename = measurementlocal[key].get('name', str(key))
+
+                for subkey in ['total', 'today', 'yesterday']:
+                    value_previous = measurementprevious.get(key, {}).get(subkey, -1)
+                    
+                    try:
+                        if subkey in measurementlocal[key]:
+                            if config['mqtt']['split_topic'] == True:
+                                # On-change check
+                                if measurementlocal[key][subkey] == value_previous and config['s0pcm']['publish_onchange'] == True:
+                                    continue
+                                
+                                
+                                logger.debug(f"MQTT Publish: topic='{config['mqtt']['base_topic']}/{instancename}/{subkey}', value='{measurementlocal[key][subkey]}'")
+                                self._mqttc.publish(config['mqtt']['base_topic'] + '/' + instancename + '/' + subkey, measurementlocal[key][subkey], retain=config['mqtt']['retain'])
+                            else:
+                                jsondata[subkey] = measurementlocal[key][subkey]
+
+                    except Exception as e:
+                        SetError(f"MQTT Publish Failed for {instancename}/{subkey}. {type(e).__name__}: '{str(e)}'", category='mqtt')
+
+                # Publish JSON if not split
+                if config['mqtt']['split_topic'] == False and jsondata:
+                    try:
+                        logger.debug(f"MQTT Publish JSON: topic='{config['mqtt']['base_topic']}/{instancename}', value='{json.dumps(jsondata)}'")
+                        self._mqttc.publish(config['mqtt']['base_topic'] + '/' + instancename, json.dumps(jsondata), retain=config['mqtt']['retain'])
+                    except Exception as e:
+                        SetError(f"MQTT Publish Failed for {instancename} (JSON). {type(e).__name__}: '{str(e)}'", category='mqtt')
+
+    def _main_loop(self):
+        """Main processing loop when connected."""
+        measurementprevious = {}
+        # Initial sync - removed pre-population to force first publish of all values
+        # This ensures that any name/topic changes are immediately visible on startup.
+
+        while not self._stopper.is_set():
+            # Snapshot data
+            with lock:
                 measurementlocal = copy.deepcopy(measurementshare)
                 errorlocal = lasterrorshare
-                lock.release()
 
-                # Check if we are connected
-                if self._connected == False:
-                    logger.debug('Not connected to MQTT Broker, waiting...')
-                    # Wait for a change or the connect retry interval
-                    self._trigger.wait(timeout=config['mqtt']['connect_retry'])
-                    self._trigger.clear()
-                    continue
+            # Connection check - if lost, return to connect loop to trigger re-connection logic
+            if not self._connected:
+                logger.warning('MQTT Connection lost, returning to connect loop...')
+                return 
 
-                if not self._discovery_sent:
-                    self.send_discovery(measurementlocal)
+            if not self._discovery_sent:
+                self.send_discovery(measurementlocal)
 
-                # Publish current error state
-                try:
-                    error_payload = errorlocal if errorlocal else "No Error"
-                    self._mqttc.publish(config['mqtt']['base_topic'] + '/error', error_payload, retain=config['mqtt']['retain'])
-                except Exception as e:
-                    logger.error(f"Failed to publish error state to MQTT: {e}")
+            self._publish_diagnostics()
+            self._publish_measurements(measurementlocal, measurementprevious)
 
-                # Publish info state (once on startup, then on change)
-                try:
-                    bt = config['mqtt']['base_topic']
-                    rt = config['mqtt']['retain']
-                    
-                    current_diagnostics = {
-                        'version': s0pcmreaderversion,
-                        'firmware': s0pcm_firmware,
-                        'startup_time': startup_time,
-                        'port': config['serial']['port']
-                    }
+            # Publish Error
+            error_published = False
+            try:
+                error_payload = errorlocal if errorlocal else "No Error"
+                self._mqttc.publish(config['mqtt']['base_topic'] + '/error', error_payload, retain=config['mqtt']['retain'])
+                error_published = True
+            except Exception as e:
+                SetError(f"MQTT Publish Failed for error topic. {type(e).__name__}: '{str(e)}'", category='mqtt')
 
-                    global last_diagnostics
-                    for key, val in current_diagnostics.items():
-                        if key not in last_diagnostics or last_diagnostics[key] != val:
-                            topic = bt + '/' + key
-                            self._mqttc.publish(topic, str(val), retain=rt)
-                            last_diagnostics[key] = val
-                    
-                    # Also keep the /info JSON for backward compatibility
-                    info_payload = {
-                        "version": s0pcmreaderversion,
-                        "s0pcm_firmware": s0pcm_firmware,
-                        "startup_time": startup_time,
-                        "serial_port": config['serial']['port']
-                    }
-                    self._mqttc.publish(bt + '/info', json.dumps(info_payload), retain=rt)
-                except Exception as e:
-                    logger.error(f"Failed to publish info state to MQTT: {e}")
+            if self._connected and error_published:
+                SetError(None, category='mqtt', trigger_event=False)
 
-                for key in measurementlocal:
-                    if isinstance(key, int):
+            measurementprevious = copy.deepcopy(measurementlocal)
 
-                        # define dict for json value
-                        jsondata = {}
-
-                        try:
-                            if not measurement[key]['enabled']:
-                                continue
-                        except:
-                            pass
-
-                        # Skip an input if not configured
-                        if config['s0pcm']['include'] != None:
-                            if not key in config['s0pcm']['include']:
-                                logger.debug('MQTT Publish for input \'%d\' is disabled', key)
-                                continue
-
-                        try:
-                            instancename = measurementlocal[key]['name']
-                        except:
-                            instancename = str(key)
-
-                        for subkey in ['total', 'today', 'yesterday']:
-
-                            # Try to assign the previous value, if this fails, we set it "-1" then it should always be different
-                            try:
-                                value_previous = measurementprevious[key][subkey]
-                            except:
-                                value_previous = -1
-
-                            try:
-                                if subkey in measurementlocal[key]:
-
-                                    if config['mqtt']['split_topic'] == True:
-                                        # Check if the value not changed and publish on change is off
-                                        if measurementlocal[key][subkey] == value_previous and config['s0pcm']['publish_onchange'] == True:
-                                            continue
-
-                                        logger.debug('MQTT Publish of topic \'%s\' and value \'%s\'',config['mqtt']['base_topic'] + '/' + instancename + '/' + subkey, str(measurementlocal[key][subkey]))
-
-                                        # Do a MQTT Publish
-                                        self._mqttc.publish(config['mqtt']['base_topic'] + '/' + instancename + '/' + subkey, measurementlocal[key][subkey], retain=config['mqtt']['retain'])
-                                    else:
-                                        jsondata[subkey] = measurementlocal[key][subkey]
-
-                            except Exception as e:
-                                SetError(f"MQTT Publish Failed for {instancename}/{subkey}. {type(e).__name__}: '{str(e)}'", category='mqtt')
-
-                        # We should publish the json value
-                        if config['mqtt']['split_topic'] == False:
-                            try:
-                                logger.debug('MQTT Publish of topic \'%s\' and value \'%s\'',config['mqtt']['base_topic'] + '/' + instancename, json.dumps(jsondata))
-
-                                # Do a MQTT Publish
-                                self._mqttc.publish(config['mqtt']['base_topic'] + '/' + instancename, json.dumps(jsondata), retain=config['mqtt']['retain'])
-                            except Exception as e:
-                                SetError(f"MQTT Publish Failed for {instancename} (JSON). {type(e).__name__}: '{str(e)}'", category='mqtt')
-
-                # Publish current error state
-                error_published = False
-                try:
-                    error_payload = errorlocal if errorlocal else "No Error"
-                    self._mqttc.publish(config['mqtt']['base_topic'] + '/error', error_payload, retain=config['mqtt']['retain'])
-                    error_published = True
-                except Exception as e:
-                    SetError(f"MQTT Publish Failed for error topic. {type(e).__name__}: '{str(e)}'", category='mqtt')
-
-                if self._connected and error_published:
-                    # Clear MQTT errors (connection, commands, previous publish failures)
-                    # We do this here in the loop to ensure they are published at least once after resolution.
-                    SetError(None, category='mqtt')
-
-                # Lets make also a copy of this one, then we can compare if there is a delta
-                measurementprevious = copy.deepcopy(measurementlocal)
-
-                # Now wait for the next event or interval
-                if config['s0pcm']['publish_interval'] == None:
-                    # Reactive mode: wait indefinitely for a trigger
-                    self._trigger.wait()
-                else:
-                    # Periodic mode: wait for trigger or interval timeout
-                    self._trigger.wait(timeout=config['s0pcm']['publish_interval'])
-                
-                self._trigger.clear()
-
-            self._mqttc.loop_stop()
-
-            # Send an official offline message
-            if self._connected:
-                self._mqttc.publish(config['mqtt']['base_topic'] + '/status', config['mqtt']['offline'], retain=config['mqtt']['retain'])
-
-            self._mqttc.disconnect()
+            # Wait period
+            if config['s0pcm']['publish_interval'] is None:
+                self._trigger.wait()
+            else:
+                self._trigger.wait(timeout=config['s0pcm']['publish_interval'])
+            self._trigger.clear()
 
     def run(self):
         try:
-            self.DoMQTT()
-        except:
+            while not self._stopper.is_set():
+                # Establish connection
+                self._connect_loop()
+                # Run main logic
+                self._main_loop()
+                # If _main_loop returns, it means we stopped or need full reconnect
+                if self._mqttc:
+                    if self._connected:
+                         self._mqttc.publish(config['mqtt']['base_topic'] + '/status', config['mqtt']['offline'], retain=config['mqtt']['retain'])
+                    self._mqttc.loop_stop()
+                    self._mqttc.disconnect()
+                    self._mqttc = None
+        except Exception:
             logger.error('Fatal exception has occured', exc_info=True)
         finally:
             self._stopper.set()
@@ -1058,30 +1033,47 @@ class TaskDoMQTT(threading.Thread):
 # Main
 # ------------------------------------------------------------------------------------
 
-try:
-    ReadConfig()
-    ReadMeasurement()
-    measurementshare = copy.deepcopy(measurement)
-except:
-    logger.error('Fatal exception has occured', exc_info=True)
-    # we need to quit, because we detected an error
-    exit(1)
+def main():
+    global measurementshare, trigger, stopper
 
-trigger = threading.Event()
-stopper = threading.Event()
+    # Signal handling for graceful shutdown
+    def signal_handler(signum, frame):
+        logger.info(f"Signal {signum} received, stopping...")
+        stopper.set()
+        trigger.set() # Wake up threads waiting on trigger
 
-# Start our SerialPort thread
-t1 = TaskReadSerial(trigger, stopper)
-t1.start()
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
-# Start our MQTT thread
-t2 = TaskDoMQTT(trigger, stopper)
-t2.start()
+    try:
+        ReadConfig()
+        ReadMeasurement()
+        # Initialize measurementshare
+        measurementshare = copy.deepcopy(measurement)
+    except Exception:
+        logger.error('Fatal exception during startup', exc_info=True)
+        sys.exit(1)
 
-# Now wait until both tasks are finished
-t1.join()
-t2.join()
+    trigger = threading.Event()
+    stopper = threading.Event()
 
-logger.info('Stop: s0pcm-reader')
+    logger.info('Starting s0pcm-reader...')
 
-# End
+    # Start our SerialPort thread
+    t1 = TaskReadSerial(trigger, stopper)
+    t1.start()
+
+    # Start our MQTT thread
+    t2 = TaskDoMQTT(trigger, stopper)
+    t2.start()
+
+    # Wait for threads to finish (which happens when stopper is set)
+    # We use a loop with timeout to allow signal handling to interrupt main thread in Python
+    while t1.is_alive() or t2.is_alive():
+        t1.join(1)
+        t2.join(1)
+
+    logger.info('Stop: s0pcm-reader')
+
+if __name__ == "__main__":
+    main()

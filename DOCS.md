@@ -14,9 +14,38 @@ When the add-on starts, it automatically creates a device named **S0PCM Reader**
 - **S0PCM Firmware**: Firmware version reported by the hardware.
 - **Startup Time**: Timestamp of when the addon started.
 - **Serial Port**: The configured USB/serial port.
-
 **Naming:**
-The entity names are derived from the `name` field in your `measurement.yaml`. If you haven't configured a name, it defaults to the input number (e.g., "1 Total").
+The entity names and MQTT topics are derived from the `name` field in your `measurement.yaml`. If you haven't configured a name, it defaults to the numerical input ID (e.g., "1 Total").
+
+> [!TIP]
+> **Historic Data**: Your historical data in Home Assistant is safely preserved even if you change the name of a meter. The addon uses a stable `unique_id` based on the numerical input ID, so Home Assistant will keep the data linked even if you rename "Meter 1" to "Water".
+
+### Measurement Configuration (`measurement.yaml`)
+
+This file is automatically managed by the addon, but you can manually edit it to enable/disable meters or provide custom names.
+
+**Example:**
+```yaml
+date: 2026-01-07
+1:
+  pulsecount: 0
+  today: 194
+  total: 1322738
+  yesterday: 139
+2:
+  pulsecount: 0
+  today: 0
+  total: 0
+  yesterday: 0
+  name: "Water"
+```
+
+In this example:
+- **Meter 1** does not have a custom name. Its sensors will be published to `s0pcmreader/1/total`, etc., and appear in Home Assistant as "1 Total", "1 Today", etc.
+- **Meter 2** has the custom name "Water". Its sensors will be published to `s0pcmreader/Water/total`, etc., and appear in Home Assistant as "Water Total", "Water Today", etc.
+
+> [!TIP]
+> You can now use either the **Meter Name** or the **Meter ID** for setting totals (e.g., `s0pcmreader/Water/total/set` or `s0pcmreader/2/total/set`).
 
 ## Configuration via Home Assistant UI
 
@@ -66,19 +95,26 @@ You can update the total value of any meter (e.g., to sync with a physical meter
 1. Go to **Developer Tools** > **Actions**.
 2. Search for **MQTT: Publish**.
 3. Fill in the details:
-   - **Topic**: `s0pcmreader/1/total/set` (adjust base topic and meter ID as needed)
-   - **Payload**: `123456` (your new total value)
-   - **QoS**: `0` or `1`
-   - **Retain**: `Disabled`
+   - **Topic**: `s0pcmreader/Water/total/set` (or use the ID: `s0pcmreader/1/total/set`)
+   - **Payload**: `123456`
+   
+> [!NOTE]
+> You can use either the numerical **Meter ID** or your custom **Meter Name** (case-insensitive) in the topic. The addon will automatically find the correct meter to update.
+
 4. Click **Perform Action**.
 
 ### Option 2: Using raw MQTT
 
 Send an MQTT message to the following topic:
-**Topic:** `<base_topic>/<meter_id>/total/set`
+**Topic:** `<base_topic>/<name_or_id>/total/set`
 **Payload:** The new integer value for the total.
 
+> [!TIP]
+> You can use either the numerical **Meter ID** (1, 2, 3, etc.) or the custom **Meter Name** (if configured) in the set topic.
+
 **Example:**
+`mosquitto_pub -t "s0pcmreader/Water/total/set" -m "1000"`
+or
 `mosquitto_pub -t "s0pcmreader/1/total/set" -m "1000"`
 
 > [!NOTE]
@@ -120,9 +156,9 @@ This add-on uses the [S6 Overlay](https://github.com/just-containers/s6-overlay)
 The following MQTT messages are sent:
 
 ```
-<base_topic>/1/total
-<base_topic>/1/today
-<base_topic>/<meter_id>/total
+<base_topic>/<name_or_id>/total
+<base_topic>/<name_or_id>/today
+<base_topic>/<name_or_id>/yesterday
 <base_topic>/status
 <base_topic>/error
 <base_topic>/version
