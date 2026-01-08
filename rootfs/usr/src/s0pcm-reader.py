@@ -236,16 +236,15 @@ def MigrateData():
     
     # 1. Migrate from /share to /data if needed
     if os.path.exists(legacy_dir) and configdirectory == '/data/':
-        files_to_migrate = ['measurement.yaml', 'measurement.json', 's0pcm-reader.log']
-        for f in files_to_migrate:
-            src = os.path.join(legacy_dir, f)
-            dst = os.path.join(configdirectory, f)
-            if os.path.exists(src) and not os.path.exists(dst):
-                try:
+        try:
+            for f in ['measurement.json', 'measurement.yaml']:
+                src = os.path.join(legacy_dir, f)
+                dst = os.path.join(configdirectory, f)
+                if os.path.exists(src) and not os.path.exists(dst):
                     shutil.copy2(src, dst)
                     logger.info(f"Successfully migrated {f} to {configdirectory}")
-                except Exception as e:
-                    logger.error(f"Failed to migrate {f}: {e}")
+        except Exception as e:
+            logger.error(f"Failed to migrate legacy measurement data: {e}")
 
     # 2. Migrate from measurement.yaml to measurement.json if needed
     yaml_path = measurementname.replace('.json', '.yaml')

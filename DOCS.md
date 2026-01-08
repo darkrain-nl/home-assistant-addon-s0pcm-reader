@@ -174,9 +174,8 @@ The add-on supports secure MQTT connections using TLS.
 - **Automatic Fallback:** If TLS connection fails (e.g., certificate error), the add-on will automatically fall back to a plain non-encrypted connection to ensure stable operation.
 - **Port Swapping:** By default, the addon uses **MQTT Port** for plain connections and **MQTT TLS Port** for encrypted connections.
 - **Insecure by Default:** Certificate validation is disabled by default (`mqtt_tls_check_peer: false`) for compatibility with local brokers using self-signed certificates. To enable strict verification, set `mqtt_tls_check_peer` to `true`.
-- **CA Certificate:** Provide the path in **MQTT TLS CA**.
-  - **Relative path:** `ca.crt` (looked for in `/data/ca.crt`).
-  - **Absolute path:** e.g., `/ssl/mosquitto.crt`.
+- **CA Certificate:** Provide the path to your CA certificate.
+  - **Recommended:** Put your certificate in the Home Assistant `/ssl/` folder (accessible via Samba/SSH) and use the absolute path: `/ssl/your-ca.crt`.
 
 ## State Recovery & Data Safety
 

@@ -9,6 +9,8 @@ arch:
 init: false
 startup: application
 hassio_api: true
+map:
+  - share:ro
 options:
   device: null
   log_level: info
