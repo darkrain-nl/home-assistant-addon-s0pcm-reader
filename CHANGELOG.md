@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   
   
 ## [2.0.0] - 2026-01-08
+### Breaking Changes
+- **Data Accessibility**: Measurement data and logs have moved from the public `/share/s0pcm/` mapping to the addon's private `/data/` internal storage. This means you can no longer manually edit the measurement file or view log files via Samba/SSH. Use the new MQTT topics for naming meters and setting totals.
+- **Removed Local Logging**: The local `s0pcm-reader.log` file has been removed. Logs are now exclusively available via the Home Assistant Addon console (stdout/stderr).
+
 ### Added
 - **MQTT-Based State Recovery**: The addon now recovers meter totals, today's counts, and yesterday's counts from retained MQTT messages on startup if local data is missing. It now also rebuilds the Name-to-ID mapping from MQTT discovery messages, ensuring statistics stored under the meter's name are correctly recovered.
 - **Remote Meter Naming**: Added support for setting meter names via MQTT (`name/set` topic). This replaces the need for manual file editing and automatically updates sensor names in Home Assistant through instant discovery refresh.
