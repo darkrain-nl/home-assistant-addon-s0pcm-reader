@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **JSON Storage**: Switched measurement data from YAML to JSON for better performance, faster updates, and unified format consistency.
 - **Simplified Logging**: Removed local file logging and rotation logic. The addon now relies on Home Assistant's built-in console logging, preventing "log rotation storms" and reducing disk wear.
 - **Simplified Startup**: Overhauled and simplified the `run` script and container initialization process.
+- **Removed Legacy Example**: Deleted `configuration.json.example` as configuration is now fully managed via the Home Assistant UI.
 
 ### Fixed
 - Fixed an infinite loop ("log rotation storm") caused by logging during the rotation process.

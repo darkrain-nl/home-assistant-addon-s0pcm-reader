@@ -88,7 +88,7 @@ You can configure the following options directly in the **Settings > Add-ons > S
 - **MQTT TLS Check Peer**: Enable or disable certificate and hostname verification. Defaults to `false`.
 
 > [!NOTE]
-> If these options are set in the Home Assistant UI, they will override any corresponding settings in your `configuration.json` file.
+> All configuration is now managed directly through the Home Assistant UI. Legacy manual `configuration.json` files are no longer required or recommended.
 
 ## Setting Meter Totals
 
