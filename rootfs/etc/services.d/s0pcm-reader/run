@@ -34,11 +34,6 @@ if bashio::supervisor.ping; then
         '-----------------------------------------------------------'
 fi
 
-# Copy example configuration if not exists
-if [ ! -f /share/s0pcm/configuration.json ]; then
-  cp /usr/src/configuration.json.example /share/s0pcm/configuration.json
-fi
-
 bashio::log.info "Starting S0PCM Reader..."
 export S0PCM_READER_VERSION=$(bashio::addon.version)
-exec python3 /usr/src/s0pcm-reader.py -c /share/s0pcm
+exec python3 /usr/src/s0pcm-reader.py

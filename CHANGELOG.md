@@ -4,9 +4,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
-## [1.6.5] - 2026-01-07
+  
+## [2.0.0] - 2026-01-08
+### Added
+- **MQTT-Based State Recovery**: The addon now recovers meter totals, today's counts, and yesterday's counts from retained MQTT messages on startup if local data is missing. It now also rebuilds the Name-to-ID mapping from MQTT discovery messages, ensuring statistics stored under the meter's name are correctly recovered.
+- **Remote Meter Naming**: Added support for setting meter names via MQTT (`name/set` topic). This replaces the need for manual file editing and automatically updates sensor names in Home Assistant through instant discovery refresh.
+- **Automatic Data Migration**: Seamlessly migrates data from the legacy `/share/s0pcm/` location and converts YAML storage to the new JSON format.
+- **Backup Advice**: Added detailed data safety and backup recommendations to `DOCS.md`.
+
+### Changed
+- **Modernized Architecture**: Removed legacy dependencies on `bashio`, `tempio`, and `config.sh`. The Python application now directly reads Home Assistant options and uses the Supervisor API for service discovery.
+- **Private Data Storage**: Operational data (totals and logs) is now stored in the addon's private `/data/` folder, protecting it from accidental external access.
+- **JSON Storage**: Switched measurement data from YAML to JSON for better performance, faster updates, and unified format consistency.
+- **Simplified Logging**: Removed local file logging and rotation logic. The addon now relies on Home Assistant's built-in console logging, preventing "log rotation storms" and reducing disk wear.
+- **Simplified Startup**: Overhauled and simplified the `run` script and container initialization process.
+
 ### Fixed
 - Fixed an infinite loop ("log rotation storm") caused by logging during the rotation process.
+- Fixed a `SyntaxWarning` in the MQTT recovery logic during discovery message parsing.
+- Fixed recovery logic to prioritize the highest non-zero value found on MQTT, preventing stale data from overwriting newer statistics.
+- Fixed a bug where meter names were not correctly restored during the MQTT recovery phase.
 
 ## [1.6.4] - 2026-01-07
 ### Added

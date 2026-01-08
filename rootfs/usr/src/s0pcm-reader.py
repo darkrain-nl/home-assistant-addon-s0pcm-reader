@@ -5,7 +5,6 @@ import threading
 import serial
 import yaml
 import logging
-from logging.handlers import RotatingFileHandler
 import paho.mqtt.client as mqtt
 import ssl
 import argparse
@@ -13,7 +12,10 @@ import copy
 import json
 import os
 import sys
+import re
 import signal
+import shutil
+import urllib.request
 
 """
 Description
@@ -147,7 +149,9 @@ s0pcmreaderversion = GetVersion()
 # Parameters
 # ------------------------------------------------------------------------------------
 parser = argparse.ArgumentParser(prog='s0pcm-reader', description='S0 Pulse Counter Module', epilog='...')
-parser.add_argument('-c', '--config', help='Directory where the configuration resides', type=str, default='./')
+# Determine default config directory: /data for HA, ./ for local dev
+default_config = '/data' if os.path.exists('/data') else './'
+parser.add_argument('-c', '--config', help='Directory where the configuration resides', type=str, default=default_config)
 args = parser.parse_args()
 
 configdirectory = args.config
@@ -158,8 +162,7 @@ if not configdirectory.endswith('/'):
 # Setup filenames
 # ------------------------------------------------------------------------------------
 configname = configdirectory + 'configuration.json'
-measurementname = configdirectory + 'measurement.yaml'
-logname= configdirectory + 's0pcm-reader.log'
+measurementname = configdirectory + 'measurement.json'
 
 # ------------------------------------------------------------------------------------
 # Error Handling
@@ -208,68 +211,136 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.propagate = False
 
-# ------------------------------------------------------------------------------------
-# Custom Rotating File Handler to log rotation events
-# ------------------------------------------------------------------------------------
-class DetailedRotatingFileHandler(RotatingFileHandler):
-    def doRollover(self):
+
+def GetSupervisorConfig(service):
+    """Fetch service configuration (like MQTT) from the Home Assistant Supervisor API."""
+    token = os.getenv('SUPERVISOR_TOKEN')
+    if not token:
+        return {}
+
+    url = f"http://supervisor/services/{service}"
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode())
+                return data.get('data', {})
+    except Exception as e:
+        logger.debug(f"Supervisor API discovery for {service} failed: {e}")
+    return {}
+
+def MigrateData():
+    """Migrate data from legacy /share/s0pcm location and from YAML to JSON."""
+    legacy_dir = '/share/s0pcm/'
+    
+    # 1. Migrate from /share to /data if needed
+    if os.path.exists(legacy_dir) and configdirectory == '/data/':
+        files_to_migrate = ['measurement.yaml', 'measurement.json', 's0pcm-reader.log']
+        for f in files_to_migrate:
+            src = os.path.join(legacy_dir, f)
+            dst = os.path.join(configdirectory, f)
+            if os.path.exists(src) and not os.path.exists(dst):
+                try:
+                    shutil.copy2(src, dst)
+                    logger.info(f"Successfully migrated {f} to {configdirectory}")
+                except Exception as e:
+                    logger.error(f"Failed to migrate {f}: {e}")
+
+    # 2. Migrate from measurement.yaml to measurement.json if needed
+    yaml_path = measurementname.replace('.json', '.yaml')
+    if os.path.exists(yaml_path) and not os.path.exists(measurementname):
         try:
-            # Manually format timestamp to match logging format
-            now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]
-            
-            # Log that rotation is starting in the OLD file (write directly to stream)
-            if self.stream:
-                self.stream.write(f"{now} INFO: --- Log Rotation Started ---\n")
-                self.stream.flush()
-
-            # Perform the actual rotation
-            super().doRollover()
-
-            # Log that a new file has started in the NEW file (write directly to stream)
-            if self.stream:
-                self.stream.write(f"{now} INFO: --- New Log File Started ---\n")
-                self.stream.flush()
-        except Exception:
-            # Fallback to standard rollover if manual write fails
-            super().doRollover()
+            with open(yaml_path, 'r') as f:
+                data = yaml.safe_load(f)
+                if data:
+                    with open(measurementname, 'w') as fj:
+                        # Convert date object to string for JSON
+                        if 'date' in data and isinstance(data['date'], (datetime.date, datetime.datetime)):
+                            data['date'] = str(data['date'])
+                        json.dump(data, fj, indent=4)
+                    logger.info(f"Successfully migrated data from {yaml_path} to {measurementname}")
+        except Exception as e:
+            logger.error(f"Failed to migrate YAML measurement data to JSON: {e}")
 
 # ------------------------------------------------------------------------------------
-# Read the 'configuration.yaml' file
+# Read the configuration
 # ------------------------------------------------------------------------------------
 def ReadConfig():
 
     global config
 
+    # 1. Attempt to load HA Options if they exist
+    options_path = '/data/options.json'
+    ha_options = {}
+    if os.path.exists(options_path):
+        try:
+            with open(options_path, 'r') as f:
+                ha_options = json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load {options_path}: {e}")
+
+    # 2. Attempt to load legacy configuration.json if it exists
     try:
         with open(configname, 'r') as f:
-            # config = yaml.safe_load(f)
             config = json.load(f)
     except FileNotFoundError:
-        print(f"WARN: No '{configname}' found, using defaults.")
+        if not ha_options:
+            print(f"WARN: No configuration file found, using defaults.")
+    except Exception as e:
+        logger.error(f"Error reading {configname}: {e}")
+
+    # 3. Merge/Map HA Options into the config structure
+    if ha_options:
+        config.setdefault('log', {})
+        if 'log_level' in ha_options: config['log']['level'] = ha_options['log_level']
+        if 'log_size' in ha_options: config['log']['size'] = ha_options['log_size']
+        if 'log_count' in ha_options: config['log']['count'] = ha_options['log_count']
+        
+        config.setdefault('serial', {})
+        if 'device' in ha_options: config['serial']['port'] = ha_options['device']
+
+        config.setdefault('mqtt', {})
+        
+        # Service Discovery if host not manually set
+        if not ha_options.get('mqtt_host'):
+            mqtt_service = GetSupervisorConfig('mqtt')
+            if mqtt_service:
+                logger.info("Using MQTT service discovery for connection settings.")
+                config['mqtt']['host'] = mqtt_service.get('host', 'core-mosquitto')
+                config['mqtt']['username'] = mqtt_service.get('username')
+                config['mqtt']['password'] = mqtt_service.get('password')
+                config['mqtt']['port'] = mqtt_service.get('port', 1883)
+        
+        # Manual Overrides from HA options
+        mapping = {
+            'mqtt_host': 'host',
+            'mqtt_port': 'port',
+            'mqtt_username': 'username',
+            'mqtt_password': 'password',
+            'mqtt_client_id': 'client_id',
+            'mqtt_base_topic': 'base_topic',
+            'mqtt_protocol': 'version',
+            'mqtt_discovery': 'discovery',
+            'mqtt_discovery_prefix': 'discovery_prefix',
+            'mqtt_retain': 'retain',
+            'mqtt_split_topic': 'split_topic',
+            'mqtt_tls': 'tls',
+            'mqtt_tls_port': 'tls_port',
+            'mqtt_tls_ca': 'tls_ca',
+            'mqtt_tls_check_peer': 'tls_check_peer'
+        }
+        for ha_key, cfg_key in mapping.items():
+            if ha_options.get(ha_key) is not None:
+                config['mqtt'][cfg_key] = ha_options[ha_key]
 
     # Setup 'log' variables
     config.setdefault('log', {})
-    config['log'].setdefault('size', 5)
-    config['log'].setdefault('count', 3)
-    
-    # Handle log level
-    if 'level' in config['log']:
-        config['log']['level'] = str(config['log']['level']).upper()
-        valid_levels = ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG']
-        if config['log']['level'] not in valid_levels:
-            print(f"WARN: Invalid 'level' {config['log']['level']} supplied. Using 'WARNING'.")
-            config['log']['level'] = 'WARNING'
-    else:
-        config['log']['level'] = 'WARNING'
+    if config['log'] is None: config['log'] = {}
 
-    # Convert MB to Bytes
-    config['log']['size'] = config['log']['size'] * 1024 * 1024
-
-    # Setup logfile and rotation
-    handler = DetailedRotatingFileHandler(logname, maxBytes=config['log']['size'], backupCount=config['log']['count'])
-    handler.setLevel(config['log']['level'])
-    handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
-    logger.addHandler(handler)
+    config['log'].setdefault('level', 'INFO')
+    if config['log']['level'] in [None, ""]: config['log']['level'] = 'INFO'
+    config['log']['level'] = config['log']['level'].upper()
 
     # Setup logging to stderr
     stream = logging.StreamHandler()
@@ -347,7 +418,22 @@ def ReadConfig():
     logger.debug(f'Config: {str(config_log)}')
 
 # ------------------------------------------------------------------------------------
-# Read the 'measurement.yaml' file
+# Save the measurement data
+# ------------------------------------------------------------------------------------
+def SaveMeasurement():
+    """Save measurement data to JSON file, handling date serialization."""
+    try:
+        data_to_save = copy.deepcopy(measurement)
+        if 'date' in data_to_save and isinstance(data_to_save['date'], (datetime.date, datetime.datetime)):
+            data_to_save['date'] = str(data_to_save['date'])
+        
+        with open(measurementname, 'w') as f:
+            json.dump(data_to_save, f, indent=4)
+    except Exception as e:
+        logger.error(f"Failed to save measurement data: {e}")
+
+# ------------------------------------------------------------------------------------
+# Read the measurement data
 # ------------------------------------------------------------------------------------
 def ReadMeasurement():
 
@@ -355,7 +441,7 @@ def ReadMeasurement():
 
     try:
         with open(measurementname, 'r') as f:
-            data = yaml.safe_load(f)
+            data = json.load(f)
             # Handle empty file (None) or valid content
             measurement = data if data is not None else {}
     except FileNotFoundError:
@@ -368,6 +454,15 @@ def ReadMeasurement():
     if not isinstance(measurement, dict):
         logger.error(f"'{measurementname}' content is not a dictionary ({type(measurement)}). Using defaults.")
         measurement = {}
+
+    # JSON keys are always strings, convert meter IDs back to integers
+    new_measurement = {}
+    for k, v in measurement.items():
+        try:
+            new_measurement[int(k)] = v
+        except ValueError:
+            new_measurement[k] = v
+    measurement = new_measurement
 
     # Handle Date
     saved_date = measurement.get('date')
@@ -487,8 +582,7 @@ class TaskReadSerial(threading.Thread):
             logger.debug(f"No change to the '{measurementname}' file (no write)")
         else:
             logger.debug(f"Updated '{measurementname}' file")
-            with open(measurementname, 'w') as f:
-                yaml.dump(measurement, f, default_flow_style=False)
+            SaveMeasurement()
 
         # Update shared state
         lock.acquire()
@@ -593,8 +687,132 @@ class TaskDoMQTT(threading.Thread):
         self._stopper = stopper
         self._connected = False
         self._discovery_sent = False
+        self._recovery_complete = False
         self._mqttc = None
         self._last_diagnostics = {}
+
+    def _recover_state(self):
+        """Startup phase: Wait for retained messages to recover meter totals."""
+        global measurement, measurementshare
+        
+        # Only recover if local measurement is empty or missing data (except 'date')
+        if measurement and len(measurement) > 1:
+             return
+
+        logger.info("Starting MQTT recovery phase (waiting 5s for retained messages)...")
+        recovered_data = {} # {identifier: {'total': X, 'today': Y, 'yesterday': Z}}
+        recovered_names = {} # {name: id}
+        
+        base_topic = config['mqtt']['base_topic']
+        discovery_prefix = config['mqtt']['discovery_prefix']
+
+        def on_recovery_message(client, userdata, msg):
+            try:
+                # 1. Handle Discovery topics to rebuild name-to-id mapping
+                if '/config' in msg.topic:
+                    logger.debug(f"Recovery: Processing discovery packet: {msg.topic}")
+                    payload = json.loads(msg.payload.decode())
+                    unique_id = payload.get('unique_id', '')
+                    state_topic = payload.get('state_topic', '')
+                    
+                    # Extract ID from unique_id: s0pcm_base_ID_subkey (e.g. s0pcm_s0pcmreader_1_total)
+                    match_id = re.search(fr"s0pcm_{base_topic}_(\d+)", unique_id)
+                    if match_id:
+                        meter_id = int(match_id.group(1))
+                        # Extract Name from state_topic: base/NAME/subkey
+                        name_part = state_topic.replace(f"{base_topic}/", "")
+                        name = name_part.split('/')[0]
+                        if name and name != str(meter_id):
+                            recovered_names[name] = meter_id
+                            logger.debug(f"Recovery: Mapped Name '{name}' to ID {meter_id}")
+                    return
+
+                # 2. Handle Data topics (total, today, yesterday)
+                # Expected topics: base_topic/ID_or_NAME/SUFFIX
+                topic_parts = msg.topic.split('/')
+                if len(topic_parts) >= 3:
+                    suffix = topic_parts[-1]
+                    if suffix in ['total', 'today', 'yesterday']:
+                        identifier = topic_parts[-2]
+                        payload = msg.payload.decode()
+                        try:
+                            value = int(float(payload))
+                            recovered_data.setdefault(identifier, {})[suffix] = value
+                            logger.debug(f"Recovery: Found {identifier} {suffix} = {value}")
+                        except ValueError:
+                            pass
+            except Exception as e:
+                logger.debug(f"Recovery parse error: {e}")
+
+        # Set temporary callback
+        original_on_message = self._mqttc.on_message
+        self._mqttc.on_message = on_recovery_message
+        
+        # Subscribe to totals, stats, and discovery topics
+        topics = [
+            f"{base_topic}/+/total", 
+            f"{base_topic}/+/today", 
+            f"{base_topic}/+/yesterday",
+            f"{discovery_prefix}/sensor/{base_topic}/#"
+        ]
+        for t in topics:
+            self._mqttc.subscribe(t)
+        
+        # Wait for messages
+        time.sleep(5)
+        
+        for t in topics:
+            self._mqttc.unsubscribe(t)
+        self._mqttc.on_message = original_on_message
+        
+        if recovered_data:
+            logger.info(f"Recovery: Received {len(recovered_data)} meter states from MQTT.")
+            with lock:
+                # Map recovered data to meters
+                for identifier, data in recovered_data.items():
+                    meter_id = None
+                    # 1. Try numeric ID
+                    try:
+                        meter_id = int(identifier)
+                    except ValueError:
+                        # 2. Try mapped names from discovery
+                        meter_id = recovered_names.get(identifier)
+                        
+                        # 3. Try current known names (unlikely on fresh start, but good safety)
+                        if not meter_id:
+                            for mid, mdata in measurement.items():
+                                if isinstance(mid, int) and mdata.get('name') == identifier:
+                                    meter_id = mid
+                                    break
+                    
+                    if meter_id:
+                        measurement.setdefault(meter_id, {})
+                        
+                        # Restore the name if we found a mapping for this ID
+                        for name, mid in recovered_names.items():
+                            if mid == meter_id:
+                                measurement[meter_id]['name'] = name
+                                break
+
+                        for field in ['total', 'today', 'yesterday']:
+                            if field in data:
+                                current_val = measurement[meter_id].get(field, 0)
+                                # Take the highest value found on MQTT
+                                if data[field] > current_val:
+                                    measurement[meter_id][field] = data[field]
+                                    logger.info(f"Recovered {field} for meter {meter_id} from MQTT: {data[field]}")
+                
+                # Persist recovered state
+                try:
+                    SaveMeasurement()
+                    measurementshare = copy.deepcopy(measurement)
+                    logger.info("Saved recovered state to local file.")
+                except Exception as e:
+                    logger.error(f"Failed to save recovered state: {e}")
+        else:
+            logger.info("Recovery: No retained totals found on MQTT broker.")
+        
+        self._recovery_complete = True
 
     def on_connect(self, mqttc, obj, flags, reason_code, properties):
         if reason_code == 0:
@@ -605,9 +823,9 @@ class TaskDoMQTT(threading.Thread):
             self._mqttc.publish(config['mqtt']['base_topic'] + '/status', config['mqtt']['online'], retain=config['mqtt']['retain'])
             
             # Subscribe to 'set' commands
-            topic_set = config['mqtt']['base_topic'] + '/+/total/set'
-            self._mqttc.subscribe(topic_set)
-            logger.debug('Subscribed to: ' + topic_set)
+            self._mqttc.subscribe(config['mqtt']['base_topic'] + '/+/total/set')
+            self._mqttc.subscribe(config['mqtt']['base_topic'] + '/+/name/set')
+            logger.debug(f"Subscribed to set commands under {config['mqtt']['base_topic']}/+/...")
         else:
             self._connected = False
             SetError(f"MQTT failed to connect to broker: {mqtt.connack_string(reason_code)}", category='mqtt')
@@ -623,9 +841,11 @@ class TaskDoMQTT(threading.Thread):
     def on_message(self, mqttc, obj, msg):
         logger.debug('MQTT on_message: ' + msg.topic + ' ' + str(msg.qos) + ' ' + str(msg.payload))
 
-        # Check for set command
+        # Check for set commands
         if msg.topic.endswith('/total/set'):
             self._handle_set_command(msg)
+        elif msg.topic.endswith('/name/set'):
+            self._handle_name_set(msg)
 
     def _handle_set_command(self, msg):
         global measurementshare
@@ -670,9 +890,8 @@ class TaskDoMQTT(threading.Thread):
                 measurement[meter_id]['total'] = new_total
                 
                 # Persist immediately
-                with open(measurementname, 'w') as f:
-                    yaml.dump(measurement, f, default_flow_style=False)
-                logger.debug(f"Updated measurement.yaml with new total for meter {meter_id}")
+                SaveMeasurement()
+                logger.debug(f"Updated measurement file with new total for meter {meter_id}")
 
                 # Update share and trigger publish
                 measurementshare = copy.deepcopy(measurement)
@@ -680,6 +899,59 @@ class TaskDoMQTT(threading.Thread):
 
         except Exception as e:
             SetError(f"Failed to process MQTT set command: {e}", category='mqtt')
+
+    def _handle_name_set(self, msg):
+        """Handle MQTT command to set or clear a meter name."""
+        global measurementshare
+        try:
+            # Topic format: base_topic/ID_or_NAME/name/set
+            parts = msg.topic.split('/')
+            identifier = parts[-3]
+            meter_id = None
+            
+            try:
+                meter_id = int(identifier)
+            except ValueError:
+                # If not an integer, try to find a meter with a matching name (case-insensitive)
+                for key, data in measurement.items():
+                    if isinstance(key, int):
+                        name = data.get('name')
+                        if name and name.lower() == identifier.lower():
+                            meter_id = key
+                            break
+            
+            if meter_id is None:
+                SetError(f"Ignored name/set command for unknown meter ID or Name: {identifier}", category='mqtt')
+                return
+
+            new_name = msg.payload.decode('utf-8').strip()
+            
+            # If payload is empty, clear the name
+            if not new_name:
+                new_name = None
+
+            logger.info(f"Received MQTT name/set command for meter {meter_id}. Setting name to: {new_name or 'None (ID only)'}")
+
+            with lock:
+                if meter_id not in measurement:
+                    measurement[meter_id] = {}
+                    measurement[meter_id].setdefault('pulsecount', 0)
+                    measurement[meter_id].setdefault('total', 0)
+                    measurement[meter_id].setdefault('today', 0)
+                    measurement[meter_id].setdefault('yesterday', 0)
+
+                measurement[meter_id]['name'] = new_name
+                
+                # Persist immediately
+                SaveMeasurement()
+                
+                # Update share and trigger discovery to update HA entities
+                measurementshare = copy.deepcopy(measurement)
+                self.send_discovery(measurementshare)
+                self._trigger.set()
+
+        except Exception as e:
+            SetError(f"Failed to process MQTT name/set command: {e}", category='mqtt')
 
     def on_publish(self, mqttc, obj, mid, reason_codes, properties):
         logger.debug('MQTT on_publish: mid: ' + str(mid))
@@ -821,6 +1093,8 @@ class TaskDoMQTT(threading.Thread):
                         payload['value_template'] = f"{{{{ value_json.{subkey} }}}}"
 
                     # Publish discovery
+                    # Clear first to force HA to update name/config
+                    self._mqttc.publish(topic, "", retain=True)
                     self._mqttc.publish(topic, json.dumps(payload), retain=True)
 
 
@@ -900,6 +1174,7 @@ class TaskDoMQTT(threading.Thread):
 
                 if self._connected:
                     logger.debug("MQTT connection established")
+                    self._recover_state() # Perform state recovery
                     return # Connected
                 else:
                     raise ConnectionError("Timeout waiting for MQTT CONNACK")
@@ -970,8 +1245,10 @@ class TaskDoMQTT(threading.Thread):
                     try:
                         if subkey in measurementlocal[key]:
                             if config['mqtt']['split_topic'] == True:
-                                # On-change check
-                                if measurementlocal[key][subkey] == value_previous and config['s0pcm']['publish_onchange'] == True:
+                                # On-change check (value and name/topic)
+                                if measurementlocal[key][subkey] == value_previous and \
+                                   measurementlocal[key].get('name') == measurementprevious.get(key, {}).get('name') and \
+                                   config['s0pcm']['publish_onchange'] == True:
                                     continue
                                 
                                 
