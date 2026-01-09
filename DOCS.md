@@ -95,9 +95,19 @@ You can configure the following options directly in the **Settings > Add-ons > S
 
 ## Setting Meter Totals
 
-You can update the total value of any meter (e.g., to sync with a physical meter) using either MQTT or the Home Assistant UI.
+You can update the total value of any meter (e.g., to sync with a physical meter) directly from the **Device** configuration page or via MQTT.
 
-### Option 1: Using Home Assistant Actions (Recommended)
+### Option 1: Via Home Assistant Device Page (Recommended)
+
+1. Go to **Settings** > **Devices & Services** > **Devices**.
+2. Search for **S0PCM Reader** (Integration: **MQTT**).
+3. Under the **Configuration** section, look for the **Total Correction** entity for your meter (e.g., `number.1_total_correction`).
+4. Enter the correct total value and click **Set**.
+
+> [!NOTE]
+> This will instantly update the internal counter and the `total` sensor. The maximum supported value is **2,147,483,647**.
+
+### Option 2: Using Home Assistant Actions (Advanced)
 
 1. Go to **Developer Tools** > **Actions**.
 2. Search for **MQTT: Publish**.
@@ -129,9 +139,20 @@ or
 
 ## Naming Your Meters
 
-Since measurement data is now stored in a private folder for better security and performance, you can no longer edit the data file manually. Instead, you can set (or change) meter names via MQTT.
+Since measurement data is now stored in a private folder for better security and performance, you can no longer edit the data file manually. Instead, you can set (or change) meter names directly from the UI.
 
-### Option 1: Using Home Assistant Actions (Recommended)
+### Option 1: Via Home Assistant Device Page (Recommended)
+
+1. Go to **Settings** > **Devices & Services** > **Devices**.
+2. Search for **S0PCM Reader** (Integration: **MQTT**).
+3. Under the **Configuration** section, look for the **Name** entity for your meter (e.g., `text.1_name`).
+4. Type your desired name (e.g., `Kitchen`) and press **Enter**.
+
+The addon will immediately:
+- Update the internal name.
+- Update the `total`, `today`, and `yesterday` sensor names in Home Assistant.
+
+### Option 2: Using Home Assistant Actions (Advanced)
 
 1. Go to **Developer Tools** > **Actions**.
 2. Search for **MQTT: Publish**.

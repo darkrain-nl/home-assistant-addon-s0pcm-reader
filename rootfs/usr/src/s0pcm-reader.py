@@ -96,7 +96,7 @@ base_topic/info - json string with all diagnostic info
 # Threading lock
 # ------------------------------------------------------------------------------------
 
-lock = threading.Lock()
+lock = threading.RLock()
 
 # ------------------------------------------------------------------------------------
 # Global Variables
@@ -553,41 +553,41 @@ class TaskReadSerial(threading.Thread):
         measurementstr = str(measurement)
 
         # Loop through 2/5 s0pcm data
-        for count in range(1, size + 1):
-            offset = 4 + ((count - 1) * 3)
-            
-            # expected format: M1:x:x
-            if s0arr[offset] != 'M' + str(count):
-                SetError(f"Expecting 'M{str(count)}', received '{s0arr[offset]}'", category='serial')
-                continue
+        with lock:
+            for count in range(1, size + 1):
+                offset = 4 + ((count - 1) * 3)
+                
+                # expected format: M1:x:x
+                if s0arr[offset] != 'M' + str(count):
+                    SetError(f"Expecting 'M{str(count)}', received '{s0arr[offset]}'", category='serial')
+                    continue
 
-            try:
-                pulsecount = int(s0arr[offset + 2])
-            except ValueError:
-                SetError(f"Cannot convert pulsecount '{s0arr[offset + 2]}' into integer for meter {count}", category='serial')
-                pulsecount = 0
+                try:
+                    pulsecount = int(s0arr[offset + 2])
+                except ValueError:
+                    SetError(f"Cannot convert pulsecount '{s0arr[offset + 2]}' into integer for meter {count}", category='serial')
+                    pulsecount = 0
 
-            self._update_meter(count, pulsecount)
+                self._update_meter(count, pulsecount)
 
-        # Update todays date if needed
-        if str(measurement['date']) != str(datetime.date.today()):
-            measurement['date'] = datetime.date.today()
+            # Update todays date if needed
+            if str(measurement['date']) != str(datetime.date.today()):
+                measurement['date'] = datetime.date.today()
 
+            # Persist if changed
+            # Note: _update_meter modifies 'measurement' in place
+            if measurementstr == str(measurement):
+                logger.debug(f"No change to the '{measurementname}' file (no write)")
+            else:
+                logger.debug(f"Updated '{measurementname}' file")
+                SaveMeasurement()
+
+            # Update shared state
+            measurementshare = copy.deepcopy(measurement)
+        
         # Valid packet processed
         SetError(None, category='serial')
-
-        # Persist if changed
-        if measurementstr == str(measurement):
-            logger.debug(f"No change to the '{measurementname}' file (no write)")
-        else:
-            logger.debug(f"Updated '{measurementname}' file")
-            SaveMeasurement()
-
-        # Update shared state
-        lock.acquire()
-        measurementshare = copy.deepcopy(measurement)
-        lock.release()
-
+        
         # Signal new data
         self._trigger.set()
 
@@ -939,7 +939,11 @@ class TaskDoMQTT(threading.Thread):
                     measurement[meter_id].setdefault('today', 0)
                     measurement[meter_id].setdefault('yesterday', 0)
 
-                measurement[meter_id]['name'] = new_name
+                if new_name:
+                    measurement[meter_id]['name'] = new_name
+                else:
+                    if 'name' in measurement[meter_id]:
+                        del measurement[meter_id]['name']
                 
                 # Persist immediately
                 SaveMeasurement()
@@ -1095,6 +1099,61 @@ class TaskDoMQTT(threading.Thread):
                     # Clear first to force HA to update name/config
                     self._mqttc.publish(topic, "", retain=True)
                     self._mqttc.publish(topic, json.dumps(payload), retain=True)
+
+                    # -------------------------------------------------------------------------
+                    # Configure Text Entity for Meter Name
+                    # -------------------------------------------------------------------------
+                    if subkey == 'total':  # Only do this once per meter
+                        text_unique_id = f"s0pcm_{identifier}_{key}_name_config"
+                        text_topic = f"{config['mqtt']['discovery_prefix']}/text/{identifier}/{text_unique_id}/config"
+                        
+                        text_payload = {
+                            "name": f"{instancename} Name",
+                            "unique_id": text_unique_id,
+                            "device": device_info,
+                            "entity_category": "config",
+                            "command_topic": f"{config['mqtt']['base_topic']}/{key}/name/set",
+                            "state_topic": f"{config['mqtt']['base_topic']}/{key}/name",
+                            "icon": "mdi:tag-text-outline"
+                        }
+                        self._mqttc.publish(text_topic, "", retain=True)
+                        self._mqttc.publish(text_topic, json.dumps(text_payload), retain=True)
+
+                        # Publish current name state so the text entity has a value
+                        # If customized, use custom name. If default, use empty string or ID?
+                        # Ideally, users want to see the *current* alias.
+                        current_name = measurementlocal[key].get('name', "")
+                        # If name equals ID, it's effectively unset/default. Show empty to indicate 'standard'.
+                        # Or show actual name. Let's show actual name if it exists in 'name' field, else ""
+                        pub_name = measurementlocal[key].get('name', "")
+                        self._mqttc.publish(f"{config['mqtt']['base_topic']}/{key}/name", pub_name, retain=True)
+
+                    # -------------------------------------------------------------------------
+                    # Configure Number Entity for Meter Total
+                    # -------------------------------------------------------------------------
+                    if subkey == 'total':
+                        num_unique_id = f"s0pcm_{identifier}_{key}_total_config"
+                        num_topic = f"{config['mqtt']['discovery_prefix']}/number/{identifier}/{num_unique_id}/config"
+                        
+                        num_payload = {
+                            "name": f"{instancename} Total Correction",
+                            "unique_id": num_unique_id,
+                            "device": device_info,
+                            "entity_category": "config",
+                            "command_topic": f"{config['mqtt']['base_topic']}/{key}/total/set",
+                            "state_topic": f"{config['mqtt']['base_topic']}/{key}/total",
+                            "min": 0,
+                            "max": 2147483647,
+                            "step": 1,
+                            "mode": "box",
+                            "icon": "mdi:counter"
+                        }
+                        self._mqttc.publish(num_topic, "", retain=True)
+                        self._mqttc.publish(num_topic, json.dumps(num_payload), retain=True)
+
+                        # Publish current total to the ID-based topic so the number entity has a value
+                        current_total = measurementlocal[key].get('total', 0)
+                        self._mqttc.publish(f"{config['mqtt']['base_topic']}/{key}/total", current_total, retain=True)
 
 
 
@@ -1253,11 +1312,26 @@ class TaskDoMQTT(threading.Thread):
                                 
                                 logger.debug(f"MQTT Publish: topic='{config['mqtt']['base_topic']}/{instancename}/{subkey}', value='{measurementlocal[key][subkey]}'")
                                 self._mqttc.publish(config['mqtt']['base_topic'] + '/' + instancename + '/' + subkey, measurementlocal[key][subkey], retain=config['mqtt']['retain'])
+
+                                # Ensure ID-based topic is also updated for the 'number' config entity
+                                if subkey == 'total' and str(instancename) != str(key):
+                                    self._mqttc.publish(config['mqtt']['base_topic'] + '/' + str(key) + '/total', measurementlocal[key][subkey], retain=config['mqtt']['retain'])
                             else:
                                 jsondata[subkey] = measurementlocal[key][subkey]
 
                     except Exception as e:
                         SetError(f"MQTT Publish Failed for {instancename}/{subkey}. {type(e).__name__}: '{str(e)}'", category='mqtt')
+
+                # Publish Name State (for text entity) if name changed
+                current_name = measurementlocal[key].get('name', "")
+                previous_name = measurementprevious.get(key, {}).get('name', "")
+                if current_name != previous_name or not measurementprevious:
+                    try:
+                        name_topic = f"{config['mqtt']['base_topic']}/{key}/name"
+                        logger.debug(f"MQTT Publish Name: topic='{name_topic}', value='{current_name}'")
+                        self._mqttc.publish(name_topic, current_name, retain=True)
+                    except Exception as e:
+                        SetError(f"MQTT Publish Name Failed for {key}. {type(e).__name__}: '{str(e)}'", category='mqtt')
 
                 # Publish JSON if not split
                 if config['mqtt']['split_topic'] == False and jsondata:
