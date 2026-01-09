@@ -34,7 +34,7 @@ The **Meter Entity** names and MQTT topics are determined by the configured **Me
 
 ### Measurement Configuration (`measurement.json`)
 
-This file is now stored in the addon's private `/data` folder. While it is automatically managed by the addon, you can restore or initialize your totals using MQTT (see the **State Recovery** section below).
+This file is the internal database for your meter data, stored in the addon's private storage for better security and performance. It is automatically managed and requires no manual editing. You can easily manage your meter settings via Home Assistant (recommended) or MQTT, and the addon even supports automatic recovery (see the **State Recovery** section below).
 
 **Example:**
 ```json
