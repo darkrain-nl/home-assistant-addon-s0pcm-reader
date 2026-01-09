@@ -27,7 +27,7 @@ These sensors are unique and report on the addon itself:
 The **Meter Entity** names and MQTT topics are determined by the configured **Meter Name**. If you haven't configured a name yet (e.g. via the _Name_ entity), it defaults to the numerical input ID (e.g., "1 Total"). 
 
 > [!TIP]
-> You can easily set or change these names via MQTT. See the **Naming Your Meters** section below for details.
+> You can easily set or change these names via Home Assistant. See the **Naming Your Meters** section below for details.
 
 > [!TIP]
 > **Historic Data**: Your historical data in Home Assistant is safely preserved even if you change the name of a meter. The addon uses a stable `unique_id` based on the numerical input ID, so Home Assistant will keep the data linked even if you rename "Meter 1" to "Water".
