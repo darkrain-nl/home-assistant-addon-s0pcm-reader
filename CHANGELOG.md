@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   
 ## [2.0.0] - 2026-01-08
 ### Breaking Changes
-- **Data Accessibility**: Measurement data and logs have moved from the public `/share/s0pcm/` mapping to the addon's private `/data/` internal storage. This means you can no longer manually edit the measurement file or view log files via Samba/SSH. Use the new MQTT topics for naming meters and setting totals.
+- **Data Accessibility**: Measurement data has moved from the public `/share/s0pcm/` mapping to the addon's private `/data/` internal storage. This means you can no longer manually edit the measurement file via Samba/SSH. Use the new MQTT topics for naming meters and setting totals.
 - **Removed Local Logging**: The local `s0pcm-reader.log` file has been removed. Logs are now exclusively available via the Home Assistant Addon console (stdout/stderr).
 
 ### Added
@@ -20,19 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Modernized Architecture**: Removed legacy dependencies on `bashio`, `tempio`, and `config.sh`. The internal Python application was majorly refactored (including `TaskReadSerial` and `TaskDoMQTT`) to directly handle configuration, service discovery via Supervisor API, and graceful shutdowns (SIGINT/SIGTERM).
-- **Private Data Storage**: Operational data (totals and logs) is now stored in the addon's private `/data/` folder, protecting it from accidental external access.
+- **Private Data Storage**: Operational data (meter totals) is now stored in the addon's private `/data/` folder, protecting it from accidental external access.
 - **JSON Storage**: Switched measurement data from YAML to JSON for better performance, faster updates, and unified format consistency.
 - **Simplified Logging**: Removed local file logging and rotation logic. The addon now relies on Home Assistant's built-in console logging, preventing "log rotation storms" and reducing disk wear.
 - **Simplified Startup**: Overhauled and simplified the `run` script and container initialization process.
 - **Removed Legacy Example**: Deleted `configuration.json.example` as configuration is now fully managed via the Home Assistant UI.
 
 ### Fixed
-- Fixed an infinite loop ("log rotation storm") caused by logging during the rotation process.
 - Fixed a `SyntaxWarning` in the MQTT recovery logic during discovery message parsing.
 - Fixed recovery logic to prioritize the highest non-zero value found on MQTT, preventing stale data from overwriting newer statistics.
 - Fixed a bug where meter names were not correctly restored during the MQTT recovery phase.
 - Fixed energy dashboard spikes by removing redundant discovery purging on restart.
-
 
 ## [1.5.6] - 2026-01-06
 ### Changed
