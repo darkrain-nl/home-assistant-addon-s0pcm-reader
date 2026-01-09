@@ -4,18 +4,27 @@
 
 The add-on supports Home Assistant MQTT Discovery, which is **enabled by default**. This means you generally do **not** need to manually configure sensors in your `configuration.yaml` anymore.
 
-When the add-on starts, it automatically creates a device named **S0PCM Reader** in Home Assistant with the following sensors for each enabled input:
+When the add-on starts, it automatically creates a device named **S0PCM Reader** in Home Assistant with the following entities:
+
+### Meter Entities (per enabled input)
+These entities are replicated for every enabled input (e.g., 1, 2, 3...):
 - **Total**: Total accumulated count.
 - **Today**: Count for the current day.
 - **Yesterday**: Count for the previous day.
+- **Name**: Text configuration to rename the meter.
+- **Total Correction**: Number configuration to set the total count.
+
+### Device Sensors (global)
+These sensors are unique and report on the addon itself:
 - **Status**: A binary sensor showing if the reader is connected to MQTT.
 - **Error**: A diagnostic sensor that displays the last error encountered.
 - **Addon Version**: Current version of the S0PCM Reader addon.
 - **S0PCM Firmware**: Firmware version reported by the hardware.
 - **Startup Time**: Timestamp of when the addon started.
 - **Serial Port**: The configured USB/serial port.
-**Naming:**
-The entity names and MQTT topics are derived from the `name` field in your `measurement.json`. If you haven't configured a name, it defaults to the numerical input ID (e.g., "1 Total"). 
+
+### Naming Concept
+The **Meter Entity** names and MQTT topics are determined by the configured **Meter Name**. If you haven't configured a name yet (e.g. via the _Name_ entity), it defaults to the numerical input ID (e.g., "1 Total"). 
 
 > [!TIP]
 > You can easily set or change these names via MQTT. See the **Naming Your Meters** section below for details.
@@ -120,7 +129,7 @@ You can update the total value of any meter (e.g., to sync with a physical meter
 
 4. Click **Perform Action**.
 
-### Option 2: Using raw MQTT
+### Option 3: Using raw MQTT
 
 Send an MQTT message to the following topic:
 **Topic:** `<base_topic>/<name_or_id>/total/set`
@@ -161,7 +170,7 @@ The addon will immediately:
    - **Payload**: `Kitchen` (or whatever you want to name it)
 4. Click **Perform Action**.
 
-### Option 2: Using raw MQTT
+### Option 3: Using raw MQTT
 
 Send an MQTT message to the following topic:
 **Topic:** `<base_topic>/<ID>/name/set`
@@ -235,6 +244,13 @@ The following MQTT messages are sent:
 <base_topic>/startup_time
 <base_topic>/port
 <base_topic>/info  (JSON containing all diagnostic info)
+```
+
+The addon **subscribes** to the following topics for control:
+
+```
+<base_topic>/<name_or_id>/total/set   (Payload: New total value)
+<base_topic>/<name_or_id>/name/set    (Payload: New name string)
 ```
 
 If `mqtt_split_topic` is set to `false`, the **meter readings** are sent as a JSON string to a single topic. Diagnostic sensors (Status, Error, Version, etc.) are **always** sent to their own separate topics regardless of this setting.
