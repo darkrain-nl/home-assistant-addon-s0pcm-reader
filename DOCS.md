@@ -15,7 +15,10 @@ When the add-on starts, it automatically creates a device named **S0PCM Reader**
 - **Startup Time**: Timestamp of when the addon started.
 - **Serial Port**: The configured USB/serial port.
 **Naming:**
-The entity names and MQTT topics are derived from the `name` field in your `measurement.json`. If you haven't configured a name, it defaults to the numerical input ID (e.g., "1 Total").
+The entity names and MQTT topics are derived from the `name` field in your `measurement.json`. If you haven't configured a name, it defaults to the numerical input ID (e.g., "1 Total"). 
+
+> [!TIP]
+> You can easily set or change these names via MQTT. See the **Naming Your Meters** section below for details.
 
 > [!TIP]
 > **Historic Data**: Your historical data in Home Assistant is safely preserved even if you change the name of a meter. The addon uses a stable `unique_id` based on the numerical input ID, so Home Assistant will keep the data linked even if you rename "Meter 1" to "Water".
@@ -216,6 +219,32 @@ The following MQTT messages are sent:
 If `mqtt_split_topic` is set to `false`, the **meter readings** are sent as a JSON string to a single topic. Diagnostic sensors (Status, Error, Version, etc.) are **always** sent to their own separate topics regardless of this setting.
 
 `base_topic/1` -> `{"total": 12345, "today": 15, "yesterday": 77}`
+
+## Using Data in the Energy Dashboard (UI Helpers)
+
+To use your meter data in the Home Assistant Energy Dashboard, you need to create a **Template Sensor** helper. This is the recommended way to convert the pulse counts into units like m³ or kWh while ensuring all required metadata is present.
+
+1. Go to **Settings** > **Devices & Services** > **Helpers**.
+2. Click **+ Create Helper** and select **Template** > **Template a sensor**.
+3. Fill in the following details:
+   - **Name**: e.g., `Water Usage Total`
+   - **State Template**:
+     ```jinja
+     {{ (states('sensor.s0pcm_reader_1_total') | float(0) / 1000) | round(3) }}
+     ```
+     *(Replace `sensor.s0pcm_reader_1_total` with your actual entity ID. Home Assistant typically prefixes the ID with the device name, resulting in `sensor.s0pcm_reader_<ID>_total` by default)*
+   - **Unit of Measurement**: `m³` (for water) or `kWh` (for energy)
+   - **Device Class**: `Water` or `Energy`
+   - **State Class**: `Total increasing`
+   - **Availability Template**:
+     ```jinja
+     {{ states('sensor.s0pcm_reader_1_total') | is_number }}
+     ```
+     *(This ensures the sensor doesn't show "0" or "Unknown" when the addon or MQTT is restarting)*
+4. Click **Submit**.
+
+> [!TIP]
+> After creating the helper, you can immediately add it to your **Energy Dashboard** under **Settings** > **Dashboards** > **Energy**.
 
 ---
 
