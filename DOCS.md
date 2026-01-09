@@ -29,7 +29,7 @@ The **Meter Entity** names and MQTT topics are determined by the configured **Me
 > [!TIP]
 > You can easily set or change these names via Home Assistant. See the **Naming Your Meters** section below for details.
 
-> [!TIP]
+> [!NOTE]
 > **Historic Data**: Your historical data in Home Assistant is safely preserved even if you change the name of a meter. The addon uses a stable `unique_id` based on the numerical input ID, so Home Assistant will keep the data linked even if you rename "Meter 1" to "Water".
 
 ### Measurement Configuration (`measurement.json`)
@@ -100,7 +100,7 @@ You can configure the following options directly in the **Settings > Add-ons > S
 - **MQTT TLS Check Peer**: Enable or disable certificate and hostname verification. Defaults to `false`.
 
 > [!NOTE]
-> All configuration is now managed directly through the Home Assistant UI. Legacy manual `configuration.json` files are no longer required or recommended.
+> All configuration is now managed directly through the Home Assistant UI. Legacy manual `configuration.json` files are no longer required or possible.
 
 ## Setting Meter Totals
 
@@ -123,11 +123,10 @@ You can update the total value of any meter (e.g., to sync with a physical meter
 3. Fill in the details:
    - **Topic**: `s0pcmreader/Water/total/set` (or use the ID: `s0pcmreader/1/total/set`)
    - **Payload**: `123456`
-   
+4. Click **Perform Action**.
+
 > [!NOTE]
 > You can use either the numerical **Meter ID** or your custom **Meter Name** (case-insensitive) in the topic. The addon will automatically find the correct meter to update.
-
-4. Click **Perform Action**.
 
 ### Option 3: Using raw MQTT
 
@@ -135,7 +134,7 @@ Send an MQTT message to the following topic:
 **Topic:** `<base_topic>/<name_or_id>/total/set`
 **Payload:** The new integer value for the total.
 
-> [!TIP]
+> [!NOTE]
 > You can use either the numerical **Meter ID** (1, 2, 3, etc.) or the custom **Meter Name** (if configured) in the set topic.
 
 **Example:**
