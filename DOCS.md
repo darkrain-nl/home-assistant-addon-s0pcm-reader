@@ -4,10 +4,18 @@
 
 The add-on supports Home Assistant MQTT Discovery, which is **enabled by default**. This means you generally do **not** need to manually configure sensors in your `configuration.yaml` anymore.
 
-When the add-on starts, it automatically creates a device named **S0PCM Reader** in Home Assistant with the following sensors for each enabled input:
+When the add-on starts, it automatically creates a device named **S0PCM Reader** in Home Assistant with the following entities:
+
+### Meter Entities (per enabled input)
+These entities are replicated for every enabled input (e.g., 1, 2, 3...):
 - **Total**: Total accumulated count.
 - **Today**: Count for the current day.
 - **Yesterday**: Count for the previous day.
+- **Name**: Text configuration to rename the meter.
+- **Total Correction**: Number configuration to set the total count.
+
+### Device Sensors (global)
+These sensors are unique and report on the addon itself:
 - **Status**: A binary sensor showing if the reader is connected to MQTT.
 - **Error**: A diagnostic sensor that displays the last error encountered.
 - **Addon Version**: Current version of the S0PCM Reader addon.
@@ -15,8 +23,45 @@ When the add-on starts, it automatically creates a device named **S0PCM Reader**
 - **Startup Time**: Timestamp of when the addon started.
 - **Serial Port**: The configured USB/serial port.
 
-**Naming:**
-The entity names are derived from the `name` field in your `measurement.yaml`. If you haven't configured a name, it defaults to the input number (e.g., "1 Total").
+### Naming Concept
+The **Meter Entity** names and MQTT topics are determined by the configured **Meter Name**. If you haven't configured a name yet (e.g. via the _Name_ entity), it defaults to the numerical input ID (e.g., "1 Total"). 
+
+> [!TIP]
+> You can easily set or change these names via Home Assistant. See the **Naming Your Meters** section below for details.
+
+> [!NOTE]
+> **Historic Data**: Your historical data in Home Assistant is safely preserved even if you change the name of a meter. The addon uses a stable `unique_id` based on the numerical input ID, so Home Assistant will keep the data linked even if you rename "Meter 1" to "Water".
+
+### Measurement Configuration (`measurement.json`)
+
+This file is the internal database for your meter data, stored in the addon's private storage for better security and performance. It is automatically managed and requires no manual editing. You can easily manage your meter settings via Home Assistant (recommended) or MQTT, and the addon even supports automatic recovery (see the **State Recovery** section below).
+
+**Example:**
+```json
+{
+    "date": "2026-01-08",
+    "1": {
+        "pulsecount": 0,
+        "today": 194,
+        "total": 1322738,
+        "yesterday": 139
+    },
+    "2": {
+        "pulsecount": 0,
+        "today": 0,
+        "total": 0,
+        "yesterday": 0,
+        "name": "Water"
+    }
+}
+```
+
+In this example:
+- **Meter 1** does not have a custom name. Its sensors will be published to `s0pcmreader/1/total`, etc., and appear in Home Assistant as "1 Total", "1 Today", etc.
+- **Meter 2** has the custom name "Water". Its sensors will be published to `s0pcmreader/Water/total`, etc., and appear in Home Assistant as "Water Total", "Water Today", etc.
+
+> [!TIP]
+> You can now use either the **Meter Name** or the **Meter ID** for setting totals (e.g., `s0pcmreader/Water/total/set` or `s0pcmreader/2/total/set`).
 
 ## Configuration via Home Assistant UI
 
@@ -31,7 +76,7 @@ You can configure the following options directly in the **Settings > Add-ons > S
 > Most optional settings are hidden by default for a cleaner interface. Click **"Show unused optional configuration options"** in the Home Assistant UI to reveal additional settings like MQTT host, port, protocol, discovery options, and more. All hidden settings have sensible defaults that work out-of-the-box.
 
 #### General
-- **Log Level**: The detail of the logs (debug, info, warning, error, critical). Defaults to `info`.
+- **Log Level**: The detail of the logs (debug, info, warning, error, critical). Defaults to `info`. Logs are streamed directly to the Home Assistant addon console.
 
 #### Connection Options
 - **MQTT Host**: Manual host for an external broker. If not set, it uses the internally discovered broker (typically `core-mosquitto`).
@@ -55,34 +100,88 @@ You can configure the following options directly in the **Settings > Add-ons > S
 - **MQTT TLS Check Peer**: Enable or disable certificate and hostname verification. Defaults to `false`.
 
 > [!NOTE]
-> If these options are set in the Home Assistant UI, they will override any corresponding settings in your `configuration.json` file.
+> All configuration is now managed directly through the Home Assistant UI. Legacy manual `configuration.json` files are no longer required or possible.
 
 ## Setting Meter Totals
 
-You can update the total value of any meter (e.g., to sync with a physical meter) using either MQTT or the Home Assistant UI.
+You can update the total value of any meter (e.g., to sync with a physical meter) directly from the **Device** configuration page or via MQTT.
 
-### Option 1: Using Home Assistant Actions (Recommended)
+### Option 1: Via Home Assistant Device Page (Recommended)
+
+1. Go to **Settings** > **Devices & Services** > **Devices**.
+2. Search for **S0PCM Reader** (Integration: **MQTT**).
+3. Under the **Configuration** section, look for the **Total Correction** entity for your meter (e.g., `number.1_total_correction`).
+4. Enter the correct total value and click **Set**.
+
+> [!NOTE]
+> This will instantly update the internal counter and the `total` sensor. The maximum supported value is **2,147,483,647**.
+
+### Option 2: Using Home Assistant Actions (Advanced)
 
 1. Go to **Developer Tools** > **Actions**.
 2. Search for **MQTT: Publish**.
 3. Fill in the details:
-   - **Topic**: `s0pcmreader/1/total/set` (adjust base topic and meter ID as needed)
-   - **Payload**: `123456` (your new total value)
-   - **QoS**: `0` or `1`
-   - **Retain**: `Disabled`
+   - **Topic**: `s0pcmreader/Water/total/set` (or use the ID: `s0pcmreader/1/total/set`)
+   - **Payload**: `123456`
 4. Click **Perform Action**.
 
-### Option 2: Using raw MQTT
+> [!NOTE]
+> You can use either the numerical **Meter ID** or your custom **Meter Name** (case-insensitive) in the topic. The addon will automatically find the correct meter to update.
+
+### Option 3: Using raw MQTT
 
 Send an MQTT message to the following topic:
-**Topic:** `<base_topic>/<meter_id>/total/set`
+**Topic:** `<base_topic>/<name_or_id>/total/set`
 **Payload:** The new integer value for the total.
 
+> [!NOTE]
+> You can use either the numerical **Meter ID** (1, 2, 3, etc.) or the custom **Meter Name** (if configured) in the set topic.
+
 **Example:**
+`mosquitto_pub -t "s0pcmreader/Water/total/set" -m "1000"`
+or
 `mosquitto_pub -t "s0pcmreader/1/total/set" -m "1000"`
 
 > [!NOTE]
 > This command only updates the **Total** counter. The **Today** and **Yesterday** counters remain unchanged and will continue to count based on the pulses received relative to the previous day's total.
+
+## Naming Your Meters
+
+Since measurement data is now stored in a private folder for better security and performance, you can no longer edit the data file manually. Instead, you can set (or change) meter names directly from the UI.
+
+### Option 1: Via Home Assistant Device Page (Recommended)
+
+1. Go to **Settings** > **Devices & Services** > **Devices**.
+2. Search for **S0PCM Reader** (Integration: **MQTT**).
+3. Under the **Configuration** section, look for the **Name** entity for your meter (e.g., `text.1_name`).
+4. Type your desired name (e.g., `Kitchen`) and press **Enter**.
+
+The addon will immediately:
+- Update the internal name.
+- Update the `total`, `today`, and `yesterday` sensor names in Home Assistant.
+
+### Option 2: Using Home Assistant Actions (Advanced)
+
+1. Go to **Developer Tools** > **Actions**.
+2. Search for **MQTT: Publish**.
+3. Fill in the details:
+   - **Topic**: `s0pcmreader/<ID>/name/set` (e.g., `s0pcmreader/1/name/set`)
+   - **Payload**: `Kitchen` (or whatever you want to name it)
+4. Click **Perform Action**.
+
+### Option 3: Using raw MQTT
+
+Send an MQTT message to the following topic:
+**Topic:** `<base_topic>/<ID>/name/set`
+**Payload:** Your desired meter name.
+
+> [!TIP]
+> To remove a name and revert to the default ID-based name, simply send an **empty payload** to the `name/set` topic.
+
+The addon will immediately:
+- Update the internal name for that meter.
+- Save the change permanently.
+- Re-send MQTT Discovery messages to update the sensor names in Home Assistant.
 
 ## MQTT Error Reporting
 
@@ -106,10 +205,24 @@ The add-on supports secure MQTT connections using TLS.
 
 - **Automatic Fallback:** If TLS connection fails (e.g., certificate error), the add-on will automatically fall back to a plain non-encrypted connection to ensure stable operation.
 - **Port Swapping:** By default, the addon uses **MQTT Port** for plain connections and **MQTT TLS Port** for encrypted connections.
-- **Insecure by Default:** Certificate validation is disabled by default (`tls_check_peer: false`) for compatibility with local brokers using self-signed certificates. To enable strict verification, set `mqtt_tls_check_peer` to `true`.
-- **CA Certificate:** Provide the path in **MQTT TLS CA**.
-  - **Relative path:** `ca.crt` (looked for in `/share/s0pcm/ca.crt`).
-  - **Absolute path:** e.g., `/ssl/mosquitto.crt`.
+- **Insecure by Default:** Certificate validation is disabled by default (`mqtt_tls_check_peer: false`) for compatibility with local brokers using self-signed certificates. To enable strict verification, set `mqtt_tls_check_peer` to `true`.
+- **CA Certificate:** Provide the path to your CA certificate.
+  - **Recommended:** Put your certificate in the Home Assistant `/ssl/` folder (accessible via Samba/SSH) and use the absolute path: `/ssl/your-ca.crt`.
+
+## State Recovery & Data Safety
+
+This addon implements a robust state recovery mechanism. If the local `measurement.json` is missing (e.g., after an addon uninstallation and reinstallation), the addon will attempt to recover your meter totals from the MQTT broker.
+
+1. On startup, the addon connects to MQTT.
+2. It listens for 5 seconds for any **retained messages** on the topics `<base_topic>/+/total`, `<base_topic>/+/today`, and `<base_topic>/+/yesterday`.
+3. Any totals or daily counts found are automatically applied to the local state and saved.
+
+> [!CAUTION]
+> **Backup Advice**: The MQTT recovery mechanism relies on your MQTT broker (e.g., Mosquitto) being active and having retained messages. **If you uninstall both this addon and your MQTT broker at the same time, your meter totals will be permanently lost.**
+> 
+> To ensure your data is safe:
+> - **Enable Home Assistant Backups**: Regularly back up your Home Assistant instance. When performing a backup, make sure to select both the **S0PCM Reader** and the **MQTT broker** addon (if applicable) to ensure a complete restoration of your data and state.
+> - **Verify Retention**: Most modern brokers retain these messages by default, but it is always good practice to verify your totals are correct after a restoration.
 
 ## Watchdog / Auto-restart
 
@@ -120,9 +233,9 @@ This add-on uses the [S6 Overlay](https://github.com/just-containers/s6-overlay)
 The following MQTT messages are sent:
 
 ```
-<base_topic>/1/total
-<base_topic>/1/today
-<base_topic>/<meter_id>/total
+<base_topic>/<name_or_id>/total
+<base_topic>/<name_or_id>/today
+<base_topic>/<name_or_id>/yesterday
 <base_topic>/status
 <base_topic>/error
 <base_topic>/version
@@ -132,9 +245,42 @@ The following MQTT messages are sent:
 <base_topic>/info  (JSON containing all diagnostic info)
 ```
 
+The addon **subscribes** to the following topics for control:
+
+```
+<base_topic>/<name_or_id>/total/set   (Payload: New total value)
+<base_topic>/<name_or_id>/name/set    (Payload: New name string)
+```
+
 If `mqtt_split_topic` is set to `false`, the **meter readings** are sent as a JSON string to a single topic. Diagnostic sensors (Status, Error, Version, etc.) are **always** sent to their own separate topics regardless of this setting.
 
 `base_topic/1` -> `{"total": 12345, "today": 15, "yesterday": 77}`
+
+## Using Data in the Energy Dashboard (UI Helpers)
+
+To use your meter data in the Home Assistant Energy Dashboard, you need to create a **Template Sensor** helper. This is the recommended way to convert the pulse counts into units like m³ or kWh while ensuring all required metadata is present.
+
+1. Go to **Settings** > **Devices & Services** > **Helpers**.
+2. Click **+ Create Helper** and select **Template** > **Template a sensor**.
+3. Fill in the following details:
+   - **Name**: e.g., `Water Usage Total`
+   - **State Template**:
+     ```jinja
+     {{ (states('sensor.s0pcm_reader_1_total') | float(0) / 1000) | round(3) }}
+     ```
+     *(Replace `sensor.s0pcm_reader_1_total` with your actual entity ID. Home Assistant typically prefixes the ID with the device name, resulting in `sensor.s0pcm_reader_<ID>_total` by default)*
+   - **Unit of Measurement**: `m³` (for water) or `kWh` (for energy)
+   - **Device Class**: `Water` or `Energy`
+   - **State Class**: `Total increasing`
+   - **Availability Template**:
+     ```jinja
+     {{ states('sensor.s0pcm_reader_1_total') | is_number }}
+     ```
+     *(This ensures the sensor doesn't show "0" or "Unknown" when the addon or MQTT is restarting)*
+4. Click **Submit**.
+
+> [!TIP]
+> After creating the helper, you can immediately add it to your **Energy Dashboard** under **Settings** > **Dashboards** > **Energy**.
 
 ---
 

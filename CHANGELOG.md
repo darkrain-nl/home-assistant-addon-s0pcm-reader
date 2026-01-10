@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
+  
+## [2.0.0] - 2026-01-09
+### Breaking Changes
+- **Data Accessibility**: Measurement data has moved from the public `/share/s0pcm/` mapping to the addon's private `/data/` internal storage. This means you can no longer manually edit the measurement file via Samba/SSH. Use the new MQTT topics for naming meters and setting totals.
+- **Removed Local Logging**: The local `s0pcm-reader.log` file has been removed. Logs are now exclusively available via the Home Assistant Addon console (stdout/stderr).
+
+### Added
+- **Native Configuration Entities**: Added `number` and `text` entities to Home Assistant. You can now rename meters and correct totals directly from the S0PCM Reader device page in Home Assistant, without needing to perform manual MQTT actions.
+- **MQTT-Based State Recovery**: The addon now recovers meter totals, today's counts, and yesterday's counts from retained MQTT messages on startup if local data is missing. It now also rebuilds the Name-to-ID mapping from MQTT discovery messages, ensuring statistics stored under the meter's name are correctly recovered.
+- **Remote Meter Naming**: Added support for setting meter names via MQTT (`name/set` topic). This replaces the need for manual file editing and automatically updates sensor names in Home Assistant through instant discovery refresh.
+- **Automatic Data Migration**: Seamlessly migrates data from the legacy `/share/s0pcm/` location and converts YAML storage to the new JSON format.
+- **Backup Advice**: Added detailed data safety and backup recommendations to `DOCS.md`.
+- **Discovery Reliability**: Improved MQTT discovery by clearing previous configurations before publishing new ones, ensuring entity names update correctly in Home Assistant.
+- **Force Startup Publish**: Addon now immediately publishes the current state upon connection to ensure all topics are populated.
+
+### Changed
+- **Modernized Architecture**: Removed legacy dependencies on `bashio`, `tempio`, and `config.sh`. The internal Python application was majorly refactored (including `TaskReadSerial` and `TaskDoMQTT`) to directly handle configuration, service discovery via Supervisor API, and graceful shutdowns (SIGINT/SIGTERM).
+- **Private Data Storage**: Operational data (meter totals) is now stored in the addon's private `/data/` folder, protecting it from accidental external access.
+- **JSON Storage**: Switched measurement data from YAML to JSON for better performance, faster updates, and unified format consistency.
+- **Simplified Logging**: Removed local file logging and rotation logic. The addon now relies on Home Assistant's built-in console logging, preventing "log rotation storms" and reducing disk wear.
+- **Simplified Startup**: Overhauled and simplified the `run` script and container initialization process.
+- **Removed Legacy Example**: Deleted `configuration.json.example` as configuration is now fully managed via the Home Assistant UI.
+
+### Fixed
+- Fixed a race condition between the serial reader and MQTT handler that could cause "Set Total" commands (including setting to 0) to be ignored or overwritten by incoming serial data.
+- Fixed a crash (`TypeError`) when clearing a meter name (setting it to empty) via MQTT.
+- Fixed a `SyntaxWarning` in the MQTT recovery logic during discovery message parsing.
+- Fixed recovery logic to prioritize the highest non-zero value found on MQTT, preventing stale data from overwriting newer statistics.
+- Fixed a bug where meter names were not correctly restored during the MQTT recovery phase.
+- Fixed energy dashboard spikes by removing redundant discovery purging on restart.
+
 ## [1.5.6] - 2026-01-06
 ### Changed
 - Improved documentation clarity: refined configuration section headers, standardized MQTT topic placeholders, and clarified manual configuration examples.

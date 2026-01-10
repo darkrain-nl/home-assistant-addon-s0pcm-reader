@@ -10,9 +10,10 @@ This add-on is based on the [docker-s0pcm-reader](https://github.com/ualex73/doc
 ## ✨ Features
 
 - **MQTT Auto-Discovery**: Automatically creates sensors in Home Assistant for all enabled inputs.
+- **Native Configuration**: Rename meters and correct totals directly from the **Device** page in Home Assistant UI—no YAML or manual MQTT actions required.
+- **MQTT-Based State Recovery**: Robust restoration of meter totals, daily statistics, and custom names from the MQTT broker, ensuring no data loss even on a fresh installation.
 - **TLS Support**: Secure your MQTT connection with TLS, featuring automatic fallback to plain MQTT if TLS fails.
 - **Watchdog / Auto-restart**: Built on S6-overlay for robust process supervision and automatic recovery.
-- **Remote Configuration**: Update meter totals directly via MQTT topics or Home Assistant actions.
 - **Real-time Error Reporting**: Dedicated MQTT topic and diagnostic sensor for instant feedback on serial or configuration issues.
 - **Diagnostic Metadata**: New `info` topic and sensor providing versioning, hardware firmware, and uptime details.
 - **Flexible MQTT**: Supports external brokers, authentication, and custom base topics.

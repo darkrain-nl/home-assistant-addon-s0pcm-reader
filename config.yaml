@@ -1,6 +1,6 @@
 name: "S0PCM Reader"
 description: "S0PCM reader based on docker-s0pcm-reader"
-version: "1.5.6"
+version: "2.0.0"
 slug: "s0pcm_reader"
 url: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader"
 arch:
@@ -9,11 +9,12 @@ arch:
 init: false
 startup: application
 hassio_api: true
+map:
+  - share:ro
 options:
   device: null
   log_level: info
   mqtt_tls: false
-  mqtt_tls_ca: ""
   mqtt_tls_check_peer: false
 schema:
   device: device(subsystem=tty)
@@ -38,5 +39,3 @@ schema:
   mqtt_tls_check_peer: bool?
 services:
   - mqtt:want
-map:
-  - share:rw
