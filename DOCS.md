@@ -221,7 +221,7 @@ This addon implements a robust state recovery mechanism. If the local `measureme
 > **Backup Advice**: The MQTT recovery mechanism relies on your MQTT broker (e.g., Mosquitto) being active and having retained messages. **If you uninstall both this addon and your MQTT broker at the same time, your meter totals will be permanently lost.**
 > 
 > To ensure your data is safe:
-> - **Enable Home Assistant Backups**: Regularly back up your Home Assistant instance. This is the most reliable way to restore both addon and broker data.
+> - **Enable Home Assistant Backups**: Regularly back up your Home Assistant instance. When performing a backup, make sure to select both the **S0PCM Reader** and the **MQTT broker** addon (if applicable) to ensure a complete restoration of your data and state.
 > - **Verify Retention**: Most modern brokers retain these messages by default, but it is always good practice to verify your totals are correct after a restoration.
 
 ## Watchdog / Auto-restart
