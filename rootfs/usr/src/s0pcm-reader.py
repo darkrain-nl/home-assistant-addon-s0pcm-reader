@@ -234,33 +234,57 @@ def MigrateData():
     """Migrate data from legacy /share/s0pcm location and from YAML to JSON."""
     legacy_dir = '/share/s0pcm/'
     
-    # 1. Migrate from /share to /data if needed
     if os.path.exists(legacy_dir) and configdirectory == '/data/':
+        logger.info(f"Checking for legacy data in {legacy_dir}...")
         try:
-            for f in ['measurement.json', 'measurement.yaml']:
+            # 1. Migrate daily stats files
+            files_to_migrate = [f for f in os.listdir(legacy_dir) if f.startswith('daily-') and f.endswith('.txt')]
+            files_to_migrate.extend(['measurement.json', 'measurement.yaml'])
+
+            for f in files_to_migrate:
                 src = os.path.join(legacy_dir, f)
                 dst = os.path.join(configdirectory, f)
+                
+                # Copy if source exists and destination doesn't
                 if os.path.exists(src) and not os.path.exists(dst):
                     shutil.copy2(src, dst)
                     logger.info(f"Successfully migrated {f} to {configdirectory}")
         except Exception as e:
-            logger.error(f"Failed to migrate legacy measurement data: {e}")
+            logger.error(f"Failed to migrate legacy files from {legacy_dir}: {e}")
 
     # 2. Migrate from measurement.yaml to measurement.json if needed
-    yaml_path = measurementname.replace('.json', '.yaml')
-    if os.path.exists(yaml_path) and not os.path.exists(measurementname):
-        try:
-            with open(yaml_path, 'r') as f:
-                data = yaml.safe_load(f)
-                if data:
-                    with open(measurementname, 'w') as fj:
-                        # Convert date object to string for JSON
-                        if 'date' in data and isinstance(data['date'], (datetime.date, datetime.datetime)):
-                            data['date'] = str(data['date'])
-                        json.dump(data, fj, indent=4)
-                    logger.info(f"Successfully migrated data from {yaml_path} to {measurementname}")
-        except Exception as e:
-            logger.error(f"Failed to migrate YAML measurement data to JSON: {e}")
+    yaml_path = os.path.join(configdirectory, 'measurement.yaml')
+    json_path = os.path.join(configdirectory, 'measurement.json')
+    
+    if os.path.exists(yaml_path):
+        perform_conversion = False
+        if not os.path.exists(json_path):
+            perform_conversion = True
+        else:
+            # Check if existing json is "empty" (no meter data)
+            try:
+                with open(json_path, 'r') as fj:
+                    existing_data = json.load(fj)
+                    # If it's just a date or empty, we consider it a candidate for overwrite
+                    if not existing_data or (len(existing_data) == 1 and 'date' in existing_data):
+                        logger.info(f"Existing {json_path} appears empty/default, allowing migration to overwrite.")
+                        perform_conversion = True
+            except Exception:
+                perform_conversion = True # If we can't read it, allow overwrite
+
+        if perform_conversion:
+            try:
+                with open(yaml_path, 'r') as f:
+                    data = yaml.safe_load(f)
+                    if data:
+                        with open(json_path, 'w') as fj:
+                            # Convert date object to string for JSON
+                            if 'date' in data and isinstance(data['date'], (datetime.date, datetime.datetime)):
+                                data['date'] = str(data['date'])
+                            json.dump(data, fj, indent=4)
+                        logger.info(f"Successfully migrated data from {yaml_path} to {json_path}")
+            except Exception as e:
+                logger.error(f"Failed to migrate YAML measurement data to JSON: {e}")
 
 # ------------------------------------------------------------------------------------
 # Read the configuration
@@ -1422,6 +1446,7 @@ def main():
 
     try:
         ReadConfig()
+        MigrateData()
         ReadMeasurement()
         # Initialize measurementshare
         measurementshare = copy.deepcopy(measurement)
