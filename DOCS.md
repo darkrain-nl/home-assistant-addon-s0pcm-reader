@@ -30,7 +30,7 @@ The **Meter Entity** names and MQTT topics are determined by the configured **Me
 > You can easily set or change these names via Home Assistant. See the **Naming Your Meters** section below for details.
 
 > [!NOTE]
-> **Historic Data**: Your historical data in Home Assistant is safely preserved even if you change the name of a meter. The addon uses a stable `unique_id` based on the numerical input ID, so Home Assistant will keep the data linked even if you rename "Meter 1" to "Water".
+> **Historic Data**: Your historical data in Home Assistant is safely preserved even if you change the name of a meter. The addon uses a stable `unique_id` based on the numerical input ID and the **MQTT Base Topic**, so Home Assistant will keep the data linked even if you rename "Meter 1" to "Water". Note that changing the base topic *will* break this link.
 
 ### Stateless Architecture (Storage & Persistence)
 
@@ -66,6 +66,8 @@ You can configure the following options directly in the **Settings > Add-ons > S
 - **MQTT Password**: Manual password for an external broker.
 - **MQTT Client ID**: Unique ID for the MQTT client. Defaults to auto-generated.
 - **MQTT Base Topic**: The base topic for all MQTT messages. Defaults to `s0pcmreader`.
+  > [!IMPORTANT]
+  > Changing the base topic will change the **Unique ID** of the device in Home Assistant. This will cause Home Assistant to see it as a brand-new device, leaving your old sensors "Unavailable." Only change this if you are setting up a fresh installation or performing a controlled migration.
 - **MQTT Protocol**: MQTT protocol version (5.0, 3.1.1, or 3.1). Defaults to `5.0`.
 
 #### Advanced MQTT Options
@@ -203,11 +205,31 @@ If MQTT recovery fails (e.g., the broker's database was cleared), the addon will
 > [!TIP]
 > This dual-recovery system ensures that as long as either your MQTT broker or your Home Assistant instance has the data, the addon will resume correctly.
 
+> [!NOTE]
+> **Recovery scope:** While Layer 1 (MQTT) recovers all statistics (today, yesterday, names, etc.), Layer 2 (HA API) is designed as a "surgical fallback" and only recovers **Lifetime Totals**. This ensures your long-term statistics and Energy Dashboard remain accurate even in a total MQTT wipeout.
+
 > [!WARNING]
 > **State Dependency Limitation**: If you wipe your MQTT broker and restart this addon at the same time, the sensors in Home Assistant will likely show as **"Unavailable"**. In this state, Home Assistant cannot provide the numerical totals to the addon, and recovery will fail. To avoid permanent data loss, **always back up your MQTT broker's database.**
 
 > [!CAUTION]
 > **Backup Advice**: While the recovery system is robust, it relies on external services. **Regularly back up your Home Assistant instance.** When performing a backup, ensure both the **S0PCM Reader** and your **MQTT broker** addon are included.
+
+### Testing the Recovery System
+
+If you want to verify that the recovery system is working correctly, you can perform the following safe test:
+
+1. Go to the **Configuration** tab of the addon.
+2. Change the **MQTT Base Topic** to a temporary name (e.g., `s0test`).
+3. **Restart** the addon.
+4. Check the **Logs**. You should see the addon searching MQTT, finding nothing, and then logging:
+   `Recovery: Recovered total for meter 1 from HA API: <your_previous_total>`
+
+By changing the topic, you effectively show the addon a "blank slate" on MQTT, forcing it to use the secondary Layer 2 recovery from Home Assistant. Once verified, simply change the topic back to your original name.
+
+> [!IMPORTANT]
+> **Cleanup after testing:** Because Home Assistant uses the MQTT topic to uniquely identify the device, changing the topic for testing will create a **second device** in your Home Assistant dashboard. 
+> 1. Once you revert to your original topic, the test device will show as "Unavailable."
+> 2. You can then safely remove the test device by going to **Settings** > **Devices & Services** > **MQTT**, selecting the test device, and clicking **Delete**.
 
 ### Data Accuracy & Addon Downtime
 The S0PCM hardware is a "live" counter. It does not store historical pulses while the addon is stopped. Any pulses that occur while the addon is not running will be lost by the software. 

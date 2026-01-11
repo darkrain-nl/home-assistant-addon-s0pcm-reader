@@ -248,6 +248,10 @@ def MigrateData():
                 src = os.path.join(legacy_dir, f)
                 dst = os.path.join(configdirectory, f)
                 
+                # Skip if already migrated
+                if os.path.exists(dst + ".migrated") or os.path.exists(dst.replace('.json', '.yaml') + ".migrated"):
+                    continue
+
                 # Copy if source exists and destination doesn't
                 if os.path.exists(src) and not os.path.exists(dst):
                     shutil.copy2(src, dst)
@@ -261,7 +265,7 @@ def MigrateData():
     
     if os.path.exists(yaml_path):
         perform_conversion = False
-        if not os.path.exists(json_path):
+        if not os.path.exists(json_path) and not os.path.exists(json_path + ".migrated") and not os.path.exists(yaml_path + ".migrated"):
             perform_conversion = True
         else:
             # Check if existing json is "empty" (no meter data)
@@ -286,6 +290,8 @@ def MigrateData():
                                 data['date'] = str(data['date'])
                             json.dump(data, fj, indent=4)
                         logger.info(f"Successfully migrated data from {yaml_path} to {json_path}")
+                        # Rename yaml to prevent re-migration loop
+                        os.rename(yaml_path, yaml_path + ".migrated")
             except Exception as e:
                 logger.error(f"Failed to migrate YAML measurement data to JSON: {e}")
 
@@ -995,7 +1001,7 @@ class TaskDoMQTT(threading.Thread):
                             clean_state = "".join(c for c in clean_state if c.isdigit() or c in '.,-')
                             
                             # If it has multiple dots/commas, it's likely thousand separators
-                            if clean_state.count('.') > 1 or (clean_state.count('.') == 1 and clean_state.count(',') == 1):
+                            if clean_state.count('.') > 1 or clean_state.count(',') > 1 or (clean_state.count('.') == 1 and clean_state.count(',') == 1):
                                 clean_state = clean_state.replace('.', '').replace(',', '')
                             elif clean_state.count(',') == 1 and '.' not in clean_state:
                                 # Likely decimal comma (European), treat as dot for float()
@@ -1617,6 +1623,7 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     try:
+        MigrateData()
         ReadConfig()
         # Initialize measurementshare
         measurementshare = copy.deepcopy(measurement)

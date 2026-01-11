@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Startup Synchronization**: The serial reading process now waits for 7 seconds during the "State Recovery" phase, ensuring totals are fully loaded before counting new pulses. This prevents accidental 0-value resets.
 - **Enhanced Documentation**: Added comprehensive sections on "Data Accuracy & Addon Downtime" and "State Recovery & Data Safety," including critical warnings about HA API limitations when sensors are "Unavailable."
 - **Legacy Migration Support**: Reintroduced the read-only `/share/` directory mapping to ensure users upgrading from versions earlier than 2.0.0 can still successfully migrate their historical data.
+- **Improved Configuration UI**: Added descriptive labels and helpful tooltips to all addon settings in Home Assistant, including a warning about the side effects of changing the MQTT Base Topic.
 
 ### Changed
 - **Logging Refinement**: Removed misleading logs related to the defunct `measurement.json` and improved recovery phase transparency.
@@ -22,7 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **HA API Permissions**: Resolved 401 Unauthorized errors by adding the necessary `homeassistant_api` permission.
 - **Recovery Reliability**: Fixed structural bugs in the fallback loop and ensured that meter totals of `0` are correctly recognized as valid states.
-- **Internal Stability**: Hardened the global date initialization to prevent `KeyError` on fresh installations.
+- **Internal Stability**: Hardened the global date initialization and ensured `MigrateData()` is correctly called on startup.
+- **Number Parsing**: Improved localized number parsing in the HA API recovery to handle US-style thousand separators (multiple commas).
+- **Migration Loop**: Fixed a bug where data migration would re-trigger on every restart because the read-only source files were still present in `/share/`.
 
 ## [2.0.1] - 2026-01-10
 ### Fixed
