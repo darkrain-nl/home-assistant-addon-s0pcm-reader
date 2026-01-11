@@ -1,16 +1,16 @@
 configuration:
   device:
     name: "Serial Port"
-    description: "The serial port device where your S0PCM is connected (e.g., /dev/ttyACM0)."
+    description: "The serial port device where your S0PCM is connected (Default: /dev/ttyACM0)."
   log_level:
     name: "Log Level"
-    description: "Determines the detail level of the addon logs."
+    description: "Determines the detail level of the addon logs (Default: info)."
   mqtt_host:
     name: "MQTT Host"
     description: "Host address of your MQTT broker. Leave empty to use the internally discovered broker."
   mqtt_port:
     name: "MQTT Port"
-    description: "The port for unencrypted MQTT connections (default: 1883)."
+    description: "The port for unencrypted MQTT connections (Default: 1883)."
   mqtt_username:
     name: "MQTT Username"
     description: "Username for MQTT broker authentication."
@@ -22,31 +22,31 @@ configuration:
     description: "Unique identifier for this MQTT client. Leave empty for an auto-generated ID."
   mqtt_base_topic:
     name: "MQTT Base Topic"
-    description: "The root topic for all messages (default: s0pcmreader). WARNING: Changing this will create a new device in Home Assistant!"
+    description: "The root topic for all messages (Default: s0pcmreader). WARNING: Changing this will create a new device in Home Assistant!"
   mqtt_protocol:
     name: "MQTT Protocol"
-    description: "The MQTT protocol version to use. 5.0 is recommended."
+    description: "The MQTT protocol version to use (Default: 5.0)."
   mqtt_discovery:
     name: "MQTT Auto-Discovery"
-    description: "Automatically create entities in Home Assistant when the addon starts."
+    description: "Automatically create entities in Home Assistant when the addon starts (Default: true)."
   mqtt_discovery_prefix:
     name: "Discovery Prefix"
-    description: "The prefix used for Home Assistant discovery messages."
+    description: "The prefix used for Home Assistant discovery messages (Default: homeassistant)."
   mqtt_retain:
     name: "Retain Messages"
-    description: "Ensures the broker remembers your totals after a restart (highly recommended)."
+    description: "Ensures the broker remembers your totals after a restart (Default: true)."
   mqtt_split_topic:
     name: "Split Topics"
-    description: "If enabled, publishes total/today/yesterday to separate topics. If disabled, publishes one JSON string."
+    description: "Publishes total/today/yesterday to separate topics if enabled (Default: true)."
   mqtt_tls:
     name: "Enable MQTT TLS"
-    description: "Use an encrypted connection (SSL/TLS) to your broker."
+    description: "Use an encrypted connection (SSL/TLS) to your broker (Default: false)."
   mqtt_tls_port:
     name: "MQTT TLS Port"
-    description: "The port used for encrypted MQTT (default: 8883)."
+    description: "The port used for encrypted MQTT (Default: 8883)."
   mqtt_tls_ca:
     name: "TLS CA Certificate"
     description: "Path to your CA certificate file (e.g., /ssl/ca.crt)."
   mqtt_tls_check_peer:
     name: "Verify TLS Certificate"
-    description: "Set to true to strictly verify the broker's certificate and hostname."
+    description: "If true, strictly verify the broker's certificate and hostname (Default: false)."
