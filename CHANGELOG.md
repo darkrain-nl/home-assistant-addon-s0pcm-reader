@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
   
-## [2.1.0] - 2026-01-10
+## [2.1.0] - 2026-01-11
 
 ### Added
 - **Stateless Architecture**: Completely removed the dependency on the local `measurement.json` file. All persistent data is now stored externally via MQTT retained messages and Home Assistant.
@@ -14,9 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dynamic Discovery**: Implemented on-the-fly MQTT discovery. The addon now detects new meters and name changes in real-time and immediately pushes discovery messages to Home Assistant. This ensures that S0PCM entities appear immediately even during a "blank slate" startup.
 - **Startup Synchronization**: The serial reading process now waits for 7 seconds during the "State Recovery" phase, ensuring totals are fully loaded before counting new pulses. This prevents accidental 0-value resets.
 - **Enhanced Documentation**: Added comprehensive sections on "Data Accuracy & Addon Downtime" and "State Recovery & Data Safety," including critical warnings about HA API limitations when sensors are "Unavailable."
+- **Legacy Migration Support**: Reintroduced the read-only `/share/` directory mapping to ensure users upgrading from versions earlier than 2.0.0 can still successfully migrate their historical data.
 
 ### Changed
-- **Improved Security**: Removed the legacy `/share/` directory mapping from the addon configuration for better system isolation.
 - **Logging Refinement**: Removed misleading logs related to the defunct `measurement.json` and improved recovery phase transparency.
 
 ### Fixed
