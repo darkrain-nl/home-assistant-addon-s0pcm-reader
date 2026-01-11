@@ -23,7 +23,7 @@ This add-on is based on the [docker-s0pcm-reader](https://github.com/ualex73/doc
 - An **S0PCM reader** (S0PCM-2 or S0PCM-5) connected via USB.
 - An **MQTT Broker** (e.g., the official Mosquitto broker add-on).
 
-## 🚀 Installation
+## 🚀 Installation (Recommended & Supported method)
 
 1. Add this repository to your Home Assistant Add-on store:
    `https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader`
@@ -31,6 +31,59 @@ This add-on is based on the [docker-s0pcm-reader](https://github.com/ualex73/doc
 3. Navigate to the **Configuration** tab.
 4. Select your **S0PCM USB device** (e.g., `/dev/ttyACM0`).
 5. **Start** the add-on.
+
+## 🐳 Home Assistant Container (Standalone & Advanced method, only use if you know what you're doing)
+
+> [!IMPORTANT]
+> **Community Support Only**: This configuration is intended for advanced users. Official support is only provided for the standard Home Assistant Add-on installation. Use this at your own risk.
+
+If you are running Home Assistant in a standalone Docker container (without Supervisor/Add-ons), you can run this reader as a standalone container.
+
+### Quick Start (Local Build)
+
+1. **Clone the repo**: `git clone https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader.git`
+2. **Configure**: Create a `config/options.json` file inside the cloned directory. Since you are not using the Supervisor, you **must** manually specify your MQTT broker details:
+
+```json
+{
+  "device": "/dev/ttyACM0",
+  "mqtt_host": "192.168.1.50",
+  "mqtt_username": "your_user",
+  "mqtt_password": "your_password",
+  "mqtt_base_topic": "s0pcmreader",
+  "log_level": "info"
+}
+```
+*(Refer to `DOCS.md` for a full list of available keys.)*
+
+### Key Reference for `options.json`
+
+| Key | Description | Default |
+| :--- | :--- | :--- |
+| `device` | Serial port (e.g. `/dev/ttyUSB0`) | `/dev/ttyACM0` |
+| `mqtt_host` | MQTT Broker address | `core-mosquitto` |
+| `mqtt_port` | MQTT Broker port | `1883` |
+| `mqtt_username` | MQTT Username | (none) |
+| `mqtt_password` | MQTT Password | (none) |
+| `mqtt_base_topic`| Root MQTT topic | `s0pcmreader` |
+| `log_level` | `info`, `debug`, `error` | `info` |
+
+3. **Launch**: Use the following `docker-compose.yml` snippet:
+
+```yaml
+services:
+  s0pcm-reader:
+    build: 
+      context: .
+      args:
+        - BUILD_FROM=python:3.14-alpine
+    container_name: s0pcm-reader
+    restart: unless-stopped
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0 # Adjust to your port
+    volumes:
+      - ./config:/data
+```
 
 ## 📖 Documentation
 
