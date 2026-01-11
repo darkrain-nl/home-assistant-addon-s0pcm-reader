@@ -311,9 +311,6 @@ def PushLegacyToMQTT(mqttc):
             base_topic = config['mqtt']['base_topic']
             retain = config['mqtt']['retain']
 
-            # Push global date
-            if 'date' in data:
-                mqttc.publish(f"{base_topic}/date", str(data['date']), retain=retain)
 
             # Push meter data
             for key, mdata in data.items():
@@ -819,13 +816,7 @@ class TaskDoMQTT(threading.Thread):
         discovery_prefix = config['mqtt']['discovery_prefix']
 
         def on_recovery_message(client, userdata, msg):
-            nonlocal recovered_date
             try:
-                # 0. Global Date
-                if msg.topic == f"{base_topic}/date":
-                    recovered_date = msg.payload.decode().strip()
-                    logger.debug(f"Recovery: Found global date: {recovered_date}")
-                    return
 
                 # 1. Handle Discovery topics to rebuild name-to-id mapping
                 if '/config' in msg.topic:
@@ -870,7 +861,6 @@ class TaskDoMQTT(threading.Thread):
         
         # Subscribe to totals, stats, and discovery topics
         topics = [
-            f"{base_topic}/date",
             f"{base_topic}/+/total", 
             f"{base_topic}/+/today", 
             f"{base_topic}/+/yesterday",
@@ -924,9 +914,6 @@ class TaskDoMQTT(threading.Thread):
                                     measurement[meter_id][field] = data[field]
                                     logger.info(f"Recovered {field} for meter {meter_id} from MQTT: {data[field]}")
                 
-                # Restore date
-                if recovered_date:
-                    measurement['date'] = recovered_date
 
         # 3. Fallback to HA API for missing meters
         # We check meters 1 to 5 (standard S0PCM-5)
