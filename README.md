@@ -32,6 +32,34 @@ This add-on is based on the [docker-s0pcm-reader](https://github.com/ualex73/doc
 4. Select your **S0PCM USB device** (e.g., `/dev/ttyACM0`).
 5. **Start** the add-on.
 
+## 🐳 Home Assistant Container (Standalone)
+
+> [!IMPORTANT]
+> **Community Support Only**: This configuration is intended for advanced users. Official support is only provided for the standard Home Assistant Add-on installation. Use this at your own risk.
+
+If you are running Home Assistant in a standalone Docker container (without Supervisor/Add-ons), you can run this reader as a standalone container.
+
+### Quick Start (Local Build)
+
+1. **Clone the repo**: `git clone https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader.git`
+2. **Configure**: Create a `config/options.json` file inside the cloned directory (refer to `DOCS.md` for available configuration keys).
+3. **Launch**: Use the following `docker-compose.yml` snippet:
+
+```yaml
+services:
+  s0pcm-reader:
+    build: 
+      context: .
+      args:
+        - BUILD_FROM=python:3.14-alpine
+    container_name: s0pcm-reader
+    restart: unless-stopped
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0 # Adjust to your port
+    volumes:
+      - ./config:/data
+```
+
 ## 📖 Documentation
 
 Detailed documentation, including configuration guides and advanced settings, can be found in the **Documentation** tab within the Home Assistant add-on interface.
