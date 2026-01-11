@@ -23,7 +23,7 @@ This add-on is based on the [docker-s0pcm-reader](https://github.com/ualex73/doc
 - An **S0PCM reader** (S0PCM-2 or S0PCM-5) connected via USB.
 - An **MQTT Broker** (e.g., the official Mosquitto broker add-on).
 
-## 🚀 Installation (Recommended & Supported)
+## 🚀 Installation (Recommended & Supported method)
 
 1. Add this repository to your Home Assistant Add-on store:
    `https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader`
@@ -32,7 +32,7 @@ This add-on is based on the [docker-s0pcm-reader](https://github.com/ualex73/doc
 4. Select your **S0PCM USB device** (e.g., `/dev/ttyACM0`).
 5. **Start** the add-on.
 
-## 🐳 Home Assistant Container (Standalone)
+## 🐳 Home Assistant Container (Standalone & Advanced method, only use if you know what you're doing)
 
 > [!IMPORTANT]
 > **Community Support Only**: This configuration is intended for advanced users. Official support is only provided for the standard Home Assistant Add-on installation. Use this at your own risk.
