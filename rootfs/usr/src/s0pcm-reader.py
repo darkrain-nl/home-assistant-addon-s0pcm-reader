@@ -949,8 +949,7 @@ class TaskDoMQTT(threading.Thread):
                         break
                 
                 # Phase B: Fuzzy search across ALL entities if Phase A failed
-                # For safety, we only perform fuzzy recovery for Meters 1 and 2 by default
-                if not ha_total and meter_id <= 2:
+                if not ha_total:
                     if all_states is None:
                         logger.debug("Recovery: Fetching all HA states for fuzzy matching...")
                         all_states = self._fetch_all_ha_states()
