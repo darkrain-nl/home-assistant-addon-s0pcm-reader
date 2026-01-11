@@ -5,6 +5,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
   
+## [2.1.0] - 2026-01-11
+
+### Added
+- **Stateless Architecture**: Completely removed the dependency on the local `measurement.json` file. All persistent data is now stored externally via MQTT retained messages and Home Assistant.
+- **Dual-Layer State Recovery**: Implemented a robust recovery mechanism to prevent data loss. On startup, the addon first attempts to recover state from MQTT. If that fails, it performs a "Surgical Fallback" to the Home Assistant REST API.
+- **Surgical HA API Recovery**: The fallback mechanism now uses advanced fuzzy pattern matching to find meter totals even if sensors have been renamed in Home Assistant. It includes strict exclusions (ignoring costs, energy prices, and unrelated sensors) and handles localized number formats (European thousand separators).
+- **Dynamic Discovery**: Implemented on-the-fly MQTT discovery. The addon now detects new meters and name changes in real-time and immediately pushes discovery messages to Home Assistant. This ensures that S0PCM entities appear immediately even during a "blank slate" startup.
+- **Startup Synchronization**: The serial reading process now waits for 7 seconds during the "State Recovery" phase, ensuring totals are fully loaded before counting new pulses. This prevents accidental 0-value resets.
+- **Enhanced Documentation**: Added comprehensive sections on "Data Accuracy & Addon Downtime" and "State Recovery & Data Safety," including critical warnings about HA API limitations when sensors are "Unavailable."
+- **Legacy Migration Support**: Reintroduced the read-only `/share/` directory mapping to ensure users upgrading from versions earlier than 2.0.0 can still successfully migrate their historical data.
+- **Improved Configuration UI**: Added descriptive labels and helpful tooltips to all addon settings in Home Assistant, including a warning about the side effects of changing the MQTT Base Topic.
+
+### Changed
+- **Logging Refinement**: Removed misleading logs related to the defunct `measurement.json` and improved recovery phase transparency.
+
+### Fixed
+- **HA API Permissions**: Resolved 401 Unauthorized errors by adding the necessary `homeassistant_api` permission.
+- **Recovery Reliability**: Fixed structural bugs in the fallback loop and ensured that meter totals of `0` are correctly recognized as valid states.
+- **Internal Stability**: Hardened the global date initialization and ensured `MigrateData()` is correctly called on startup.
+- **Number Parsing**: Improved localized number parsing in the HA API recovery to handle US-style thousand separators (multiple commas).
+- **Migration Loop**: Fixed a bug where data migration would re-trigger on every restart because the read-only source files were still present in `/share/`.
+
 ## [2.0.1] - 2026-01-10
 ### Fixed
 - **Data Migration**: Fixed a bug where legacy totals were not correctly migrated from `/share/s0pcm/` to the new private `/data/` internal storage because the migration function was not called on startup.
@@ -17,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Removed Local Logging**: The local `s0pcm-reader.log` file has been removed. Logs are now exclusively available via the Home Assistant Addon console (stdout/stderr).
 
 ### Added
-- **Native Configuration Entities**: Added `number` and `text` entities to Home Assistant. You can now rename meters and correct totals directly from the S0PCM Reader device page in Home Assistant, without needing to perform manual MQTT actions.
+- **Native Configuration Entities**: Added `number` and `text` entities to Home Assistant. You can now rename meters and correct totals directly in the device page in Home Assistant, without needing to perform manual MQTT actions.
 - **MQTT-Based State Recovery**: The addon now recovers meter totals, today's counts, and yesterday's counts from retained MQTT messages on startup if local data is missing. It now also rebuilds the Name-to-ID mapping from MQTT discovery messages, ensuring statistics stored under the meter's name are correctly recovered.
 - **Remote Meter Naming**: Added support for setting meter names via MQTT (`name/set` topic). This replaces the need for manual file editing and automatically updates sensor names in Home Assistant through instant discovery refresh.
 - **Automatic Data Migration**: Seamlessly migrates data from the legacy `/share/s0pcm/` location and converts YAML storage to the new JSON format.

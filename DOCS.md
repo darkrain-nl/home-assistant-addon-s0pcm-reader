@@ -30,38 +30,19 @@ The **Meter Entity** names and MQTT topics are determined by the configured **Me
 > You can easily set or change these names via Home Assistant. See the **Naming Your Meters** section below for details.
 
 > [!NOTE]
-> **Historic Data**: Your historical data in Home Assistant is safely preserved even if you change the name of a meter. The addon uses a stable `unique_id` based on the numerical input ID, so Home Assistant will keep the data linked even if you rename "Meter 1" to "Water".
+> **Historic Data**: Your historical data in Home Assistant is safely preserved even if you change the name of a meter. The addon uses a stable `unique_id` based on the numerical input ID and the **MQTT Base Topic**, so Home Assistant will keep the data linked even if you rename "Meter 1" to "Water". Note that changing the base topic *will* break this link.
 
-### Measurement Configuration (`measurement.json`)
+### Stateless Architecture (Storage & Persistence)
 
-This file is the internal database for your meter data, stored in the addon's private storage for better security and performance. It is automatically managed and requires no manual editing. You can easily manage your meter settings via Home Assistant (recommended) or MQTT, and the addon even supports automatic recovery (see the **State Recovery** section below).
+To protect your hardware (reduce SD card wear) and simplify management, this addon is **stateless**. It does not use a local database file like `measurement.json` anymore. Instead, it leverages your **MQTT broker** and **Home Assistant** to store and recover your meter data.
 
-**Example:**
-```json
-{
-    "date": "2026-01-08",
-    "1": {
-        "pulsecount": 0,
-        "today": 194,
-        "total": 1322738,
-        "yesterday": 139
-    },
-    "2": {
-        "pulsecount": 0,
-        "today": 0,
-        "total": 0,
-        "yesterday": 0,
-        "name": "Water"
-    }
-}
-```
+#### How it works:
+1. **Persistence**: Every time a pulse is counted, the addon publishes the updated totals and internal state to your MQTT broker as **retained messages**.
+2. **Recovery**: When the addon starts, it automatically fetches its last known state from MQTT.
+3. **Safety Net (HA API)**: If the MQTT broker has no data (e.g. it was just reset), the addon automatically queries the **Home Assistant API** to recover the last known values from your sensors.
 
-In this example:
-- **Meter 1** does not have a custom name. Its sensors will be published to `s0pcmreader/1/total`, etc., and appear in Home Assistant as "1 Total", "1 Today", etc.
-- **Meter 2** has the custom name "Water". Its sensors will be published to `s0pcmreader/Water/total`, etc., and appear in Home Assistant as "Water Total", "Water Today", etc.
-
-> [!TIP]
-> You can now use either the **Meter Name** or the **Meter ID** for setting totals (e.g., `s0pcmreader/Water/total/set` or `s0pcmreader/2/total/set`).
+> [!NOTE]
+> On your first start after this update, the addon will automatically migrate any existing `measurement.json` data into MQTT and then retire the file.
 
 ## Configuration via Home Assistant UI
 
@@ -85,6 +66,8 @@ You can configure the following options directly in the **Settings > Add-ons > S
 - **MQTT Password**: Manual password for an external broker.
 - **MQTT Client ID**: Unique ID for the MQTT client. Defaults to auto-generated.
 - **MQTT Base Topic**: The base topic for all MQTT messages. Defaults to `s0pcmreader`.
+  > [!IMPORTANT]
+  > Changing the base topic will change the **Unique ID** of the device in Home Assistant. This will cause Home Assistant to see it as a brand-new device, leaving your old sensors "Unavailable." Only change this if you are setting up a fresh installation or performing a controlled migration.
 - **MQTT Protocol**: MQTT protocol version (5.0, 3.1.1, or 3.1). Defaults to `5.0`.
 
 #### Advanced MQTT Options
@@ -211,18 +194,46 @@ The add-on supports secure MQTT connections using TLS.
 
 ## State Recovery & Data Safety
 
-This addon implements a robust state recovery mechanism. If the local `measurement.json` is missing (e.g., after an addon uninstallation and reinstallation), the addon will attempt to recover your meter totals from the MQTT broker.
+This addon implements a multi-layered state recovery mechanism to ensure your totals are never lost, even without a local data file.
 
-1. On startup, the addon connects to MQTT.
-2. It listens for 5 seconds for any **retained messages** on the topics `<base_topic>/+/total`, `<base_topic>/+/today`, and `<base_topic>/+/yesterday`.
-3. Any totals or daily counts found are automatically applied to the local state and saved.
+### Layer 1: MQTT Retained Messages (Primary)
+The addon publishes all internal states (totals, daily counts, and pulse counters) to MQTT with the `retain` flag. On startup, it listens for 5 seconds to rebuild its internal memory from these messages.
+
+### Layer 2: Home Assistant API (Secondary)
+If MQTT recovery fails (e.g., the broker's database was cleared), the addon will automatically query the **Home Assistant State API**. It fetches the last known value of your sensors (e.g., `sensor.s0pcm_reader_1_total`) and uses them to resume counting.
+
+> [!TIP]
+> This dual-recovery system ensures that as long as either your MQTT broker or your Home Assistant instance has the data, the addon will resume correctly.
+
+> [!NOTE]
+> **Recovery scope:** While Layer 1 (MQTT) recovers all statistics (today, yesterday, names, etc.), Layer 2 (HA API) is designed as a "surgical fallback" and only recovers **Lifetime Totals**. This ensures your long-term statistics and Energy Dashboard remain accurate even in a total MQTT wipeout.
+
+> [!WARNING]
+> **State Dependency Limitation**: If you wipe your MQTT broker and restart this addon at the same time, the sensors in Home Assistant will likely show as **"Unavailable"**. In this state, Home Assistant cannot provide the numerical totals to the addon, and recovery will fail. To avoid permanent data loss, **always back up your MQTT broker's database.**
 
 > [!CAUTION]
-> **Backup Advice**: The MQTT recovery mechanism relies on your MQTT broker (e.g., Mosquitto) being active and having retained messages. **If you uninstall both this addon and your MQTT broker at the same time, your meter totals will be permanently lost.**
-> 
-> To ensure your data is safe:
-> - **Enable Home Assistant Backups**: Regularly back up your Home Assistant instance. When performing a backup, make sure to select both the **S0PCM Reader** and the **MQTT broker** addon (if applicable) to ensure a complete restoration of your data and state.
-> - **Verify Retention**: Most modern brokers retain these messages by default, but it is always good practice to verify your totals are correct after a restoration.
+> **Backup Advice**: While the recovery system is robust, it relies on external services. **Regularly back up your Home Assistant instance.** When performing a backup, ensure both the **S0PCM Reader** and your **MQTT broker** addon are included.
+
+### Testing the Recovery System
+
+If you want to verify that the recovery system is working correctly, you can perform the following safe test:
+
+1. Go to the **Configuration** tab of the addon.
+2. Change the **MQTT Base Topic** to a temporary name (e.g., `s0test`).
+3. **Restart** the addon.
+4. Check the **Logs**. You should see the addon searching MQTT, finding nothing, and then logging:
+   `Recovery: Recovered total for meter 1 from HA API: <your_previous_total>`
+
+By changing the topic, you effectively show the addon a "blank slate" on MQTT, forcing it to use the secondary Layer 2 recovery from Home Assistant. Once verified, simply change the topic back to your original name.
+
+> [!IMPORTANT]
+> **Cleanup after testing:** Because Home Assistant uses the MQTT topic to uniquely identify the device, changing the topic for testing will create a **second device** in your Home Assistant dashboard. 
+> 1. Once you revert to your original topic, the test device will show as "Unavailable."
+> 2. You can then safely remove the test device by going to **Settings** > **Devices & Services** > **MQTT**, selecting the test device, and clicking **Delete**.
+
+### Data Accuracy & Addon Downtime
+The S0PCM hardware is a "live" counter. It does not store historical pulses while the addon is stopped. Any pulses that occur while the addon is not running will be lost by the software. 
+To maintain perfect accuracy, you should occasionally check your physical meter's reading and sync it with the addon using the **Setting Meter Totals** feature described above.
 
 ## Watchdog / Auto-restart
 

@@ -102,7 +102,7 @@ lock = threading.RLock()
 # Global Variables
 # ------------------------------------------------------------------------------------
 config = {}
-measurement = {}
+measurement = {'date': datetime.date.today()}
 measurementshare = {}
 lasterror_serial = None
 lasterror_mqtt = None
@@ -111,6 +111,9 @@ lasterrorshare = None
 # Metadata
 startup_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
 s0pcm_firmware = "Unknown"
+
+# Stateless Synchronization
+recovery_event = threading.Event()
 
 # ------------------------------------------------------------------------------------
 # Version Handling
@@ -245,6 +248,10 @@ def MigrateData():
                 src = os.path.join(legacy_dir, f)
                 dst = os.path.join(configdirectory, f)
                 
+                # Skip if already migrated
+                if os.path.exists(dst + ".migrated") or os.path.exists(dst.replace('.json', '.yaml') + ".migrated"):
+                    continue
+
                 # Copy if source exists and destination doesn't
                 if os.path.exists(src) and not os.path.exists(dst):
                     shutil.copy2(src, dst)
@@ -258,7 +265,7 @@ def MigrateData():
     
     if os.path.exists(yaml_path):
         perform_conversion = False
-        if not os.path.exists(json_path):
+        if not os.path.exists(json_path) and not os.path.exists(json_path + ".migrated") and not os.path.exists(yaml_path + ".migrated"):
             perform_conversion = True
         else:
             # Check if existing json is "empty" (no meter data)
@@ -283,8 +290,54 @@ def MigrateData():
                                 data['date'] = str(data['date'])
                             json.dump(data, fj, indent=4)
                         logger.info(f"Successfully migrated data from {yaml_path} to {json_path}")
+                        # Rename yaml to prevent re-migration loop
+                        os.rename(yaml_path, yaml_path + ".migrated")
             except Exception as e:
                 logger.error(f"Failed to migrate YAML measurement data to JSON: {e}")
+
+def PushLegacyToMQTT(mqttc):
+    """One-time push of legacy measurement.json data to MQTT retained topics."""
+    global measurement
+    if not os.path.exists(measurementname):
+        return
+
+    logger.info(f"Migration: Pushing legacy data from {measurementname} to MQTT...")
+    try:
+        with open(measurementname, 'r') as f:
+            data = json.load(f)
+            if not data:
+                return
+
+            base_topic = config['mqtt']['base_topic']
+            retain = config['mqtt']['retain']
+
+            # Push global date
+            if 'date' in data:
+                mqttc.publish(f"{base_topic}/date", str(data['date']), retain=retain)
+
+            # Push meter data
+            for key, mdata in data.items():
+                if not isinstance(mdata, dict):
+                    continue
+                
+                # ID-based topics for internal state
+                for field in ['total', 'today', 'yesterday', 'pulsecount']:
+                    if field in mdata:
+                        mqttc.publish(f"{base_topic}/{key}/{field}", mdata[field], retain=retain)
+                
+                # Name
+                if 'name' in mdata:
+                    mqttc.publish(f"{base_topic}/{key}/name", mdata['name'], retain=retain)
+
+            logger.info("Migration: Legacy data successfully pushed to MQTT. You can now safely remove measurement.json.")
+            
+            # Rename legacy file to prevent re-migration
+            backup_name = measurementname + ".migrated"
+            os.rename(measurementname, backup_name)
+            logger.info(f"Migration: Renamed {measurementname} to {backup_name}")
+
+    except Exception as e:
+        logger.error(f"Migration: Failed to push legacy data to MQTT: {e}")
 
 # ------------------------------------------------------------------------------------
 # Read the configuration
@@ -444,16 +497,8 @@ def ReadConfig():
 # Save the measurement data
 # ------------------------------------------------------------------------------------
 def SaveMeasurement():
-    """Save measurement data to JSON file, handling date serialization."""
-    try:
-        data_to_save = copy.deepcopy(measurement)
-        if 'date' in data_to_save and isinstance(data_to_save['date'], (datetime.date, datetime.datetime)):
-            data_to_save['date'] = str(data_to_save['date'])
-        
-        with open(measurementname, 'w') as f:
-            json.dump(data_to_save, f, indent=4)
-    except Exception as e:
-        logger.error(f"Failed to save measurement data: {e}")
+    """No-op in stateless mode. Persistence is handled via MQTT retained messages."""
+    pass
 
 # ------------------------------------------------------------------------------------
 # Read the measurement data
@@ -598,14 +643,6 @@ class TaskReadSerial(threading.Thread):
             if str(measurement['date']) != str(datetime.date.today()):
                 measurement['date'] = datetime.date.today()
 
-            # Persist if changed
-            # Note: _update_meter modifies 'measurement' in place
-            if measurementstr == str(measurement):
-                logger.debug(f"No change to the '{measurementname}' file (no write)")
-            else:
-                logger.debug(f"Updated '{measurementname}' file")
-                SaveMeasurement()
-
             # Update shared state
             measurementshare = copy.deepcopy(measurement)
         
@@ -688,6 +725,11 @@ class TaskReadSerial(threading.Thread):
 
     def run(self):
         try:
+            # Wait for MQTT recovery to complete before starting to process serial data
+            logger.info("Serial Task: Waiting for MQTT/HA state recovery...")
+            recovery_event.wait()
+            logger.info("Serial Task: Recovery complete, starting serial read loop.")
+
             while not self._stopper.is_set():
                 ser = self._connect()
                 if ser:
@@ -709,28 +751,82 @@ class TaskDoMQTT(threading.Thread):
         self._trigger = trigger
         self._stopper = stopper
         self._connected = False
-        self._discovery_sent = False
+        self._global_discovery_sent = False
+        self._discovered_meters = {} # Track {meter_id: "name"}
         self._recovery_complete = False
         self._mqttc = None
         self._last_diagnostics = {}
 
+    def _fetch_ha_state(self, entity_id):
+        """Fetch the current state of an entity from Home Assistant REST API."""
+        token = os.getenv('SUPERVISOR_TOKEN')
+        if not token:
+            return None
+
+        url = f"http://supervisor/core/api/states/{entity_id}"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req) as response:
+                if response.status == 200:
+                    data = json.loads(response.read().decode())
+                    state = data.get('state')
+                    if state not in [None, 'unknown', 'unavailable']:
+                        return state
+        except Exception as e:
+            logger.debug(f"HA API state fetch for {entity_id} failed: {e}")
+        return None
+
+    def _fetch_all_ha_states(self):
+        """Fetch all entity states from Home Assistant."""
+        token = os.getenv('SUPERVISOR_TOKEN')
+        if not token:
+            return []
+
+        url = "http://supervisor/core/api/states"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req) as response:
+                if response.status == 200:
+                    return json.loads(response.read().decode())
+        except Exception as e:
+            logger.error(f"HA API failed to fetch all states: {e}")
+        return []
+
     def _recover_state(self):
-        """Startup phase: Wait for retained messages to recover meter totals."""
+        """Startup phase: Wait for retained messages or HA API to recover meter totals."""
         global measurement, measurementshare
         
-        # Only recover if local measurement is empty or missing data (except 'date')
-        if measurement and len(measurement) > 1:
-             return
+        # We always perform recovery now as we are stateless
+        logger.info("Starting State Recovery phase...")
+        
+        # 1. Push legacy data if it exists
+        PushLegacyToMQTT(self._mqttc)
 
-        logger.info("Starting MQTT recovery phase (waiting 5s for retained messages)...")
-        recovered_data = {} # {identifier: {'total': X, 'today': Y, 'yesterday': Z}}
+        logger.info("Waiting 7s for retained MQTT messages...")
+        recovered_data = {} # {identifier: {'total': X, 'today': Y, 'yesterday': Z, 'pulsecount': P}}
         recovered_names = {} # {name: id}
+        recovered_date = None
         
         base_topic = config['mqtt']['base_topic']
         discovery_prefix = config['mqtt']['discovery_prefix']
 
         def on_recovery_message(client, userdata, msg):
+            nonlocal recovered_date
             try:
+                # 0. Global Date
+                if msg.topic == f"{base_topic}/date":
+                    recovered_date = msg.payload.decode().strip()
+                    logger.debug(f"Recovery: Found global date: {recovered_date}")
+                    return
+
                 # 1. Handle Discovery topics to rebuild name-to-id mapping
                 if '/config' in msg.topic:
                     logger.debug(f"Recovery: Processing discovery packet: {msg.topic}")
@@ -750,15 +846,16 @@ class TaskDoMQTT(threading.Thread):
                             logger.debug(f"Recovery: Mapped Name '{name}' to ID {meter_id}")
                     return
 
-                # 2. Handle Data topics (total, today, yesterday)
+                # 2. Handle Data topics (total, today, yesterday, pulsecount)
                 # Expected topics: base_topic/ID_or_NAME/SUFFIX
                 topic_parts = msg.topic.split('/')
                 if len(topic_parts) >= 3:
                     suffix = topic_parts[-1]
-                    if suffix in ['total', 'today', 'yesterday']:
+                    if suffix in ['total', 'today', 'yesterday', 'pulsecount']:
                         identifier = topic_parts[-2]
                         payload = msg.payload.decode()
                         try:
+                            # We treat it as float first to be safe, then int
                             value = int(float(payload))
                             recovered_data.setdefault(identifier, {})[suffix] = value
                             logger.debug(f"Recovery: Found {identifier} {suffix} = {value}")
@@ -773,23 +870,25 @@ class TaskDoMQTT(threading.Thread):
         
         # Subscribe to totals, stats, and discovery topics
         topics = [
+            f"{base_topic}/date",
             f"{base_topic}/+/total", 
             f"{base_topic}/+/today", 
             f"{base_topic}/+/yesterday",
+            f"{base_topic}/+/pulsecount",
             f"{discovery_prefix}/sensor/{base_topic}/#"
         ]
         for t in topics:
             self._mqttc.subscribe(t)
         
         # Wait for messages
-        time.sleep(5)
+        time.sleep(7)
         
         for t in topics:
             self._mqttc.unsubscribe(t)
         self._mqttc.on_message = original_on_message
         
         if recovered_data:
-            logger.info(f"Recovery: Received {len(recovered_data)} meter states from MQTT.")
+            logger.info(f"Recovery: Received {len(recovered_data)} unique identifier states from MQTT.")
             with lock:
                 # Map recovered data to meters
                 for identifier, data in recovered_data.items():
@@ -817,25 +916,128 @@ class TaskDoMQTT(threading.Thread):
                                 measurement[meter_id]['name'] = name
                                 break
 
-                        for field in ['total', 'today', 'yesterday']:
+                        for field in ['total', 'today', 'yesterday', 'pulsecount']:
                             if field in data:
-                                current_val = measurement[meter_id].get(field, 0)
-                                # Take the highest value found on MQTT
-                                if data[field] > current_val:
+                                # We set the field even if it's 0
+                                # But we only log if it's > 0 or previously missing
+                                if field not in measurement[meter_id] or data[field] > measurement[meter_id].get(field, 0):
                                     measurement[meter_id][field] = data[field]
                                     logger.info(f"Recovered {field} for meter {meter_id} from MQTT: {data[field]}")
                 
-                # Persist recovered state
-                try:
-                    SaveMeasurement()
-                    measurementshare = copy.deepcopy(measurement)
-                    logger.info("Saved recovered state to local file.")
-                except Exception as e:
-                    logger.error(f"Failed to save recovered state: {e}")
-        else:
-            logger.info("Recovery: No retained totals found on MQTT broker.")
+                # Restore date
+                if recovered_date:
+                    measurement['date'] = recovered_date
+
+        # 3. Fallback to HA API for missing meters
+        # We check meters 1 to 5 (standard S0PCM-5)
+        all_states = None
+        for meter_id in range(1, 6):
+            if meter_id not in measurement or 'total' not in measurement[meter_id]:
+                logger.info(f"Recovery: Meter {meter_id} not found on MQTT, attempting HA API fallback...")
+                
+                # Phase A: Try specific patterns (fast)
+                entity_patterns = [
+                    f"sensor.{base_topic}_{meter_id}_total",
+                    f"sensor.s0pcm_reader_{meter_id}_total",
+                    f"sensor.{meter_id}_total"
+                ]
+                
+                ha_total = None
+                for ha_entity in entity_patterns:
+                    ha_total = self._fetch_ha_state(ha_entity)
+                    if ha_total:
+                        break
+                
+                # Phase B: Fuzzy search across ALL entities if Phase A failed
+                # For safety, we only perform fuzzy recovery for Meters 1 and 2 by default
+                if not ha_total and meter_id <= 2:
+                    if all_states is None:
+                        logger.debug("Recovery: Fetching all HA states for fuzzy matching...")
+                        all_states = self._fetch_all_ha_states()
+                    
+                    # Search patterns for this meter_id
+                    keywords = ['total', 'totaal', 'today', 'vandaag', 'dag']
+                    exclude_keywords = ['cost', 'prijs', 'price', 'integral', 'energy', 'gas', 'power', 'spanning', 'stroom', 'consumption', 'delivery', 'koffie', 'coffee']
+                    
+                    for item in all_states:
+                        entity_id = item.get('entity_id', '').lower()
+                        state_str = str(item.get('state', '')).lower()
+                        
+                        # Check if this entity is a plausible candidate for this meter_id
+                        is_match = False
+                        
+                        # Domain Lock: Only consider if it belongs to S0PCM Reader specifically
+                        is_our_domain = (base_topic in entity_id) or entity_id.startswith("sensor.s0pcm_")
+                        
+                        # 1. ID based match: sensor.s0pcm_1_total, sensor.meter_1, etc.
+                        if is_our_domain:
+                            if f"_{meter_id}_" in entity_id or entity_id.endswith(f"_{meter_id}"):
+                                if any(k in entity_id for k in keywords):
+                                    is_match = True
+                        
+                        # 2. Specific fallback for Meter 1 (Water) if it was renamed to something generic like "Watermeter Totaal"
+                        if not is_match and meter_id == 1:
+                            if "watermeter_totaal" in entity_id or "watermeter_total" in entity_id:
+                                is_match = True
+
+                        if is_match:
+                            # Strict Exclusions: Never pick up costs, integrals, or energy prices
+                            if any(x in entity_id for x in exclude_keywords):
+                                logger.debug(f"Recovery: Skipping {entity_id} for Meter {meter_id} (Matched exclusion keyword)")
+                                continue
+
+                            if state_str in [None, 'unknown', 'unavailable', '']:
+                                logger.debug(f"Recovery: Skipping {entity_id} for Meter {meter_id} (State is '{state_str}')")
+                                continue
+
+                            # Clean the state string (remove units, handle European thousand separators)
+                            # e.g. "1.323.394 m3" -> "1323394"
+                            clean_state = state_str
+                            for unit in ['m³', 'm3', 'kwh', 'l/min', 'l']:
+                                if unit in clean_state:
+                                    clean_state = clean_state.replace(unit, '')
+                            
+                            # Remove non-numeric chars except . , and -
+                            clean_state = "".join(c for c in clean_state if c.isdigit() or c in '.,-')
+                            
+                            # If it has multiple dots/commas, it's likely thousand separators
+                            if clean_state.count('.') > 1 or clean_state.count(',') > 1 or (clean_state.count('.') == 1 and clean_state.count(',') == 1):
+                                clean_state = clean_state.replace('.', '').replace(',', '')
+                            elif clean_state.count(',') == 1 and '.' not in clean_state:
+                                # Likely decimal comma (European), treat as dot for float()
+                                clean_state = clean_state.replace(',', '.')
+                            
+                            clean_state = clean_state.strip()
+                            
+                            try:
+                                if not clean_state: continue
+                                val = float(clean_state)
+                                ha_total = str(val)
+                                logger.info(f"Recovery: Found surgical match for Meter {meter_id}: {entity_id} = {ha_total} (was '{state_str}')")
+                                break
+                            except ValueError:
+                                logger.debug(f"Recovery: Skipping {entity_id} - could not parse '{clean_state}' as number")
+                                continue
+
+                if ha_total:
+                    try:
+                        total_val = int(float(ha_total))
+                        with lock:
+                            measurement.setdefault(meter_id, {})['total'] = total_val
+                            measurement[meter_id].setdefault('today', 0)
+                            measurement[meter_id].setdefault('yesterday', 0)
+                            measurement[meter_id].setdefault('pulsecount', 0)
+                        logger.info(f"Recovery: Recovered total for meter {meter_id} from HA API: {total_val}")
+                    except ValueError:
+                        pass
+        
+        # Finalize
+        with lock:
+            measurementshare = copy.deepcopy(measurement)
         
         self._recovery_complete = True
+        recovery_event.set() # Signal Serial Task to start
+        logger.info("State Recovery complete.")
 
     def on_connect(self, mqttc, obj, flags, reason_code, properties):
         if reason_code == 0:
@@ -989,15 +1191,10 @@ class TaskDoMQTT(threading.Thread):
     def on_log(self, mqttc, obj, level, string):
         logger.debug('MQTT on_log: ' + string)
 
-    def send_discovery(self, measurementlocal):
-
+    def _send_global_discovery(self):
+        """Send discovery for global entities (Status, Error, Version, etc.)"""
         if not config['mqtt']['discovery']:
             return
-
-        if not measurementlocal:
-            return
-
-        logger.debug('Sending MQTT discovery messages')
 
         identifier = config['mqtt']['base_topic']
         device_info = {
@@ -1008,14 +1205,9 @@ class TaskDoMQTT(threading.Thread):
             "sw_version": s0pcmreaderversion
         }
 
-        # Status Binary Sensor Discovery
+        # Status Binary Sensor
         status_unique_id = f"s0pcm_{identifier}_status"
         status_topic = f"{config['mqtt']['discovery_prefix']}/binary_sensor/{identifier}/{status_unique_id}/config"
-        logger.debug('MQTT discovery topic (status): ' + status_topic)
-
-        # First, clear any existing retained discovery message to force HA to re-register
-        self._mqttc.publish(status_topic, "", retain=True)
-        
         status_payload = {
             "name": "S0PCM Reader Status",
             "unique_id": status_unique_id,
@@ -1028,16 +1220,13 @@ class TaskDoMQTT(threading.Thread):
         }
         self._mqttc.publish(status_topic, json.dumps(status_payload), retain=True)
 
-        # Cleanup legacy discovery topics
+        # Cleanup legacy
         self._mqttc.publish(f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/s0pcm_{identifier}_info/config", "", retain=True)
-        self._mqttc.publish(f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/s0pcm_{identifier}_info_diag/config", "", retain=True)
         self._mqttc.publish(f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/s0pcm_{identifier}_uptime/config", "", retain=True)
 
-        # Error Sensor Discovery
+        # Error Sensor
         error_unique_id = f"s0pcm_{identifier}_error"
         error_topic = f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/{error_unique_id}/config"
-        logger.debug('MQTT discovery topic (error): ' + error_topic)
-
         error_payload = {
             "name": "S0PCM Reader Error",
             "unique_id": error_unique_id,
@@ -1048,18 +1237,16 @@ class TaskDoMQTT(threading.Thread):
         }
         self._mqttc.publish(error_topic, json.dumps(error_payload), retain=True)
 
-        # Diagnostic Sensors Discovery
+        # Diagnostics
         diagnostics = [
             {"id": "version", "name": "Addon Version", "icon": "mdi:information-outline"},
             {"id": "firmware", "name": "S0PCM Firmware", "icon": "mdi:chip"},
             {"id": "startup_time", "name": "Startup Time", "icon": "mdi:clock-outline", "class": "timestamp"},
             {"id": "port", "name": "Serial Port", "icon": "mdi:serial-port"}
         ]
-
         for diag in diagnostics:
             diag_unique_id = f"s0pcm_{identifier}_{diag['id']}"
             diag_topic = f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/{diag_unique_id}/config"
-            
             diag_payload = {
                 "name": f"S0PCM Reader {diag['name']}",
                 "unique_id": diag_unique_id,
@@ -1072,117 +1259,89 @@ class TaskDoMQTT(threading.Thread):
             }
             if "unit" in diag: diag_payload["unit_of_measurement"] = diag["unit"]
             if "class" in diag: diag_payload["device_class"] = diag["class"]
-            
             self._mqttc.publish(diag_topic, json.dumps(diag_payload), retain=True)
 
-        for key in measurementlocal:
-            if isinstance(key, int):
-                # Cleanup: Purge any orphaned "Meter ID" sensors from previous versions
-                # HA removes entities when their discovery topic is empty
-                id_unique_id = f"s0pcm_{identifier}_{key}_id"
-                id_purge_topic = f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/{id_unique_id}/config"
-                self._mqttc.publish(id_purge_topic, "", retain=True)
+        self._global_discovery_sent = True
+        logger.info('Sent global MQTT discovery messages')
 
-                if config['s0pcm']['include'] is not None and key not in config['s0pcm']['include']:
-                    continue
+    def _send_meter_discovery(self, meter_id, meter_data):
+        """Send discovery for a specific meter."""
+        if not config['mqtt']['discovery']:
+            return
 
-                # Check if enabled
-                if not measurement[key].get('enabled', True):
-                     continue
+        identifier = config['mqtt']['base_topic']
+        device_info = {"identifiers": [identifier]} # Link to global device
+        instancename = meter_data.get('name', str(meter_id))
 
-                instancename = measurementlocal[key].get('name', str(key))
+        for subkey in ['total', 'today', 'yesterday']:
+            unique_id = f"s0pcm_{identifier}_{meter_id}_{subkey}"
+            topic = f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/{unique_id}/config"
+            
+            payload = {
+                "name": f"{instancename} {subkey.capitalize()}",
+                "unique_id": unique_id,
+                "device": device_info
+            }
 
-                for subkey in ['total', 'today', 'yesterday']:
+            if subkey == 'total':
+                payload['state_class'] = 'total_increasing'
+            elif subkey == 'today':
+                payload['state_class'] = 'total_increasing'
+            else:
+                payload['state_class'] = 'measurement'
 
-                    unique_id = f"s0pcm_{identifier}_{key}_{subkey}"
-                    
-                    # Discovery Topic
-                    topic = f"{config['mqtt']['discovery_prefix']}/sensor/{identifier}/{unique_id}/config"
-                    logger.debug('MQTT discovery topic: ' + topic)
+            if config['mqtt']['split_topic']:
+                payload['state_topic'] = f"{config['mqtt']['base_topic']}/{instancename}/{subkey}"
+            else:
+                payload['state_topic'] = f"{config['mqtt']['base_topic']}/{instancename}"
+                payload['value_template'] = f"{{{{ value_json.{subkey} }}}}"
 
-                    payload = {
-                        "name": f"{instancename} {subkey.capitalize()}",
-                        "unique_id": unique_id,
-                        "device": device_info
-                    }
+            # Force refresh
+            self._mqttc.publish(topic, "", retain=True)
+            self._mqttc.publish(topic, json.dumps(payload), retain=True)
 
-                    if subkey == 'total':
-                        payload['state_class'] = 'total_increasing'
-                    elif subkey == 'today':
-                        payload['state_class'] = 'total_increasing'
-                    else:
-                        payload['state_class'] = 'measurement'
+            if subkey == 'total':
+                # Text Entity (Name)
+                text_uid = f"s0pcm_{identifier}_{meter_id}_name_config"
+                text_topic = f"{config['mqtt']['discovery_prefix']}/text/{identifier}/{text_uid}/config"
+                text_payload = {
+                    "name": f"{instancename} Name",
+                    "unique_id": text_uid,
+                    "device": device_info,
+                    "entity_category": "config",
+                    "command_topic": f"{config['mqtt']['base_topic']}/{meter_id}/name/set",
+                    "state_topic": f"{config['mqtt']['base_topic']}/{meter_id}/name",
+                    "icon": "mdi:tag-text-outline"
+                }
+                self._mqttc.publish(text_topic, "", retain=True)
+                self._mqttc.publish(text_topic, json.dumps(text_payload), retain=True)
+                self._mqttc.publish(f"{config['mqtt']['base_topic']}/{meter_id}/name", meter_data.get('name', ""), retain=True)
 
-                    if config['mqtt']['split_topic'] == True:
-                        payload['state_topic'] = config['mqtt']['base_topic'] + '/' + instancename + '/' + subkey
-                    else:
-                        payload['state_topic'] = config['mqtt']['base_topic'] + '/' + instancename
-                        payload['value_template'] = f"{{{{ value_json.{subkey} }}}}"
+                # Number Entity (Total Correction)
+                num_uid = f"s0pcm_{identifier}_{meter_id}_total_config"
+                num_topic = f"{config['mqtt']['discovery_prefix']}/number/{identifier}/{num_uid}/config"
+                num_payload = {
+                    "name": f"{instancename} Total Correction",
+                    "unique_id": num_uid,
+                    "device": device_info,
+                    "entity_category": "config",
+                    "command_topic": f"{config['mqtt']['base_topic']}/{meter_id}/total/set",
+                    "state_topic": f"{config['mqtt']['base_topic']}/{meter_id}/total",
+                    "min": 0, "max": 2147483647, "step": 1, "mode": "box", "icon": "mdi:counter"
+                }
+                self._mqttc.publish(num_topic, "", retain=True)
+                self._mqttc.publish(num_topic, json.dumps(num_payload), retain=True)
+                self._mqttc.publish(f"{config['mqtt']['base_topic']}/{meter_id}/total", meter_data.get('total', 0), retain=True)
 
-                    # Publish discovery
-                    # Clear first to force HA to update name/config
-                    self._mqttc.publish(topic, "", retain=True)
-                    self._mqttc.publish(topic, json.dumps(payload), retain=True)
+        self._discovered_meters[meter_id] = instancename
+        logger.info(f"Sent discovery for Meter {meter_id} ({instancename})")
 
-                    # -------------------------------------------------------------------------
-                    # Configure Text Entity for Meter Name
-                    # -------------------------------------------------------------------------
-                    if subkey == 'total':  # Only do this once per meter
-                        text_unique_id = f"s0pcm_{identifier}_{key}_name_config"
-                        text_topic = f"{config['mqtt']['discovery_prefix']}/text/{identifier}/{text_unique_id}/config"
-                        
-                        text_payload = {
-                            "name": f"{instancename} Name",
-                            "unique_id": text_unique_id,
-                            "device": device_info,
-                            "entity_category": "config",
-                            "command_topic": f"{config['mqtt']['base_topic']}/{key}/name/set",
-                            "state_topic": f"{config['mqtt']['base_topic']}/{key}/name",
-                            "icon": "mdi:tag-text-outline"
-                        }
-                        self._mqttc.publish(text_topic, "", retain=True)
-                        self._mqttc.publish(text_topic, json.dumps(text_payload), retain=True)
-
-                        # Publish current name state so the text entity has a value
-                        # If customized, use custom name. If default, use empty string or ID?
-                        # Ideally, users want to see the *current* alias.
-                        current_name = measurementlocal[key].get('name', "")
-                        # If name equals ID, it's effectively unset/default. Show empty to indicate 'standard'.
-                        # Or show actual name. Let's show actual name if it exists in 'name' field, else ""
-                        pub_name = measurementlocal[key].get('name', "")
-                        self._mqttc.publish(f"{config['mqtt']['base_topic']}/{key}/name", pub_name, retain=True)
-
-                    # -------------------------------------------------------------------------
-                    # Configure Number Entity for Meter Total
-                    # -------------------------------------------------------------------------
-                    if subkey == 'total':
-                        num_unique_id = f"s0pcm_{identifier}_{key}_total_config"
-                        num_topic = f"{config['mqtt']['discovery_prefix']}/number/{identifier}/{num_unique_id}/config"
-                        
-                        num_payload = {
-                            "name": f"{instancename} Total Correction",
-                            "unique_id": num_unique_id,
-                            "device": device_info,
-                            "entity_category": "config",
-                            "command_topic": f"{config['mqtt']['base_topic']}/{key}/total/set",
-                            "state_topic": f"{config['mqtt']['base_topic']}/{key}/total",
-                            "min": 0,
-                            "max": 2147483647,
-                            "step": 1,
-                            "mode": "box",
-                            "icon": "mdi:counter"
-                        }
-                        self._mqttc.publish(num_topic, "", retain=True)
-                        self._mqttc.publish(num_topic, json.dumps(num_payload), retain=True)
-
-                        # Publish current total to the ID-based topic so the number entity has a value
-                        current_total = measurementlocal[key].get('total', 0)
-                        self._mqttc.publish(f"{config['mqtt']['base_topic']}/{key}/total", current_total, retain=True)
-
-
-
-        self._discovery_sent = True
-        logger.info('Sent MQTT discovery messages')
+    def send_discovery(self, measurementlocal):
+        """Legacy compatibility wrapper - now triggers both global and meter discovery."""
+        self._send_global_discovery()
+        for mid in measurementlocal:
+            if isinstance(mid, int):
+                self._send_meter_discovery(mid, measurementlocal[mid])
 
     def _setup_mqtt_client(self, use_tls):
         # Define our MQTT Client
@@ -1309,17 +1468,33 @@ class TaskDoMQTT(threading.Thread):
 
     def _publish_measurements(self, measurementlocal, measurementprevious):
         """Publish meter values."""
+        # Persistent Global Date
+        current_date = str(measurementlocal.get('date', ""))
+        previous_date = str(measurementprevious.get('date', ""))
+        if current_date != previous_date:
+            self._mqttc.publish(config['mqtt']['base_topic'] + '/date', current_date, retain=True)
+
         for key in measurementlocal:
             if isinstance(key, int):
                 # Filter logic
                 if config['s0pcm']['include'] is not None and key not in config['s0pcm']['include']:
                         logger.debug(f"MQTT Publish for input '{key}' is disabled")
                         continue
-                if not measurement[key].get('enabled', True):
+                if not measurementlocal[key].get('enabled', True):
                         continue
 
                 jsondata = {}
                 instancename = measurementlocal[key].get('name', str(key))
+
+                # Internal persistent topics
+                for internal_field in ['pulsecount', 'total', 'today', 'yesterday']:
+                    if internal_field in measurementlocal[key]:
+                        # Always publish ID-based internal topics for recovery, 
+                        # but only on change to reduce traffic
+                        val = measurementlocal[key][internal_field]
+                        old_val = measurementprevious.get(key, {}).get(internal_field)
+                        if val != old_val:
+                            self._mqttc.publish(f"{config['mqtt']['base_topic']}/{key}/{internal_field}", val, retain=True)
 
                 for subkey in ['total', 'today', 'yesterday']:
                     value_previous = measurementprevious.get(key, {}).get(subkey, -1)
@@ -1336,10 +1511,6 @@ class TaskDoMQTT(threading.Thread):
                                 
                                 logger.debug(f"MQTT Publish: topic='{config['mqtt']['base_topic']}/{instancename}/{subkey}', value='{measurementlocal[key][subkey]}'")
                                 self._mqttc.publish(config['mqtt']['base_topic'] + '/' + instancename + '/' + subkey, measurementlocal[key][subkey], retain=config['mqtt']['retain'])
-
-                                # Ensure ID-based topic is also updated for the 'number' config entity
-                                if subkey == 'total' and str(instancename) != str(key):
-                                    self._mqttc.publish(config['mqtt']['base_topic'] + '/' + str(key) + '/total', measurementlocal[key][subkey], retain=config['mqtt']['retain'])
                             else:
                                 jsondata[subkey] = measurementlocal[key][subkey]
 
@@ -1382,8 +1553,15 @@ class TaskDoMQTT(threading.Thread):
                 logger.warning('MQTT Connection lost, returning to connect loop...')
                 return 
 
-            if not self._discovery_sent:
-                self.send_discovery(measurementlocal)
+            if not self._global_discovery_sent:
+                self._send_global_discovery()
+
+            # Dynamic Meter Discovery
+            for mid in measurementlocal:
+                if isinstance(mid, int):
+                    current_name = measurementlocal[mid].get('name', str(mid))
+                    if mid not in self._discovered_meters or self._discovered_meters[mid] != current_name:
+                        self._send_meter_discovery(mid, measurementlocal[mid])
 
             self._publish_diagnostics()
             self._publish_measurements(measurementlocal, measurementprevious)
@@ -1445,9 +1623,8 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     try:
-        ReadConfig()
         MigrateData()
-        ReadMeasurement()
+        ReadConfig()
         # Initialize measurementshare
         measurementshare = copy.deepcopy(measurement)
     except Exception:
