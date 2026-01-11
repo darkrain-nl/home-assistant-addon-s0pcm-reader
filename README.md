@@ -42,7 +42,32 @@ If you are running Home Assistant in a standalone Docker container (without Supe
 ### Quick Start (Local Build)
 
 1. **Clone the repo**: `git clone https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader.git`
-2. **Configure**: Create a `config/options.json` file inside the cloned directory (refer to `DOCS.md` for available configuration keys).
+2. **Configure**: Create a `config/options.json` file inside the cloned directory. Since you are not using the Supervisor, you **must** manually specify your MQTT broker details:
+
+```json
+{
+  "device": "/dev/ttyACM0",
+  "mqtt_host": "192.168.1.50",
+  "mqtt_username": "your_user",
+  "mqtt_password": "your_password",
+  "mqtt_base_topic": "s0pcmreader",
+  "log_level": "info"
+}
+```
+*(Refer to `DOCS.md` for a full list of available keys.)*
+
+### Key Reference for `options.json`
+
+| Key | Description | Default |
+| :--- | :--- | :--- |
+| `device` | Serial port (e.g. `/dev/ttyUSB0`) | `/dev/ttyACM0` |
+| `mqtt_host` | MQTT Broker address | `core-mosquitto` |
+| `mqtt_port` | MQTT Broker port | `1883` |
+| `mqtt_username` | MQTT Username | (none) |
+| `mqtt_password` | MQTT Password | (none) |
+| `mqtt_base_topic`| Root MQTT topic | `s0pcmreader` |
+| `log_level` | `info`, `debug`, `error` | `info` |
+
 3. **Launch**: Use the following `docker-compose.yml` snippet:
 
 ```yaml
