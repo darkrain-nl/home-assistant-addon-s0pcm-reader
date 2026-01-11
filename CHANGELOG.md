@@ -5,9 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
   
-## [2.1.0] - 2026-01-11
-
+## [2.1.1] - 2026-01-11
 ### Added
+- **UI Enhancements**: Added explicit default values to all configuration descriptions in the Home Assistant UI for better clarity.
+
+## [2.1.0] - 2026-01-11
 - **Stateless Architecture**: Completely removed the dependency on the local `measurement.json` file. All persistent data is now stored externally via MQTT retained messages and Home Assistant.
 - **Dual-Layer State Recovery**: Implemented a robust recovery mechanism to prevent data loss. On startup, the addon first attempts to recover state from MQTT. If that fails, it performs a "Surgical Fallback" to the Home Assistant REST API.
 - **Surgical HA API Recovery**: The fallback mechanism now uses advanced fuzzy pattern matching to find meter totals even if sensors have been renamed in Home Assistant. It includes strict exclusions (ignoring costs, energy prices, and unrelated sensors) and handles localized number formats (European thousand separators).
@@ -24,8 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HA API Permissions**: Resolved 401 Unauthorized errors by adding the necessary `homeassistant_api` permission.
 - **Recovery Reliability**: Fixed structural bugs in the fallback loop and ensured that meter totals of `0` are correctly recognized as valid states.
 - **Internal Stability**: Hardened the global date initialization and ensured `MigrateData()` is correctly called on startup.
-- **Number Parsing**: Improved localized number parsing in the HA API recovery to handle US-style thousand separators (multiple commas).
 - **Migration Loop**: Fixed a bug where data migration would re-trigger on every restart because the read-only source files were still present in `/share/`.
+- **Number Parsing**: Improved localized number parsing in the HA API recovery to handle US-style thousand separators (multiple commas).
 
 ## [2.0.1] - 2026-01-10
 ### Fixed
