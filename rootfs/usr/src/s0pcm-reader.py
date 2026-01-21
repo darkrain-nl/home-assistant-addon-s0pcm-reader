@@ -14,7 +14,6 @@ import os
 import sys
 import re
 import signal
-import shutil
 import urllib.request
 
 """
@@ -164,7 +163,7 @@ if not configdirectory.endswith('/'):
 # ------------------------------------------------------------------------------------
 # Setup filenames
 # ------------------------------------------------------------------------------------
-configname = configdirectory + 'configuration.json'
+
 measurementname = configdirectory + 'measurement.json'
 
 # ------------------------------------------------------------------------------------
@@ -233,109 +232,6 @@ def GetSupervisorConfig(service):
         logger.debug(f"Supervisor API discovery for {service} failed: {e}")
     return {}
 
-def MigrateData():
-    """Migrate data from legacy /share/s0pcm location and from YAML to JSON."""
-    legacy_dir = '/share/s0pcm/'
-    
-    if os.path.exists(legacy_dir) and configdirectory == '/data/':
-        logger.info(f"Checking for legacy data in {legacy_dir}...")
-        try:
-            # 1. Migrate daily stats files
-            files_to_migrate = [f for f in os.listdir(legacy_dir) if f.startswith('daily-') and f.endswith('.txt')]
-            files_to_migrate.extend(['measurement.json', 'measurement.yaml'])
-
-            for f in files_to_migrate:
-                src = os.path.join(legacy_dir, f)
-                dst = os.path.join(configdirectory, f)
-                
-                # Skip if already migrated
-                if os.path.exists(dst + ".migrated") or os.path.exists(dst.replace('.json', '.yaml') + ".migrated"):
-                    continue
-
-                # Copy if source exists and destination doesn't
-                if os.path.exists(src) and not os.path.exists(dst):
-                    shutil.copy2(src, dst)
-                    logger.info(f"Successfully migrated {f} to {configdirectory}")
-        except Exception as e:
-            logger.error(f"Failed to migrate legacy files from {legacy_dir}: {e}")
-
-    # 2. Migrate from measurement.yaml to measurement.json if needed
-    yaml_path = os.path.join(configdirectory, 'measurement.yaml')
-    json_path = os.path.join(configdirectory, 'measurement.json')
-    
-    if os.path.exists(yaml_path):
-        perform_conversion = False
-        if not os.path.exists(json_path) and not os.path.exists(json_path + ".migrated") and not os.path.exists(yaml_path + ".migrated"):
-            perform_conversion = True
-        else:
-            # Check if existing json is "empty" (no meter data)
-            try:
-                with open(json_path, 'r') as fj:
-                    existing_data = json.load(fj)
-                    # If it's just a date or empty, we consider it a candidate for overwrite
-                    if not existing_data or (len(existing_data) == 1 and 'date' in existing_data):
-                        logger.info(f"Existing {json_path} appears empty/default, allowing migration to overwrite.")
-                        perform_conversion = True
-            except Exception:
-                perform_conversion = True # If we can't read it, allow overwrite
-
-        if perform_conversion:
-            try:
-                with open(yaml_path, 'r') as f:
-                    data = yaml.safe_load(f)
-                    if data:
-                        with open(json_path, 'w') as fj:
-                            # Convert date object to string for JSON
-                            if 'date' in data and isinstance(data['date'], (datetime.date, datetime.datetime)):
-                                data['date'] = str(data['date'])
-                            json.dump(data, fj, indent=4)
-                        logger.info(f"Successfully migrated data from {yaml_path} to {json_path}")
-                        # Rename yaml to prevent re-migration loop
-                        os.rename(yaml_path, yaml_path + ".migrated")
-            except Exception as e:
-                logger.error(f"Failed to migrate YAML measurement data to JSON: {e}")
-
-def PushLegacyToMQTT(mqttc):
-    """One-time push of legacy measurement.json data to MQTT retained topics."""
-    global measurement
-    if not os.path.exists(measurementname):
-        return
-
-    logger.info(f"Migration: Pushing legacy data from {measurementname} to MQTT...")
-    try:
-        with open(measurementname, 'r') as f:
-            data = json.load(f)
-            if not data:
-                return
-
-            base_topic = config['mqtt']['base_topic']
-            retain = config['mqtt']['retain']
-
-
-            # Push meter data
-            for key, mdata in data.items():
-                if not isinstance(mdata, dict):
-                    continue
-                
-                # ID-based topics for internal state
-                for field in ['total', 'today', 'yesterday', 'pulsecount']:
-                    if field in mdata:
-                        mqttc.publish(f"{base_topic}/{key}/{field}", mdata[field], retain=retain)
-                
-                # Name
-                if 'name' in mdata:
-                    mqttc.publish(f"{base_topic}/{key}/name", mdata['name'], retain=retain)
-
-            logger.info("Migration: Legacy data successfully pushed to MQTT. You can now safely remove measurement.json.")
-            
-            # Rename legacy file to prevent re-migration
-            backup_name = measurementname + ".migrated"
-            os.rename(measurementname, backup_name)
-            logger.info(f"Migration: Renamed {measurementname} to {backup_name}")
-
-    except Exception as e:
-        logger.error(f"Migration: Failed to push legacy data to MQTT: {e}")
-
 # ------------------------------------------------------------------------------------
 # Read the configuration
 # ------------------------------------------------------------------------------------
@@ -353,22 +249,11 @@ def ReadConfig():
         except Exception as e:
             logger.error(f"Failed to load {options_path}: {e}")
 
-    # 2. Attempt to load legacy configuration.json if it exists
-    try:
-        with open(configname, 'r') as f:
-            config = json.load(f)
-    except FileNotFoundError:
-        if not ha_options:
-            print(f"WARN: No configuration file found, using defaults.")
-    except Exception as e:
-        logger.error(f"Error reading {configname}: {e}")
 
     # 3. Merge/Map HA Options into the config structure
     if ha_options:
         config.setdefault('log', {})
         if 'log_level' in ha_options: config['log']['level'] = ha_options['log_level']
-        if 'log_size' in ha_options: config['log']['size'] = ha_options['log_size']
-        if 'log_count' in ha_options: config['log']['count'] = ha_options['log_count']
         
         config.setdefault('serial', {})
         if 'device' in ha_options: config['serial']['port'] = ha_options['device']
@@ -475,12 +360,6 @@ def ReadConfig():
     # Setup 's0pcm'
     config.setdefault('s0pcm', {})
     if config['s0pcm'] is None: config['s0pcm'] = {}
-
-    config['s0pcm'].setdefault('include', None)
-    config['s0pcm'].setdefault('dailystat', None)
-    config['s0pcm'].setdefault('publish_interval', None)
-    config['s0pcm'].setdefault('publish_onchange', True)
-
     logger.info(f'Start: s0pcm-reader - version: {s0pcmreaderversion}')
     
     # Redact password from logging
@@ -664,13 +543,6 @@ class TaskReadSerial(threading.Thread):
             measurement[count]['yesterday'] = measurement[count]['today']
             measurement[count]['today'] = 0
 
-            # Write daily stats
-            if config['s0pcm']['dailystat'] is not None and count in config['s0pcm']['dailystat']:
-                try:
-                    with open(configdirectory + 'daily-' + str(count) + '.txt', 'a') as fstat:
-                        fstat.write(str(measurement['date']) + ';' + str(measurement[count]['yesterday']) + '\n')
-                except Exception as e:
-                    SetError(f"Stats file '{configdirectory}daily-{str(count)}.txt' write/create failed: {type(e).__name__}: '{str(e)}'", category='serial')
 
         # Calculate delta
         if pulsecount > measurement[count]['pulsecount']:
@@ -804,8 +676,6 @@ class TaskDoMQTT(threading.Thread):
         # We always perform recovery now as we are stateless
         logger.info("Starting State Recovery phase...")
         
-        # 1. Push legacy data if it exists
-        PushLegacyToMQTT(self._mqttc)
 
         logger.info("Waiting 7s for retained MQTT messages...")
         recovered_data = {} # {identifier: {'total': X, 'today': Y, 'yesterday': Z, 'pulsecount': P}}
@@ -913,8 +783,6 @@ class TaskDoMQTT(threading.Thread):
                                 if field not in measurement[meter_id] or data[field] > measurement[meter_id].get(field, 0):
                                     measurement[meter_id][field] = data[field]
                                     logger.info(f"Recovered {field} for meter {meter_id} from MQTT: {data[field]}")
-                
-
         # 3. Fallback to HA API for missing meters
         # We check meters 1 to 5 (standard S0PCM-5)
         all_states = None
@@ -1462,10 +1330,7 @@ class TaskDoMQTT(threading.Thread):
 
         for key in measurementlocal:
             if isinstance(key, int):
-                # Filter logic
-                if config['s0pcm']['include'] is not None and key not in config['s0pcm']['include']:
-                        logger.debug(f"MQTT Publish for input '{key}' is disabled")
-                        continue
+
                 if not measurementlocal[key].get('enabled', True):
                         continue
 
@@ -1490,8 +1355,7 @@ class TaskDoMQTT(threading.Thread):
                             if config['mqtt']['split_topic'] == True:
                                 # On-change check (value and name/topic)
                                 if measurementlocal[key][subkey] == value_previous and \
-                                   measurementlocal[key].get('name') == measurementprevious.get(key, {}).get('name') and \
-                                   config['s0pcm']['publish_onchange'] == True:
+                                   measurementlocal[key].get('name') == measurementprevious.get(key, {}).get('name'):
                                     continue
                                 
                                 
@@ -1566,11 +1430,8 @@ class TaskDoMQTT(threading.Thread):
 
             measurementprevious = copy.deepcopy(measurementlocal)
 
-            # Wait period
-            if config['s0pcm']['publish_interval'] is None:
-                self._trigger.wait()
-            else:
-                self._trigger.wait(timeout=config['s0pcm']['publish_interval'])
+            # Wait for next event
+            self._trigger.wait()
             self._trigger.clear()
 
     def run(self):
@@ -1609,7 +1470,7 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     try:
-        MigrateData()
+
         ReadConfig()
         # Initialize measurementshare
         measurementshare = copy.deepcopy(measurement)

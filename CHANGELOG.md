@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
+## [2.2.0] - 2026-01-21
+### Removed
+- **Legacy Code Cleanup**: Removed defunct `MigrateData` and `PushLegacyToMQTT` functions. The addon no longer reads from or writes to the public `/share/` directory.
+- **Dead Logic**: Removed unreachable code for `dailystat` (daily text files), `include` (meter filtering), and legacy `configuration.json` loading.
+- **Dependencies**: Removed unused `shutil` import.
+
+### Changed
+- **Code Organization**: Cleaned up vertical whitespace and improved internal code formatting.
+
 ## [2.1.3] - 2026-01-11
 ### Fixed
 - **Date Recovery Bug**: Fixed a critical bug where the "today" counter would incorrectly reset to zero upon addon restart. This was caused by the recovery of a stale date from MQTT (often pushed during legacy data migration), which triggered a false "day changed" event. The addon now always initializes with the current system date on startup.
