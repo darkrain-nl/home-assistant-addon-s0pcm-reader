@@ -2,7 +2,7 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "description": "Unified updates for S0PCM Reader",
     "extends": [
-        "config:base",
+        "config:recommended",
         ":separateMajorReleases",
         ":combinePatchMinorReleases"
     ],
@@ -13,23 +13,23 @@
         "enabled": true
     },
     "dockerfile": {
-        "fileMatch": [
-            "(^|/)Dockerfile$",
-            "(^|/)Dockerfile\\.[^/]+$"
+        "managerFilePatterns": [
+            "/(^|/)Dockerfile$/",
+            "/(^|/)Dockerfile\\.[^/]+$/"
         ]
     },
     "pip_requirements": {
-        "fileMatch": [
-            "(^|/)requirements\\.txt$",
-            "(^|/)requirements-test\\.txt$"
+        "managerFilePatterns": [
+            "/(^|/)requirements\\.txt$/",
+            "/(^|/)requirements-test\\.txt$/"
         ]
     },
     "customManagers": [
         {
             "customType": "regex",
             "description": "Fallback for test requirements",
-            "fileMatch": [
-                "(^|/)requirements-test\\.txt$"
+            "managerFilePatterns": [
+                "/(^|/)requirements-test\\.txt$/"
             ],
             "matchStrings": [
                 "(?<depName>[a-zA-Z0-9._-]+)\\s*(?:==|>=|~=|>|<=|<)\\s*(?<currentValue>[a-zA-Z0-9._-]+)"
@@ -39,8 +39,8 @@
         {
             "customType": "regex",
             "description": "Home Assistant build.yaml base images",
-            "fileMatch": [
-                "(^|/)build\\.yaml$"
+            "managerFilePatterns": [
+                "/(^|/)build\\.yaml$/"
             ],
             "matchStrings": [
                 "(?<arch>aarch64|amd64|armhf|armv7|i386):\\s+(?<depName>ghcr\\.io/home-assistant/[^:]+):(?<currentValue>\\S+)"
