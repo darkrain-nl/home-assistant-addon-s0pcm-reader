@@ -6,15 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   
 ## [2.3.0] - 2026-01-24
 ### Added
-- **Comprehensive Unit Test Suite**: Introduced a robust battery of tests covering packet parsing, serial connection handling, and MQTT client functionality.
+- **Comprehensive Unit Test Suite**: Introduced a robust battery of tests covering packet parsing, serial connection handling, MQTT client functionality, and configuration edge cases.
+- **Coverage Milestone**: Achieved **50% total test coverage** for core application logic.
 - **Dockerized Testing Environment**: Added `tests/Dockerfile.test` for guaranteed consistency between development and production environments.
 - **CI/CD Integration**: Implemented GitHub Actions for automated quality assurance on every push.
 - **Version Awareness**: Synchronized Python environments across all layers (Addon, Docker tests, and CI) on version 3.14.
 
 ### Changed
-- **Architectural Refactoring**: Extracted core parsing logic into the standalone `parse_s0pcm_packet` function for better modularity and testability.
+- **Modernized Core Logic**: Refactored `ReadConfig` and `ReadMeasurement` using modern Python idiomatic patterns, including `pathlib` for file operations and `fromisoformat` for date handling.
 - **Unified Module Structure**: Renamed the main script from `s0pcm-reader.py` to `s0pcm_reader.py` to support standard Python imports without needing a wrapper.
-- **Improved Importability**: Refined code structure to support cleaner module importing without executing top-level side effects.
+- **Improved Reliability**: Refined logging and configuration loading to be idempotent and more robust against environment variations.
 
 ## [2.2.0] - 2026-01-21
 ### Removed

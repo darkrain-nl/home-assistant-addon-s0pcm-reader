@@ -15,6 +15,7 @@ import sys
 import re
 import signal
 import urllib.request
+from pathlib import Path
 
 """
 Description
@@ -257,134 +258,81 @@ def ReadConfig():
     global config
     config.clear()
 
-    # 1. Attempt to load HA Options if they exist
-    options_path = '/data/options.json'
+    # 1. Load Home Assistant Options
+    options_path = Path('/data/options.json')
     ha_options = {}
-    if os.path.exists(options_path):
+    if options_path.exists():
         try:
-            with open(options_path, 'r') as f:
-                ha_options = json.load(f)
+            ha_options = json.loads(options_path.read_text())
         except Exception as e:
             logger.error(f"Failed to load {options_path}: {e}")
 
+    # 2. MQTT Service Discovery (if host not manually provided)
+    mqtt_service = {}
+    if not ha_options.get('mqtt_host'):
+        mqtt_service = GetSupervisorConfig('mqtt')
+        if mqtt_service:
+            logger.info("Using MQTT service discovery for connection settings.")
 
-    # 3. Merge/Map HA Options into the config structure
-    if ha_options:
-        config.setdefault('log', {})
-        if 'log_level' in ha_options: config['log']['level'] = ha_options['log_level']
-        
-        config.setdefault('serial', {})
-        if 'device' in ha_options: config['serial']['port'] = ha_options['device']
+    # 3. Define structured configuration with defaults and overrides
+    config.update({
+        'log': {
+            'level': (ha_options.get('log_level') or 'INFO').upper()
+        },
+        'serial': {
+            'port': ha_options.get('device', '/dev/ttyACM0'),
+            'baudrate': 9600,
+            'parity': serial.PARITY_EVEN,
+            'stopbits': serial.STOPBITS_ONE,
+            'bytesize': serial.SEVENBITS,
+            'timeout': None,
+            'connect_retry': 5
+        },
+        'mqtt': {
+            'host': ha_options.get('mqtt_host') or mqtt_service.get('host', '127.0.0.1'),
+            'port': ha_options.get('mqtt_port') or mqtt_service.get('port', 1883),
+            'tls_port': ha_options.get('mqtt_tls_port', 8883),
+            'username': ha_options.get('mqtt_username') or mqtt_service.get('username'),
+            'password': ha_options.get('mqtt_password') or mqtt_service.get('password'),
+            'base_topic': ha_options.get('mqtt_base_topic', 's0pcmreader'),
+            'client_id': ha_options.get('mqtt_client_id') if ha_options.get('mqtt_client_id') not in [None, "", "None"] else None,
+            'version': ha_options.get('mqtt_protocol', '5.0'),
+            'retain': ha_options.get('mqtt_retain', True),
+            'split_topic': ha_options.get('mqtt_split_topic', True),
+            'connect_retry': 5,
+            'online': 'online',
+            'offline': 'offline',
+            'lastwill': 'offline',
+            'discovery': ha_options.get('mqtt_discovery', True),
+            'discovery_prefix': ha_options.get('mqtt_discovery_prefix', 'homeassistant'),
+            'tls': ha_options.get('mqtt_tls', False),
+            'tls_ca': ha_options.get('mqtt_tls_ca', ''),
+            'tls_check_peer': ha_options.get('mqtt_tls_check_peer', False)
+        },
+        's0pcm': {}
+    })
 
-        config.setdefault('mqtt', {})
-        
-        # Service Discovery if host not manually set
-        if not ha_options.get('mqtt_host'):
-            mqtt_service = GetSupervisorConfig('mqtt')
-            if mqtt_service:
-                logger.info("Using MQTT service discovery for connection settings.")
-                config['mqtt']['host'] = mqtt_service.get('host', 'core-mosquitto')
-                config['mqtt']['username'] = mqtt_service.get('username')
-                config['mqtt']['password'] = mqtt_service.get('password')
-                config['mqtt']['port'] = mqtt_service.get('port', 1883)
-        
-        # Manual Overrides from HA options
-        mapping = {
-            'mqtt_host': 'host',
-            'mqtt_port': 'port',
-            'mqtt_username': 'username',
-            'mqtt_password': 'password',
-            'mqtt_client_id': 'client_id',
-            'mqtt_base_topic': 'base_topic',
-            'mqtt_protocol': 'version',
-            'mqtt_discovery': 'discovery',
-            'mqtt_discovery_prefix': 'discovery_prefix',
-            'mqtt_retain': 'retain',
-            'mqtt_split_topic': 'split_topic',
-            'mqtt_tls': 'tls',
-            'mqtt_tls_port': 'tls_port',
-            'mqtt_tls_ca': 'tls_ca',
-            'mqtt_tls_check_peer': 'tls_check_peer'
-        }
-        for ha_key, cfg_key in mapping.items():
-            if ha_options.get(ha_key) is not None:
-                config['mqtt'][cfg_key] = ha_options[ha_key]
-
-    # Setup 'log' variables
-    config.setdefault('log', {})
-    if config['log'] is None: config['log'] = {}
-
-    config['log'].setdefault('level', 'INFO')
-    if config['log']['level'] in [None, ""]: config['log']['level'] = 'INFO'
-    config['log']['level'] = config['log']['level'].upper()
-
-    # Setup logging to stderr
+    # 4. Global Logging Setup
+    # Ensure we don't stack handlers if ReadConfig is called multiple times
+    logger.handlers = [h for h in logger.handlers if not isinstance(h, logging.StreamHandler)]
     stream = logging.StreamHandler()
     stream.setLevel(config['log']['level'])
     stream.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
     logger.addHandler(stream)
 
-    # Setup 'mqtt' variables
-    config.setdefault('mqtt', {})
-    if config['mqtt'] is None: config['mqtt'] = {}
+    # 5. Post-processing: Mapping and Path Resolution
+    version_map = {'3.1': mqtt.MQTTv31, '3.1.1': mqtt.MQTTv311, '5.0': mqtt.MQTTv5}
+    config['mqtt']['version'] = version_map.get(str(config['mqtt']['version']), mqtt.MQTTv5)
 
-    config['mqtt'].setdefault('host', '127.0.0.1')
-    if config['mqtt'].get('port') in [None, ""]: config['mqtt']['port'] = 1883
-    if config['mqtt'].get('tls_port') in [None, ""]: config['mqtt']['tls_port'] = 8883
-    config['mqtt'].setdefault('username', None)
-    config['mqtt'].setdefault('password', None)
-    config['mqtt'].setdefault('base_topic', 's0pcmreader')
-    if config['mqtt'].get('client_id') in [None, "", "None"]: config['mqtt']['client_id'] = None
-    config['mqtt'].setdefault('version', mqtt.MQTTv5)
-    if config['mqtt'].get('retain') in [None, ""]: config['mqtt']['retain'] = True
-    if config['mqtt'].get('split_topic') in [None, ""]: config['mqtt']['split_topic'] = True
-    if config['mqtt'].get('connect_retry') in [None, ""]: config['mqtt']['connect_retry'] = 5
-    if config['mqtt'].get('online') in [None, ""]: config['mqtt']['online'] = 'online'
-    if config['mqtt'].get('offline') in [None, ""]: config['mqtt']['offline'] = 'offline'
-    if config['mqtt'].get('lastwill') in [None, ""]: config['mqtt']['lastwill'] = 'offline'
-    if config['mqtt'].get('discovery') in [None, ""]: config['mqtt']['discovery'] = True
-    if config['mqtt'].get('discovery_prefix') in [None, ""]: config['mqtt']['discovery_prefix'] = 'homeassistant'
+    if config['mqtt']['tls_ca'] and not config['mqtt']['tls_ca'].startswith('/'):
+         config['mqtt']['tls_ca'] = str(Path(configdirectory) / config['mqtt']['tls_ca'])
 
-    # Map version strings to constants
-    version_str = str(config['mqtt']['version'])
-    if version_str == '3.1':
-        config['mqtt']['version'] = mqtt.MQTTv31
-    elif version_str == '3.1.1':
-        config['mqtt']['version'] = mqtt.MQTTv311
-    else: # Default or 5.0
-        config['mqtt']['version'] = mqtt.MQTTv5
- 
-    # TLS configuration
-    config['mqtt'].setdefault('tls', False)
-    config['mqtt'].setdefault('tls_ca', '')
-    config['mqtt'].setdefault('tls_check_peer', False)
-
-    # Append the configuration path if no '/' is in front of the CA file
-    if config['mqtt']['tls_ca'] != '' and not config['mqtt']['tls_ca'].startswith('/'):
-        config['mqtt']['tls_ca'] = configdirectory + config['mqtt']['tls_ca']
-
-    # Setup 'serial' variables
-    config.setdefault('serial', {})
-    if config['serial'] is None: config['serial'] = {}
-
-    config['serial'].setdefault('port', '/dev/ttyACM0')
-    config['serial'].setdefault('baudrate', 9600)
-    config['serial'].setdefault('parity', serial.PARITY_EVEN)
-    config['serial'].setdefault('stopbits', serial.STOPBITS_ONE)
-    config['serial'].setdefault('bytesize', serial.SEVENBITS)
-    config['serial'].setdefault('timeout', None)
-    config['serial'].setdefault('connect_retry', 5)
-
-    # Setup 's0pcm'
-    config.setdefault('s0pcm', {})
-    if config['s0pcm'] is None: config['s0pcm'] = {}
     logger.info(f'Start: s0pcm-reader - version: {s0pcmreaderversion}')
     
-    # Redact password from logging
+    # Debug logging with redacted password
     config_log = copy.deepcopy(config)
-    if config_log.get('mqtt') and config_log['mqtt'].get('password'):
+    if 'mqtt' in config_log and config_log['mqtt'].get('password'):
         config_log['mqtt']['password'] = '********'
-
     logger.debug(f'Config: {str(config_log)}')
 
 # ------------------------------------------------------------------------------------
@@ -398,24 +346,21 @@ def SaveMeasurement():
 # Read the measurement data
 # ------------------------------------------------------------------------------------
 def ReadMeasurement():
-
     global measurement
+    path = Path(measurementname)
 
     try:
-        with open(measurementname, 'r') as f:
-            data = json.load(f)
-            # Handle empty file (None) or valid content
-            measurement = data if data is not None else {}
-    except FileNotFoundError:
-        logger.warning(f"No '{measurementname}' found, using defaults.")
-        measurement = {}
+        if not path.exists():
+            logger.warning(f"No '{measurementname}' found, using defaults.")
+            measurement = {}
+        else:
+            data = json.loads(path.read_text())
+            measurement = data if isinstance(data, dict) else {}
+            if not isinstance(data, dict):
+                logger.error(f"'{measurementname}' content is not a dictionary ({type(data)}). Using defaults.")
     except Exception as e:
          logger.error(f"Failed to read '{measurementname}': {e}. Using defaults.")
          measurement = {}
-
-    if not isinstance(measurement, dict):
-        logger.error(f"'{measurementname}' content is not a dictionary ({type(measurement)}). Using defaults.")
-        measurement = {}
 
     # JSON keys are always strings, convert meter IDs back to integers
     new_measurement = {}
@@ -430,16 +375,12 @@ def ReadMeasurement():
     saved_date = measurement.get('date')
     if saved_date:
         try:
-            # Handle both string 'YYYY-MM-DD' and existing date objects
             if isinstance(saved_date, str):
-                measurement['date'] = datetime.datetime.strptime(saved_date, '%Y-%m-%d').date()
-            elif isinstance(saved_date, datetime.date):
-                pass # Already a date object (yaml might parse it automatically)
+                measurement['date'] = datetime.date.fromisoformat(saved_date)
             elif isinstance(saved_date, datetime.datetime):
                 measurement['date'] = saved_date.date()
-            else:
-                # Try casting to string as a fallback for other types
-                measurement['date'] = datetime.datetime.strptime(str(saved_date), '%Y-%m-%d').date()
+            elif not isinstance(saved_date, datetime.date):
+                measurement['date'] = datetime.date.fromisoformat(str(saved_date))
         except ValueError:
             SetError(f"'{measurementname}' has an invalid date field '{saved_date}', defaulting to today.", category='serial')
             measurement['date'] = datetime.date.today()
