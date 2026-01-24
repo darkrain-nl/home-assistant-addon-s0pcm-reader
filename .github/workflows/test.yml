@@ -39,7 +39,7 @@ jobs:
         uses: codecov/codecov-action@v4
         if: always()
         with:
-          file: ./coverage.xml
+          files: ./coverage.xml
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
