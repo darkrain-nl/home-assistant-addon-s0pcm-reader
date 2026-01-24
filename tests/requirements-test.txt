@@ -3,7 +3,7 @@
 # Core testing framework
 pytest>=7.4.4
 pytest-mock>=3.15.1
-pytest-cov>=4.1.0
+pytest-cov>=7.0.0
 pytest-timeout>=2.1.0
 
 # Application dependencies (needed for testing)
