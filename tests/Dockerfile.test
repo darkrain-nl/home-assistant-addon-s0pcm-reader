@@ -1,0 +1,29 @@
+# Test container for S0PCM Reader
+# This container provides an isolated environment for running tests
+
+FROM python:3.14-alpine
+
+# Install system dependencies
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    linux-headers
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy test requirements from tests directory
+COPY tests/requirements-test.txt .
+
+# Install Python test dependencies
+RUN pip install --no-cache-dir -r requirements-test.txt
+
+# Copy source code and tests
+COPY rootfs/usr/src/ ./rootfs/usr/src/
+COPY tests/ ./tests/
+
+# Set Python path to find the module
+ENV PYTHONPATH=/workspace
+
+# Default command runs all tests with verbose output
+CMD ["pytest", "tests/", "-v", "--tb=short"]

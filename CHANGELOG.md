@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
+## [2.3.0] - 2026-01-24
+### Added
+- **Comprehensive Test Suite**: Introduced a robust battery of **34 unit and integration tests** covering packet parsing, serial connection handling, MQTT client functionality, and configuration edge cases.
+- **System Integration Tests**: Added verified thread loop testing to ensure the core processing engines initialize and terminate correctly.
+- **Coverage Milestone**: Achieved **58% total test coverage** for the core application logic.
+- **Dockerized Testing Environment**: Added `tests/Dockerfile.test` for guaranteed consistency between development and production environments.
+- **CI/CD Integration**: Implemented GitHub Actions for automated quality assurance on every push.
+- **Version Awareness**: Synchronized Python environments across all layers (Addon, Docker tests, and CI) on version 3.14.
+
+### Changed
+- **Modernized Core Logic**: Refactored `ReadConfig` and `ReadMeasurement` using modern Python idiomatic patterns, including `pathlib` for file operations and `fromisoformat` for date handling.
+- **Unified Module Structure**: Renamed the main script from `s0pcm-reader.py` to `s0pcm_reader.py` to support standard Python imports without needing a wrapper.
+- **Improved Reliability**: Refined logging and configuration loading to be idempotent and more robust against environment variations.
+
 ## [2.2.0] - 2026-01-21
 ### Removed
 - **Legacy Code Cleanup**: Removed defunct `MigrateData` and `PushLegacyToMQTT` functions. The addon no longer reads from or writes to the public `/share/` directory.

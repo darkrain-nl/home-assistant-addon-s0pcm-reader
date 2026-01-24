@@ -1,0 +1,18 @@
+# Exclude development artifacts from production image
+__pycache__/
+.pytest_cache/
+.git/
+.github/
+.gitignore
+.dockerignore
+README.md
+CHANGELOG.md
+DOCS.md
+LICENSE
+build.yaml
+repository.yaml
+apparmor.txt
+config.yaml
+icon.png
+logo.png
+translations/
