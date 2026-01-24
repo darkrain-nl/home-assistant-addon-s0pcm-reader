@@ -1,5 +1,4 @@
-# Exclude tests and development artifacts from production image
-tests/
+# Exclude development artifacts from production image
 __pycache__/
 .pytest_cache/
 .git/
