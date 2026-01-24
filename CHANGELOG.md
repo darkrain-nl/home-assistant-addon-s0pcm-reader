@@ -6,8 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   
 ## [2.3.0] - 2026-01-24
 ### Added
-- **Comprehensive Unit Test Suite**: Introduced a robust battery of tests covering packet parsing, serial connection handling, MQTT client functionality, and configuration edge cases.
-- **Coverage Milestone**: Achieved **50% total test coverage** for core application logic.
+- **Comprehensive Test Suite**: Introduced a robust battery of **34 unit and integration tests** covering packet parsing, serial connection handling, MQTT client functionality, and configuration edge cases.
+- **System Integration Tests**: Added verified thread loop testing to ensure the core processing engines initialize and terminate correctly.
+- **Coverage Milestone**: Achieved **58% total test coverage** for the core application logic.
 - **Dockerized Testing Environment**: Added `tests/Dockerfile.test` for guaranteed consistency between development and production environments.
 - **CI/CD Integration**: Implemented GitHub Actions for automated quality assurance on every push.
 - **Version Awareness**: Synchronized Python environments across all layers (Addon, Docker tests, and CI) on version 3.14.

@@ -77,7 +77,7 @@ Tests run automatically on:
 
 ### Workflow Features
 
-1. **Python Tests** - Runs tests with Python 3.11
+1. **Python Tests** - Runs tests with Python 3.14
 2. **Docker Tests** - Validates tests work in Docker
 3. **Coverage Report** - Uploads to Codecov
 4. **Test Artifacts** - Saves coverage reports for 30 days
@@ -118,7 +118,7 @@ If you get permission errors on Windows:
 ### Tests Pass Locally but Fail in CI
 
 This usually means:
-- Different Python version (CI uses 3.11)
+- Different Python version (CI uses 3.14)
 - Different dependencies
 - Platform-specific code
 

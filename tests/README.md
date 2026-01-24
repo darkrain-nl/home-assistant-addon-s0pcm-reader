@@ -33,7 +33,9 @@ tests/
 ├── README.md                # This file (quick reference)
 ├── test_config.py           # Configuration loading tests
 ├── test_serial_reader.py    # Serial port and packet parsing tests
-└── test_mqtt_client.py      # MQTT client tests
+├── test_mqtt_client.py      # MQTT client tests
+├── test_loops.py            # Main thread integration tests
+└── test_main.py             # Startup and signal handling tests
 ```
 
 ## Test Categories
@@ -49,10 +51,14 @@ tests/
 - **Publishing**: Split topic and JSON modes
 - **Discovery**: Home Assistant MQTT discovery
 - **Commands**: Set total and name commands
-- **State Recovery**: Recovery from retained messages
+- **State Recovery**: Recovery logic (ID mapping & value restoration)
+
+### System Tests (`test_loops.py` & `test_main.py`)
+- **Integration**: Proper thread initialization and data snapshotting
+- **Lifecycle**: Graceful shutdown and signal handling (SIGINT/SIGTERM)
 
 ### Configuration Tests (`test_config.py`)
-- **Loading**: From options.json and defaults
+- **Loading**: From options.json and defaults (using Pathlib)
 - **Validation**: Type checking and default values
 - **Supervisor API**: Service discovery integration
 
@@ -88,17 +94,13 @@ def test_with_fixtures(s0pcm_packets, sample_measurement):
 
 ## Important Notes
 
-### Module Reloading
+### Unified Module Structure
 
-Due to global state in `s0pcm_reader.py`, tests use `importlib.reload()` to ensure clean state:
+The script has been renamed from `s0pcm-reader.py` (hyphenated) to `s0pcm_reader.py` (underscore) to support standard Python imports. All tests directly import and exercise this module.
 
-```python
-import importlib
-import s0pcm_reader
-importlib.reload(s0pcm_reader)
-```
+### State Management
 
-This is necessary because the module has global variables that persist between tests.
+Due to global state in `s0pcm_reader.py`, tests use strict state reset fixtures (see `conftest.py`) to ensure isolation.
 
 ### Threading Tests
 
