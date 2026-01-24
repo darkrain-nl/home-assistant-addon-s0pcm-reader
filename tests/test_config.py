@@ -5,6 +5,7 @@ import pytest
 import json
 import os
 import sys
+import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import s0pcm_reader
@@ -43,7 +44,9 @@ class TestConfigEdgeCases:
         mocker.patch.object(Path, 'read_text', return_value=json.dumps({"mqtt_tls": True, "mqtt_tls_ca": "ca.crt"}))
         s0pcm_reader.configdirectory = "/data/"
         s0pcm_reader.ReadConfig()
-        assert "data/ca.crt" in s0pcm_reader.config['mqtt']['tls_ca']
+        expected_path = os.path.normpath("data/ca.crt")
+        actual_path = os.path.normpath(s0pcm_reader.config['mqtt']['tls_ca'])
+        assert expected_path in actual_path
 
     def test_password_redaction(self, mocker):
         mocker.patch.object(Path, 'exists', return_value=True)
@@ -58,6 +61,23 @@ class TestConfigEdgeCases:
                     break
             assert found
             assert not any('secret' in str(c) for c in mock_debug.call_args_list)
+
+class TestErrorHandling:
+    def test_set_error_behavior(self, mocker):
+        """Test SetError sets the shared error and triggers the event, including clearing."""
+        s0pcm_reader.trigger = threading.Event()
+        s0pcm_reader.lasterrorshare = None
+        
+        # 1. Set error
+        s0pcm_reader.SetError("Test Error")
+        assert s0pcm_reader.lasterrorshare == "Test Error"
+        assert s0pcm_reader.trigger.is_set()
+        
+        # 2. Clear error
+        s0pcm_reader.trigger.clear()
+        s0pcm_reader.SetError(None)
+        assert s0pcm_reader.lasterrorshare is None
+        assert s0pcm_reader.trigger.is_set()
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
