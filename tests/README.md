@@ -1,192 +1,99 @@
 # S0PCM Reader Tests
 
-This directory contains the test suite for the S0PCM Reader Home Assistant addon.
+This directory contains the comprehensive test suite for the S0PCM Reader Home Assistant addon.
 
-## Quick Start
+## 🚀 Quick Start
 
+### Local Testing (Python Environment)
 ```bash
-# Install test dependencies (from the tests directory)
+# 1. Install dependencies
 pip install -r tests/requirements-test.txt
 
-# Run all tests (from project root)
+# 2. Run all tests
 pytest tests/
 
-# Run with coverage report
-pytest tests/ --cov=rootfs/usr/src --cov-report=html
-
-# Run specific test file
-pytest tests/test_serial_reader.py -v
-
-# Run tests matching a pattern
-pytest tests/ -k "test_mqtt" -v
+# 3. Run with coverage
+pytest tests/ --cov=rootfs/usr/src --cov-report=term-missing
 ```
 
-## Test Structure
+### Docker Testing (Recommended)
+This method ensures environment parity with CI/CD without needing Python installed locally.
+```powershell
+# Windows (PowerShell)
+.\tests\docker-test.ps1
 
+# Linux / Mac (Bash)
+./tests/docker-test.sh
 ```
+
+---
+
+## 📂 Test Structure
+
+```text
 tests/
-├── __init__.py              # Package marker
-├── conftest.py              # Shared fixtures and test configuration
-├── pytest.ini               # Pytest configuration
+├── conftest.py              # Shared fixtures (Mocks for Serial, MQTT, API)
+├── pytest.ini               # Pytest & Coverage configuration
 ├── requirements-test.txt    # Test dependencies
-├── TESTING_GUIDE.md         # Comprehensive testing guide
-├── README.md                # This file (quick reference)
-├── test_config.py           # Configuration loading tests
-├── test_serial_reader.py    # Serial port and packet parsing tests
-├── test_mqtt_client.py      # MQTT client tests
+├── docker-test.ps1/sh       # Dockerized test runners
+├── Dockerfile.test          # Test container definition (Python 3.14)
+├── test_config.py           # Config loading & validation tests
 ├── test_loops.py            # Main thread integration tests
-└── test_main.py             # Startup and signal handling tests
+├── test_main.py             # Startup & Signal handling tests
+├── test_measurement_logic.py # Data processing & conversion tests
+├── test_mqtt_client.py      # MQTT publishing & recovery tests
+├── test_packet_parsing.py   # S0PCM telegram parsing tests
+└── test_serial_reader.py    # Serial connection & pulse logic tests
 ```
 
-## Test Categories
+---
 
-### Serial Port Tests (`test_serial_reader.py`)
-- **Packet Parsing**: S0PCM-2 and S0PCM-5 telegram parsing
-- **Connection Handling**: Connection, retry logic, error handling
-- **Pulse Counting**: Increment detection, reset handling
-- **Day Change**: Daily counter reset logic
+## 🛠️ Testing Manual
 
-### MQTT Tests (`test_mqtt_client.py`)
-- **Connection**: Connect, disconnect, retry logic
-- **Publishing**: Split topic and JSON modes
-- **Discovery**: Home Assistant MQTT discovery
-- **Commands**: Set total and name commands
-- **State Recovery**: Recovery logic (ID mapping & value restoration)
+### 1. Mocking External Dependencies
+All external systems are mocked in `conftest.py`. Mocks are automatically injected into tests using the `mocker` fixture.
 
-### System Tests (`test_loops.py` & `test_main.py`)
-- **Integration**: Proper thread initialization and data snapshotting
-- **Lifecycle**: Graceful shutdown and signal handling (SIGINT/SIGTERM)
-
-### Configuration Tests (`test_config.py`)
-- **Loading**: From options.json and defaults (using Pathlib)
-- **Validation**: Type checking and default values
-- **Supervisor API**: Service discovery integration
-
-## Key Testing Patterns
-
-### Mocking Serial Port
-
-```python
-def test_serial_example(mock_serial):
-    # mock_serial is automatically provided by conftest.py
-    mock_serial.readline.return_value = b'ID:8237:I:10:M1:0:100:M2:0:50\r\n'
-    # Your test code here
-```
-
-### Mocking MQTT Client
-
+**Example: Mocking MQTT**
 ```python
 def test_mqtt_example(mock_mqtt_client):
-    # mock_mqtt_client is automatically provided by conftest.py
+    # mock_mqtt_client is automatically provided
     mock_mqtt_client.connect.return_value = 0
     # Your test code here
 ```
 
-### Using Fixtures
-
-```python
-def test_with_fixtures(s0pcm_packets, sample_measurement):
-    # Use pre-defined test data from conftest.py
-    header = s0pcm_packets['header']
-    meter_data = sample_measurement[1]
-    # Your test code here
-```
-
-## Important Notes
-
-### Unified Module Structure
-
-The script has been renamed from `s0pcm-reader.py` (hyphenated) to `s0pcm_reader.py` (underscore) to support standard Python imports. All tests directly import and exercise this module.
-
-### State Management
-
-Due to global state in `s0pcm_reader.py`, tests use strict state reset fixtures (see `conftest.py`) to ensure isolation.
-
-### Threading Tests
-
-Tests involving threads should:
-1. Use short timeouts to prevent hanging
-2. Always clean up threads (stop and join)
-3. Use `threading.Event` for synchronization
-
-Example:
-```python
-def test_thread_example():
-    trigger = threading.Event()
-    stopper = threading.Event()
-    
-    # Start thread
-    thread = MyThread(trigger, stopper)
-    thread.start()
-    
-    # Do test work
-    
-    # Clean up
-    stopper.set()
-    trigger.set()
-    thread.join(timeout=5)
-    assert not thread.is_alive()
-```
-
-## Coverage
-
-To generate a coverage report:
-
+### 2. Manual Docker Build & Run
+If you prefer running manual commands from the **project root**:
 ```bash
-# Terminal output
-pytest tests/ --cov=rootfs/usr/src --cov-report=term-missing
+# Build
+docker build -f tests/Dockerfile.test -t s0pcm-reader-test .
 
-# HTML report (opens in browser)
-pytest tests/ --cov=rootfs/usr/src --cov-report=html
-open htmlcov/index.html
+# Run
+docker run --rm s0pcm-reader-test
 ```
 
-## Continuous Integration
+### 3. Continuous Integration
+Tests run automatically via GitHub Actions on every push to `main` and `dev`. Results are uploaded to **Codecov**.
 
-These tests are designed to run in CI/CD pipelines without requiring actual hardware (serial ports) or services (MQTT brokers).
+---
 
-## Troubleshooting
+## 🔧 Troubleshooting
 
-### Tests Hang
-- Check for threads that aren't being stopped
-- Ensure all `threading.Event` objects are set
-- Use pytest timeout: `pytest --timeout=10`
+### Pytest Cache / Read-only Filesystems
+If running in a strictly read-only environment, the cache provider is disabled via `pytest.ini` (`-p no:cacheprovider`) to prevent `PytestCacheWarning`.
 
-### Import Errors
-- Ensure `tests/requirements-test.txt` is installed
-- Check Python path in `conftest.py`
+### Tests Hanging
+Hanging tests usually indicate an unstopped thread. Ensure all `threading.Event` objects (like `stopper`) are set during cleanup:
+```python
+stopper.set()
+trigger.set()
+thread.join(timeout=5)
+```
 
-### Mock Not Working
-- Verify the patch path matches the import in the module
-- Use `mocker.patch` instead of `@patch` decorator for better pytest integration
+### Script Execution Policy (Windows)
+If `.ps1` scripts are blocked, run:
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
 
-## Adding New Tests
-
-1. Create test file: `tests/test_<feature>.py`
-2. Import necessary fixtures from `conftest.py`
-3. Use descriptive test names: `test_<what>_<condition>_<expected>`
-4. Keep tests isolated and independent
-5. Mock all external dependencies
-6. Clean up resources (threads, files, etc.)
-
-## Best Practices
-
-✅ **DO**:
-- Use fixtures for common setup
-- Mock external dependencies
-- Test edge cases and error conditions
-- Keep tests fast (< 1 second each)
-- Use descriptive assertions
-
-❌ **DON'T**:
-- Rely on actual serial ports or MQTT brokers
-- Share state between tests
-- Use sleep() for synchronization (use Events)
-- Test multiple things in one test
-- Leave threads running
-
-## Further Reading
-
-- [pytest documentation](https://docs.pytest.org/)
-- [pytest-mock documentation](https://pytest-mock.readthedocs.io/)
-- [unittest.mock documentation](https://docs.python.org/3/library/unittest.mock.html)
+---
+*Last updated: 2026-01-24*
