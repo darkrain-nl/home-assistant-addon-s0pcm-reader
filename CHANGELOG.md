@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
+## [2.3.1] - 2026-01-24
+### Fixed
+- **Dependency Synchronization**: Synchronized test dependencies with production (pinning `paho-mqtt` to `2.1.0`), ensuring the test suite validates against the exact same logic used in the live environment.
+- **Documentation Polish**: Cleaned up outdated Python 3.11 references and "template" descriptions in `STATUS.md`, `README.md`, and `DOCKER_TESTING.md`.
+- **CI/CD Alignment**: Updated GitHub Actions to trigger on `dev` branch pushes and verified Python 3.14 environment consistency.
+
 ## [2.3.0] - 2026-01-24
 ### Added
 - **Comprehensive Test Suite**: Introduced a robust battery of **34 unit and integration tests** covering packet parsing, serial connection handling, MQTT client functionality, and configuration edge cases.
