@@ -150,21 +150,39 @@ s0pcmreaderversion = GetVersion()
 # ------------------------------------------------------------------------------------
 # Parameters
 # ------------------------------------------------------------------------------------
-parser = argparse.ArgumentParser(prog='s0pcm-reader', description='S0 Pulse Counter Module', epilog='...')
-# Determine default config directory: /data for HA, ./ for local dev
-default_config = '/data' if os.path.exists('/data') else './'
-parser.add_argument('-c', '--config', help='Directory where the configuration resides', type=str, default=default_config)
-args = parser.parse_args()
-
-configdirectory = args.config
-if not configdirectory.endswith('/'):
-    configdirectory += '/'
-
 # ------------------------------------------------------------------------------------
-# Setup filenames
+# Parameters and Configuration Setup
 # ------------------------------------------------------------------------------------
+configdirectory = './'
+measurementname = 'measurement.json'
 
-measurementname = configdirectory + 'measurement.json'
+def init_args():
+    """Initialize arguments and global configuration paths."""
+    global configdirectory, measurementname
+    
+    parser = argparse.ArgumentParser(prog='s0pcm-reader', description='S0 Pulse Counter Module', epilog='...')
+    # Determine default config directory: /data for HA, ./ for local dev
+    default_config = '/data' if os.path.exists('/data') else './'
+    parser.add_argument('-c', '--config', help='Directory where the configuration resides', type=str, default=default_config)
+    args = parser.parse_args()
+
+    configdirectory = args.config
+    if not configdirectory.endswith('/'):
+        configdirectory += '/'
+    
+    measurementname = configdirectory + 'measurement.json'
+
+# Only parse arguments if running as main script
+if __name__ == "__main__":
+    init_args()
+else:
+    # Set default for testing if importing
+    # For testing, we might want to override this, but safe default avoids crash
+    if os.path.exists('/data'):
+        configdirectory = '/data/'
+    else:
+        configdirectory = './'
+    measurementname = configdirectory + 'measurement.json'
 
 # ------------------------------------------------------------------------------------
 # Error Handling
@@ -236,8 +254,8 @@ def GetSupervisorConfig(service):
 # Read the configuration
 # ------------------------------------------------------------------------------------
 def ReadConfig():
-
     global config
+    config.clear()
 
     # 1. Attempt to load HA Options if they exist
     options_path = '/data/options.json'
@@ -431,6 +449,56 @@ def ReadMeasurement():
     logger.debug(f"Measurement: {str(measurement)}")
 
 # ------------------------------------------------------------------------------------
+# Parse S0PCM Packet
+# ------------------------------------------------------------------------------------
+def parse_s0pcm_packet(datastr):
+    """
+    Parse a raw S0PCM data packet string.
+    
+    Args:
+        datastr (str): The raw data string from the serial port (e.g. "ID:8237:I:10:M1:0:100...")
+        
+    Returns:
+        dict: A dictionary of parsed meter data where keys are meter IDs (1-5) and values
+              are dictionaries containing 'pulsecount'.
+              Example: {1: {'pulsecount': 100}, 2: {'pulsecount': 50}}
+              
+    Raises:
+        ValueError: If the packet format is invalid or values cannot be parsed.
+    """
+    # Split data into an array
+    s0arr = datastr.split(':')
+    size = 0
+
+    # s0pcm-5 (19 parts) or s0pcm-2 (10 parts)
+    if len(s0arr) == 19:
+        size = 5
+    elif len(s0arr) == 10:
+        size = 2
+    else:
+        raise ValueError(f"Packet has invalid length: Expected 10 or 19 parts, got {len(s0arr)}")
+
+    result = {}
+
+    # Loop through 2/5 s0pcm data
+    for count in range(1, size + 1):
+        offset = 4 + ((count - 1) * 3)
+        
+        # expected format: M1:x:x
+        expected_marker = 'M' + str(count)
+        if s0arr[offset] != expected_marker:
+            raise ValueError(f"Expecting '{expected_marker}', received '{s0arr[offset]}'")
+
+        try:
+            pulsecount = int(s0arr[offset + 2])
+        except ValueError:
+            raise ValueError(f"Cannot convert pulsecount '{s0arr[offset + 2]}' into integer for meter {count}")
+
+        result[count] = {'pulsecount': pulsecount}
+        
+    return result
+
+# ------------------------------------------------------------------------------------
 # Task to read the serial port. We continue to try to open the serialport, because
 # we don't want to exit with such error.
 # ------------------------------------------------------------------------------------
@@ -481,39 +549,19 @@ class TaskReadSerial(threading.Thread):
         
         logger.debug(f"S0PCM Packet: '{datastr}'")
 
-        # Split data into an array
-        s0arr = datastr.split(':')
-        size = 0
-
-        # s0pcm-5 (19 parts) or s0pcm-2 (10 parts)
-        if len(s0arr) == 19:
-            size = 5
-        elif len(s0arr) == 10:
-            size = 2
-        else:
-            SetError(f"Packet has invalid length: Expected 10 or 19, got {len(s0arr)}. Packet: '{datastr}'", category='serial')
+        try:
+            parsed_data = parse_s0pcm_packet(datastr)
+        except ValueError as e:
+            SetError(f"Invalid Packet: {str(e)}. Packet: '{datastr}'", category='serial')
             return
 
         # Keep a copy to check for changes later
         measurementstr = str(measurement)
 
-        # Loop through 2/5 s0pcm data
+        # Loop through parsed data and update
         with lock:
-            for count in range(1, size + 1):
-                offset = 4 + ((count - 1) * 3)
-                
-                # expected format: M1:x:x
-                if s0arr[offset] != 'M' + str(count):
-                    SetError(f"Expecting 'M{str(count)}', received '{s0arr[offset]}'", category='serial')
-                    continue
-
-                try:
-                    pulsecount = int(s0arr[offset + 2])
-                except ValueError:
-                    SetError(f"Cannot convert pulsecount '{s0arr[offset + 2]}' into integer for meter {count}", category='serial')
-                    pulsecount = 0
-
-                self._update_meter(count, pulsecount)
+            for count, data in parsed_data.items():
+                self._update_meter(count, data['pulsecount'])
 
             # Update todays date if needed
             if str(measurement['date']) != str(datetime.date.today()):

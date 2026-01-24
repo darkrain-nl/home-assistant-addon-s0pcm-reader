@@ -1,0 +1,71 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: "pip"
+          cache-dependency-path: "tests/requirements-test.txt"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tests/requirements-test.txt
+
+      - name: Run tests with pytest
+        run: |
+          pytest tests/ -v --tb=short --cov=rootfs/usr/src --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Archive test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            coverage.xml
+            htmlcov/
+          retention-days: 30
+
+  docker-test:
+    name: Docker Test Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build test container
+        run: |
+          docker build -f tests/Dockerfile.test -t s0pcm-reader-test .
+
+      - name: Run tests in container
+        run: |
+          docker run --rm \
+            -v "$(pwd)/rootfs:/workspace/rootfs:ro" \
+            -v "$(pwd)/tests:/workspace/tests:ro" \
+            s0pcm-reader-test

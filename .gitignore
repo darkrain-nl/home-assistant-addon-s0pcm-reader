@@ -1,0 +1,22 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Environment
+.venv/
+venv/
+ENV/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Project specific
+measurement.json
+debug_output.txt
+test_output.txt

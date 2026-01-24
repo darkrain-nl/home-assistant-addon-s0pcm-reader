@@ -1,0 +1,12 @@
+# Testing dependencies for S0PCM Reader
+
+# Core testing framework
+pytest>=7.4.0
+pytest-mock>=3.11.0
+pytest-cov>=4.1.0
+pytest-timeout>=2.1.0
+
+# Application dependencies (needed for testing)
+pyserial>=3.5
+paho-mqtt>=1.6.1
+PyYAML>=6.0
