@@ -43,7 +43,7 @@
                 "/(^|/)build\\.yaml$/"
             ],
             "matchStrings": [
-                "(?<arch>aarch64|amd64|armhf|armv7|i386):\\s+(?<depName>ghcr\\.io/home-assistant/[^:]+):(?<currentValue>\\S+)"
+                "(?<arch>aarch64|amd64):\\s+(?<depName>ghcr\\.io/home-assistant/[^:]+):(?<currentValue>\\S+)"
             ],
             "datasourceTemplate": "docker",
             "versioningTemplate": "docker"
