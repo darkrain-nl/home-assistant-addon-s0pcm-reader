@@ -9,10 +9,16 @@
     "github-actions": {
         "enabled": true
     },
+    "dockerfile": {
+        "fileMatch": [
+            "(^|/)Dockerfile\\..+$",
+            "(^|/)Dockerfile$"
+        ]
+    },
     "pip_requirements": {
         "fileMatch": [
-            "requirements\\.txt$",
-            "requirements-test\\.txt$"
+            "(^|/)requirements\\.txt$",
+            "(^|/)requirements-test\\.txt$"
         ]
     },
     "customManagers": [
@@ -23,7 +29,7 @@
                 "^build\\.yaml$"
             ],
             "matchStrings": [
-                "\\s+(?<arch>aarch64|amd64|armhf|armv7|i386):\\s+(?<depName>ghcr\\.io/home-assistant/\\S+):(?<currentValue>\\S+)"
+                "(?<arch>aarch64|amd64|armhf|armv7|i386):\\s+(?<depName>ghcr\\.io/home-assistant/[^:]+):(?<currentValue>\\S+)"
             ],
             "datasourceTemplate": "docker",
             "versioningTemplate": "docker"
