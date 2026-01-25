@@ -1,7 +1,7 @@
 # Test container for S0PCM Reader
 # This container provides an isolated environment for running tests
 
-FROM python:3.12-alpine
+FROM python:3.13-alpine
 
 # Install system dependencies
 RUN apk add --no-cache \

@@ -32,18 +32,23 @@ This method ensures environment parity with CI/CD without needing Python install
 
 ```text
 tests/
-├── conftest.py              # Shared fixtures (Mocks for Serial, MQTT, API)
-├── pytest.ini               # Pytest & Coverage configuration
-├── requirements-test.txt    # Test dependencies
-├── docker-test.ps1/sh       # Dockerized test runners
-├── Dockerfile.test          # Test container definition (Python 3.14)
-├── test_config.py           # Config loading & validation tests
-├── test_loops.py            # Main thread integration tests
-├── test_main.py             # Startup & Signal handling tests
+├── conftest.py               # Shared fixtures (Mocks for Serial, MQTT, API)
+├── pytest.ini                # Pytest & Coverage configuration
+├── requirements-test.txt     # Test dependencies (includes Ruff)
+├── docker-test.ps1/sh        # Dockerized test runners
+├── Dockerfile.test           # Test container definition (Python 3.13-alpine)
+├── test_config.py            # Config loading & validation tests
+├── test_discovery.py         # MQTT discovery message tests
+├── test_helpers.py           # State and Utility helper tests
+├── test_loops.py             # Main thread integration tests
+├── test_main.py              # Startup & Signal handling tests
+├── test_main_coverage.py     # Log config & CLI logic coverage
 ├── test_measurement_logic.py # Data processing & conversion tests
-├── test_mqtt_client.py      # MQTT publishing & recovery tests
-├── test_packet_parsing.py   # S0PCM telegram parsing tests
-└── test_serial_reader.py    # Serial connection & pulse logic tests
+├── test_mqtt_client.py       # MQTT connection & command tests
+├── test_mqtt_handler.py      # MQTT publishing & TLS logic tests
+├── test_packet_parsing.py    # S0PCM telegram parsing tests
+├── test_recovery.py          # State recovery & HA API fallback tests
+└── test_serial_reader.py     # Serial connection & pulse logic tests
 ```
 
 ---
@@ -96,4 +101,4 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
 
 ---
-*Last updated: 2026-01-24*
+*Last updated: 2026-01-25*

@@ -2,12 +2,12 @@
 name = "s0pcm-reader"
 version = "3.0.0"
 description = "S0PCM Reader Home Assistant Add-on"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 
 [tool.ruff]
 # Same as Home Assistant
 line-length = 120
-target-version = "py312"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = [
