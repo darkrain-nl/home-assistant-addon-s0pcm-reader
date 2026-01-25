@@ -4,7 +4,8 @@
     "extends": [
         "config:recommended",
         ":separateMajorReleases",
-        ":combinePatchMinorReleases"
+        ":combinePatchMinorReleases",
+        ":disableDependencyDashboard"
     ],
     "ignorePaths": [
         "**/node_modules/**"
