@@ -27,11 +27,10 @@ def test_get_version_config_yaml(mocker, temp_config_dir):
     with open(config_path, 'w') as f:
         f.write("version: '3.0.0-test'\n")
     
-    # Mock the search paths to include our temp file
-    mocker.patch('utils.os.path.abspath', return_value='/tmp')
-    mocker.patch('utils.os.path.dirname', return_value='/tmp')
-    mocker.patch('utils.os.path.join', return_value=config_path)
-    mocker.patch('utils.os.path.exists', return_value=True)
+    # Surgical mock: only our temp file exists
+    mocker.patch('utils.os.path.exists', side_effect=lambda p: p == config_path)
+    # Ensure search_paths includes our temp file by mocking the first join
+    mocker.patch('utils.os.path.join', side_effect=lambda *args: config_path if 'config.yaml' in args[-1] else "/".join(args))
     
     version = utils.get_version()
     assert '3.0.0-test' in version
@@ -44,12 +43,10 @@ def test_get_version_invalid_yaml(mocker, temp_config_dir):
     with open(config_path, 'w') as f:
         f.write("{invalid yaml: [}")
     
-    mocker.patch('utils.os.path.abspath', return_value='/tmp')
-    mocker.patch('utils.os.path.dirname', return_value='/tmp')
-    mocker.patch('utils.os.path.join', return_value=config_path)
-    mocker.patch('utils.os.path.exists', return_value=True)
+    mocker.patch('utils.os.path.exists', side_effect=lambda p: p == config_path)
+    mocker.patch('utils.os.path.join', side_effect=lambda *args: config_path if 'config.yaml' in args[-1] else "/".join(args))
     
-    # Should fall back to 'dev'
+    # Should fall back to 'dev' because our file is invalid
     assert utils.get_version() == 'dev'
 
 def test_get_version_yaml_no_version_key(mocker, temp_config_dir):
@@ -60,10 +57,8 @@ def test_get_version_yaml_no_version_key(mocker, temp_config_dir):
     with open(config_path, 'w') as f:
         f.write("name: 'S0PCM Reader'\n")
     
-    mocker.patch('utils.os.path.abspath', return_value='/tmp')
-    mocker.patch('utils.os.path.dirname', return_value='/tmp')
-    mocker.patch('utils.os.path.join', return_value=config_path)
-    mocker.patch('utils.os.path.exists', return_value=True)
+    mocker.patch('utils.os.path.exists', side_effect=lambda p: p == config_path)
+    mocker.patch('utils.os.path.join', side_effect=lambda *args: config_path if 'config.yaml' in args[-1] else "/".join(args))
     
     assert utils.get_version() == 'dev'
 
