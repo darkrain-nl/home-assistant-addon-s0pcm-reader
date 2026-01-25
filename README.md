@@ -13,7 +13,7 @@ This add-on is based on the [docker-s0pcm-reader](https://github.com/ualex73/doc
 - **Native Configuration**: Rename meters and correct totals directly from the **Device** page in Home Assistant UI—no YAML or manual MQTT actions required.
 - **Dual-Layer State Recovery**: Robust restoration of meter data from both MQTT (primary) and the Home Assistant API (secondary fallback), ensuring no data loss even in a total wipeout.
 - **Professional Quality Assurance**: Verified by a robust battery of **48 unit and integration tests** achieving **71% total coverage** of the core application logic.
-- **Modular Redesign**: Fully refactored in **v3.0.0** into a clean, modular architecture for superior maintainability and performance, utilizing **Python 3.14** and modern async-ready patterns.
+- **Modular Redesign**: Fully refactored in **v3.0.0** into a clean, modular architecture for superior maintainability and performance, utilizing **Python 3.14** and robust multithreaded execution.
 - **TLS Support**: Secure your MQTT connection with TLS, featuring automatic fallback to plain MQTT if TLS fails.
 - **Watchdog / Auto-restart**: Built on S6-overlay for robust process supervision and automatic recovery.
 - **Real-time Error Reporting**: Dedicated MQTT topic and diagnostic sensor for instant feedback on serial or configuration issues.
