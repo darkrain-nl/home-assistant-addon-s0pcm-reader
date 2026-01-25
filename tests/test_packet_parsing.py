@@ -3,7 +3,7 @@ Tests for the refactored packet parsing logic.
 This test files targets the standalone 'parse_s0pcm_packet' function.
 """
 import pytest
-from s0pcm_reader import parse_s0pcm_packet
+from protocol import parse_s0pcm_packet
 
 class TestPacketParsing:
     """Test S0PCM packet parsing logic."""

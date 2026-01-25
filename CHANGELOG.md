@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
+## [3.0.0] - 2026-01-25
+### Changed
+- **Modular Architecture overhaul**: Successfully refactored the monolithic `s0pcm_reader.py` (nearly 1500 lines) into a clean, modular structure. Core logic is now distributed across focused modules: `config`, `state`, `utils`, `protocol`, `serial_handler`, `mqtt_handler`, and `discovery`.
+- **Improved Maintainability**: Threading logic, configuration loading, and protocol parsing are now isolated and properly encapsulated.
+- **Enhanced Logging Visibility**: Restored full DEBUG log availability by centralizing logger configuration at the root level and ensuring uniform propagation across all modular components. Standardized log format to `LEVEL: message` for better Home Assistant compatibility.
+
+### Fixed
+- **State Recovery Logic**: Restored robust recovery logic that correctly rebuilds meter mappings from discovery messages and MQTT retained stats.
+- **Day Change Consistency**: Fixed a bug where "today" counters could fail to reset correctly under certain startup sequences by synchronizing shared state references.
+- **Test Infrastructure**: Fully modularized the test suite, achieving a 100% pass rate (48/48 tests) with optimized configuration and state mocking.
+- **Pulsecount Anomaly Refinement**: Downgraded benign S0PCM device restarts to WARNING level with improved wording ("S0PCM Reset detected"), preventing false system-wide error states during normal hardware resets.
+
 ## [2.3.6] - 2026-01-24
 ### Fixed
 - **CI/CD Reliability**: Resolved a `PytestCacheWarning` in Docker/CI environments by disabling the pytest cache provider, preventing errors on read-only filesystems.

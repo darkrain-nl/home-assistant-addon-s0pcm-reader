@@ -8,19 +8,22 @@ from unittest.mock import MagicMock, patch
 import threading
 import tempfile
 import json
-
+import datetime
 # Add the source directory to the path so we can import s0pcm_reader
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'rootfs', 'usr', 'src')))
+
+import s0pcm_reader
+import state as state_module
+import config as config_module
 
 @pytest.fixture(autouse=True)
 def setup_s0pcm_globals():
     """Ensure global variables expected by s0pcm_reader are initialized."""
-    import s0pcm_reader
-    import threading
-    
-    # SetError uses global 'trigger', but it's only defined in main block
+    # Register trigger with state module (simulating main)
     if not hasattr(s0pcm_reader, 'trigger'):
         s0pcm_reader.trigger = threading.Event()
+    
+    state_module.register_trigger(s0pcm_reader.trigger)
     
     # Ensure config and measurement exist (they should, but safety first)
     if not hasattr(s0pcm_reader, 'config'):
@@ -201,6 +204,18 @@ def mock_supervisor_api(mocker):
 @pytest.fixture(autouse=True)
 def reset_global_state():
     """Reset global state before each test."""
-    # This fixture runs before each test to ensure clean state
+    # Clear state variables
+    state_module.config.clear()
+    state_module.measurement.clear()
+    state_module.measurement['date'] = datetime.date.today()
+    state_module.measurementshare = {}
+    state_module.lasterror_serial = None
+    state_module.lasterror_mqtt = None
+    state_module.lasterrorshare = None
+    state_module.s0pcm_firmware = "Unknown"
+    
+    # Reset config defaults if needed
+    config_module.configdirectory = './'
+    config_module.measurementname = config_module.configdirectory + 'measurement.json'
+    
     yield
-    # Cleanup after test if needed

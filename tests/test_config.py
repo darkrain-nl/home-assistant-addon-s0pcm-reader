@@ -9,13 +9,14 @@ import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import s0pcm_reader
+import config as config_module
+import state as state_module
 
 @pytest.fixture(autouse=True)
-def reset_globals():
-    s0pcm_reader.config.clear()
-    s0pcm_reader.measurement.clear()
+def setup_config_test_env():
+    # Cleared by conftest.py
     s0pcm_reader.measurement['date'] = '2026-01-24'
-    s0pcm_reader.configdirectory = './'
+    config_module.configdirectory = './'
 
 class TestConfigLoading:
     def test_load_default_config(self, mocker):
@@ -36,13 +37,13 @@ class TestCLI:
         # Use patch.object on sys.argv
         with patch.object(sys, 'argv', ['s0pcm_reader', '--config', '/custom/path']):
             s0pcm_reader.init_args()
-            assert '/custom/path/' in s0pcm_reader.configdirectory
+            assert '/custom/path/' in config_module.configdirectory
 
 class TestConfigEdgeCases:
     def test_tls_path_join(self, mocker):
         mocker.patch.object(Path, 'exists', return_value=True)
         mocker.patch.object(Path, 'read_text', return_value=json.dumps({"mqtt_tls": True, "mqtt_tls_ca": "ca.crt"}))
-        s0pcm_reader.configdirectory = "/data/"
+        config_module.configdirectory = "/data/"
         s0pcm_reader.ReadConfig()
         expected_path = os.path.normpath("data/ca.crt")
         actual_path = os.path.normpath(s0pcm_reader.config['mqtt']['tls_ca'])
@@ -65,19 +66,22 @@ class TestConfigEdgeCases:
 class TestErrorHandling:
     def test_set_error_behavior(self, mocker):
         """Test SetError sets the shared error and triggers the event, including clearing."""
-        s0pcm_reader.trigger = threading.Event()
-        s0pcm_reader.lasterrorshare = None
+        trigger = threading.Event()
+        state_module.register_trigger(trigger)
+        state_module.lasterrorshare = None
+        state_module.lasterror_serial = None # Reset internal state too
+        state_module.lasterror_mqtt = None
         
         # 1. Set error
-        s0pcm_reader.SetError("Test Error")
-        assert s0pcm_reader.lasterrorshare == "Test Error"
-        assert s0pcm_reader.trigger.is_set()
+        state_module.SetError("Test Error")
+        assert state_module.lasterrorshare == "Test Error"
+        assert trigger.is_set()
         
         # 2. Clear error
-        s0pcm_reader.trigger.clear()
-        s0pcm_reader.SetError(None)
-        assert s0pcm_reader.lasterrorshare is None
-        assert s0pcm_reader.trigger.is_set()
+        trigger.clear()
+        state_module.SetError(None)
+        assert state_module.lasterrorshare is None
+        assert trigger.is_set()
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

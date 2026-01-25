@@ -34,6 +34,6 @@ if bashio::supervisor.ping; then
         '-----------------------------------------------------------'
 fi
 
-bashio::log.info "Starting S0PCM Reader..."
+echo "$(date +'%Y-%m-%d %H:%M:%S,000') INFO: Starting S0PCM Reader..."
 export S0PCM_READER_VERSION=$(bashio::addon.version)
 exec python3 /usr/src/s0pcm_reader.py

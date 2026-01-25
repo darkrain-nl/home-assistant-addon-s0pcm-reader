@@ -175,7 +175,10 @@ The add-on monitors its internal operations and reports any issues to the `<base
 - **MQTT Connection Issues:** If the broker is unreachable or the connection is lost (reported once reconnected).
 - **Packet Parsing Issues:** If the data received from the S0PCM is corrupted or in an unknown format.
 - **MQTT Command Errors:** If an invalid payload is sent to a `/total/set` topic.
-- **Pulsecount Anomalies:** If a sudden jump or reset in pulse count is detected (e.g., after an S0PCM restart).
+- **Pulsecount Anomalies:** If a sudden jump or reset in pulse count is detected.
+  - **S0PCM Reset (Warning):** If the device reads 0 (hardware restart), the addon automatically recovers your totals and logs a Warning.
+  - **Data Anomaly (Error):** If the pulse count drops unexpectedly but is not 0, a full Error is logged as this may indicate data corruption.
+
 
 Once the issue is resolved and a valid data packet is successfully processed, the error sensor will automatically clear itself and display **"No Error"**.
 
