@@ -15,16 +15,18 @@ Where:
 - d/f/h/j/l = Total pulses since startup for meter 1/2/3/4/5
 """
 
+from typing import Dict
 
-def parse_s0pcm_packet(datastr):
+
+def parse_s0pcm_packet(datastr: str) -> Dict[int, Dict[str, int]]:
     """
     Parse a raw S0PCM data packet string.
     
     Args:
-        datastr (str): The raw data string from the serial port (e.g. "ID:8237:I:10:M1:0:100...")
+        datastr: The raw data string from the serial port (e.g. "ID:8237:I:10:M1:0:100...")
         
     Returns:
-        dict: A dictionary of parsed meter data where keys are meter IDs (1-5) and values
+        Dict[int, Dict[str, int]]: A dictionary of parsed meter data where keys are meter IDs (1-5) and values
               are dictionaries containing 'pulsecount'.
               Example: {1: {'pulsecount': 100}, 2: {'pulsecount': 50}}
               

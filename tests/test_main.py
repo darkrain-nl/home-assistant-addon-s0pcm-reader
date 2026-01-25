@@ -10,7 +10,7 @@ import s0pcm_reader
 def test_main_initialization(mocker):
     """Test that main() initializes config and starts tasks."""
     # Mock dependencies to prevent real initialization or threads
-    mocker.patch('s0pcm_reader.ReadConfig')
+    mocker.patch('config.read_config')
     mock_t1_class = mocker.patch('s0pcm_reader.TaskReadSerial')
     mock_t2_class = mocker.patch('s0pcm_reader.TaskDoMQTT')
     mocker.patch('signal.signal')
@@ -31,8 +31,9 @@ def test_main_initialization(mocker):
     # Call main
     s0pcm_reader.main()
     
-    # Verify ReadConfig was called
-    s0pcm_reader.ReadConfig.assert_called_once()
+    # Verify read_config was called
+    import config as config_module
+    config_module.read_config.assert_called_once()
     
     # Verify tasks were created and started
     mock_t1_class.assert_called_once()
@@ -43,7 +44,7 @@ def test_main_initialization(mocker):
 
 def test_signal_handler(mocker):
     """Test the internal signal handler sets stopper and trigger."""
-    mocker.patch('s0pcm_reader.ReadConfig')
+    mocker.patch('config.read_config')
     mocker.patch('s0pcm_reader.TaskReadSerial')
     mocker.patch('s0pcm_reader.TaskDoMQTT')
     mocker.patch('s0pcm_reader.logger')

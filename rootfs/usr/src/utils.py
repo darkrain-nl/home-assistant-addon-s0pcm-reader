@@ -8,13 +8,14 @@ import os
 import json
 import logging
 import urllib.request
+from typing import Dict, Any, List
 
 import yaml
 
 logger = logging.getLogger(__name__)
 
 
-def get_version():
+def get_version() -> str:
     """
     Get the S0PCM Reader version.
     
@@ -22,6 +23,9 @@ def get_version():
     1. S0PCM_READER_VERSION environment variable (set by HA addon)
     2. config.yaml in common locations (for local development)
     3. 'dev' as fallback
+
+    Returns:
+        str: The version string.
     """
     # 1. Try environment variable (provided by HA addon startup)
     version = os.getenv('S0PCM_READER_VERSION')
@@ -50,7 +54,7 @@ def get_version():
     return 'dev'
 
 
-def get_supervisor_config(service):
+def get_supervisor_config(service: str) -> Dict[str, Any]:
     """
     Fetch service configuration from the Home Assistant Supervisor API.
     
@@ -58,7 +62,7 @@ def get_supervisor_config(service):
         service: The service name (e.g., 'mqtt')
         
     Returns:
-        dict: Service configuration data, or empty dict on failure
+        Dict[str, Any]: Service configuration data, or empty dict on failure.
     """
     token = os.getenv('SUPERVISOR_TOKEN')
     if not token:
@@ -77,6 +81,3 @@ def get_supervisor_config(service):
     return {}
 
 
-# Backwards compatibility aliases
-GetVersion = get_version
-GetSupervisorConfig = get_supervisor_config

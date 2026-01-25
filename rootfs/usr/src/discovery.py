@@ -6,24 +6,33 @@ Handles MQTT discovery payload generation for Home Assistant.
 
 import json
 import logging
+from typing import Optional, Dict, Any
+
+import paho.mqtt.client as mqtt
 import state as state_module
 
 logger = logging.getLogger(__name__)
 
-def send_global_discovery(mqttc):
-    """Send discovery for global entities (Status, Error, Version, etc.)"""
-    if not state_module.config['mqtt']['discovery']:
+def send_global_discovery(mqttc: mqtt.Client) -> None:
+    """
+    Send discovery for global entities (Status, Error, Version, etc.)
+    
+    Args:
+        mqttc: The connected MQTT client.
+    """
+    context = state_module.get_context()
+    if not context.config['mqtt']['discovery']:
         return
 
-    base_topic = state_module.config['mqtt']['base_topic']
-    discovery_prefix = state_module.config['mqtt']['discovery_prefix']
+    base_topic = context.config['mqtt']['base_topic']
+    discovery_prefix = context.config['mqtt']['discovery_prefix']
     
     device_info = {
         "identifiers": [base_topic],
         "name": "S0PCM Reader",
         "model": "S0PCM",
         "manufacturer": "SmartMeterDashboard",
-        "sw_version": state_module.s0pcmreaderversion
+        "sw_version": context.s0pcm_reader_version
     }
 
     # Status Binary Sensor
@@ -36,8 +45,8 @@ def send_global_discovery(mqttc):
         "device_class": "connectivity",
         "entity_category": "diagnostic",
         "state_topic": base_topic + '/status',
-        "payload_on": state_module.config['mqtt']['online'],
-        "payload_off": state_module.config['mqtt']['offline']
+        "payload_on": context.config['mqtt']['online'],
+        "payload_off": context.config['mqtt']['offline']
     }
     mqttc.publish(status_topic, json.dumps(status_payload), retain=True)
 
@@ -84,16 +93,28 @@ def send_global_discovery(mqttc):
 
     logger.info('Sent global MQTT discovery messages')
 
-def send_meter_discovery(mqttc, meter_id, meter_data):
-    """Send discovery for a specific meter."""
-    if not state_module.config['mqtt']['discovery']:
+def send_meter_discovery(mqttc: mqtt.Client, meter_id: int, meter_data: Dict[str, Any]) -> Optional[str]:
+    """
+    Send discovery for a specific meter.
+    
+    Args:
+        mqttc: The connected MQTT client.
+        meter_id: The unique ID of the meter.
+        meter_data: Meter data dictionary (from model_dump).
+        
+    Returns:
+        Optional[str]: The instance name (for tracking), or None if discovery is disabled.
+    """
+    context = state_module.get_context()
+    if not context.config['mqtt']['discovery']:
         return None
 
-    base_topic = state_module.config['mqtt']['base_topic']
-    discovery_prefix = state_module.config['mqtt']['discovery_prefix']
+    base_topic = context.config['mqtt']['base_topic']
+    discovery_prefix = context.config['mqtt']['discovery_prefix']
     
     device_info = {"identifiers": [base_topic]} # Link to global device
-    instancename = meter_data.get('name', str(meter_id))
+    raw_name = meter_data.get('name')
+    instancename = str(meter_id) if not raw_name or str(raw_name).lower() == 'none' else str(raw_name)
 
     for subkey in ['total', 'today', 'yesterday']:
         unique_id = f"s0pcm_{base_topic}_{meter_id}_{subkey}"
@@ -112,7 +133,7 @@ def send_meter_discovery(mqttc, meter_id, meter_data):
         else:
             payload['state_class'] = 'measurement'
 
-        if state_module.config['mqtt']['split_topic']:
+        if context.config['mqtt']['split_topic']:
             payload['state_topic'] = f"{base_topic}/{instancename}/{subkey}"
         else:
             payload['state_topic'] = f"{base_topic}/{instancename}"
@@ -137,7 +158,6 @@ def send_meter_discovery(mqttc, meter_id, meter_data):
             }
             mqttc.publish(text_topic, "", retain=True)
             mqttc.publish(text_topic, json.dumps(text_payload), retain=True)
-            mqttc.publish(f"{base_topic}/{meter_id}/name", meter_data.get('name', ""), retain=True)
 
             # Number Entity (Total Correction)
             num_uid = f"s0pcm_{base_topic}_{meter_id}_total_config"
@@ -153,7 +173,39 @@ def send_meter_discovery(mqttc, meter_id, meter_data):
             }
             mqttc.publish(num_topic, "", retain=True)
             mqttc.publish(num_topic, json.dumps(num_payload), retain=True)
-            mqttc.publish(f"{base_topic}/{meter_id}/total", meter_data.get('total', 0), retain=True)
 
     logger.info(f"Sent discovery for Meter {meter_id} ({instancename})")
     return instancename
+
+
+def cleanup_meter_discovery(mqttc: mqtt.Client, meter_id: int) -> None:
+    """
+    Clear discovery for a specific meter ID (useful for purging ghost sensors).
+    
+    Args:
+        mqttc: The connected MQTT client.
+        meter_id: The ID of the meter to clear.
+    """
+    context = state_module.get_context()
+    if not context.config['mqtt']['discovery']:
+        return
+
+    base_topic = context.config['mqtt']['base_topic']
+    discovery_prefix = context.config['mqtt']['discovery_prefix']
+
+    # Clear individual sensors
+    for subkey in ['total', 'today', 'yesterday']:
+        unique_id = f"s0pcm_{base_topic}_{meter_id}_{subkey}"
+        topic = f"{discovery_prefix}/sensor/{base_topic}/{unique_id}/config"
+        mqttc.publish(topic, "", retain=True)
+
+    # Clear configuration entities
+    text_uid = f"s0pcm_{base_topic}_{meter_id}_name_config"
+    text_topic = f"{discovery_prefix}/text/{base_topic}/{text_uid}/config"
+    mqttc.publish(text_topic, "", retain=True)
+
+    num_uid = f"s0pcm_{base_topic}_{meter_id}_total_config"
+    num_topic = f"{discovery_prefix}/number/{base_topic}/{num_uid}/config"
+    mqttc.publish(num_topic, "", retain=True)
+    
+    logger.debug(f"Cleared MQTT discovery for Meter {meter_id}")

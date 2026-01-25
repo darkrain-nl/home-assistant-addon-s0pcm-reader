@@ -3,21 +3,24 @@ Integration tests for the task loops.
 """
 import pytest
 import threading
-import time
 from unittest.mock import MagicMock, patch
 import s0pcm_reader
 import state as state_module
 
 def test_task_do_mqtt_loop_execution(mocker):
     """Integrate TaskDoMQTT loop without infinite blocking."""
-    state_module.config.update({
+    context = state_module.get_context()
+    context.config.update({
         'mqtt': {
             'base_topic': 's0', 'discovery': True, 'discovery_prefix': 'ha',
             'online': 'on', 'offline': 'off', 'retain': True, 'client_id': None, 'version': 5,
             'split_topic': True
         }
     })
-    state_module.measurementshare = {1: {'name': 'Water', 'total': 10}}
+    
+    # Update shared state
+    context.state_share.reset_state()
+    context.state_share.update({1: {'name': 'Water', 'total': 10}})
     
     trigger = threading.Event()
     stopper = threading.Event()
@@ -46,13 +49,14 @@ def test_task_do_mqtt_loop_execution(mocker):
 
 def test_task_read_serial_loop_execution(mocker):
     """Integrate TaskReadSerial loop."""
-    state_module.config.update({'serial': {'connect_retry': 0.1}})
+    context = state_module.get_context()
+    context.config.update({'serial': {'connect_retry': 0.1}})
     
     stopper = threading.Event()
     task = s0pcm_reader.TaskReadSerial(threading.Event(), stopper)
     
     # CRITICAL: Serial task waits for recovery event!
-    state_module.recovery_event.set()
+    context.recovery_event.set()
     
     mocker.patch.object(task, '_connect', return_value=MagicMock())
     

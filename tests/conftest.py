@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 import threading
 import tempfile
 import json
-import datetime
 # Add the source directory to the path so we can import s0pcm_reader
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'rootfs', 'usr', 'src')))
 
@@ -19,19 +18,15 @@ import config as config_module
 @pytest.fixture(autouse=True)
 def setup_s0pcm_globals():
     """Ensure global variables expected by s0pcm_reader are initialized."""
-    # Register trigger with state module (simulating main)
-    if not hasattr(s0pcm_reader, 'trigger'):
-        s0pcm_reader.trigger = threading.Event()
+    # Use the real context from state_module
+    context = state_module.get_context()
     
-    state_module.register_trigger(s0pcm_reader.trigger)
+    # Register trigger with context
+    trigger = threading.Event()
+    context.register_trigger(trigger)
     
-    # Ensure config and measurement exist (they should, but safety first)
-    if not hasattr(s0pcm_reader, 'config'):
-        s0pcm_reader.config = {}
-        
-    if not hasattr(s0pcm_reader, 'measurement'):
-        import datetime
-        s0pcm_reader.measurement = {'date': datetime.date.today()}
+    # Expose trigger on s0pcm_reader module if main tests expect it
+    s0pcm_reader.trigger = trigger
 
 
 @pytest.fixture
@@ -72,25 +67,6 @@ def sample_options():
     }
 
 
-@pytest.fixture
-def sample_measurement():
-    """Sample measurement data."""
-    return {
-        "date": "2026-01-24",
-        1: {
-            "name": "Water",
-            "pulsecount": 100,
-            "total": 1323128,
-            "today": 150,
-            "yesterday": 200
-        },
-        2: {
-            "pulsecount": 50,
-            "total": 5000,
-            "today": 25,
-            "yesterday": 30
-        }
-    }
 
 
 @pytest.fixture
@@ -102,13 +78,6 @@ def mock_options_file(temp_config_dir, sample_options):
     return options_path
 
 
-@pytest.fixture
-def mock_measurement_file(temp_config_dir, sample_measurement):
-    """Create a mock measurement.json file."""
-    measurement_path = os.path.join(temp_config_dir, 'measurement.json')
-    with open(measurement_path, 'w') as f:
-        json.dump(sample_measurement, f)
-    return measurement_path
 
 
 @pytest.fixture
@@ -204,18 +173,19 @@ def mock_supervisor_api(mocker):
 @pytest.fixture(autouse=True)
 def reset_global_state():
     """Reset global state before each test."""
-    # Clear state variables
-    state_module.config.clear()
-    state_module.measurement.clear()
-    state_module.measurement['date'] = datetime.date.today()
-    state_module.measurementshare = {}
-    state_module.lasterror_serial = None
-    state_module.lasterror_mqtt = None
-    state_module.lasterrorshare = None
-    state_module.s0pcm_firmware = "Unknown"
+    context = state_module.get_context()
+    
+    # Use context methods to clear state
+    with context.lock:
+        context.state.reset_state()
+        context.state_share.reset_state()
+        
+    context.lasterror_serial = None
+    context.lasterror_mqtt = None
+    context.lasterror_share = None
+    context.s0pcm_firmware = "Unknown"
     
     # Reset config defaults if needed
     config_module.configdirectory = './'
-    config_module.measurementname = config_module.configdirectory + 'measurement.json'
     
     yield

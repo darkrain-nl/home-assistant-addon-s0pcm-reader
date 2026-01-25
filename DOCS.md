@@ -42,7 +42,7 @@ To protect your hardware (reduce SD card wear) and simplify management, this add
 3. **Safety Net (HA API)**: If the MQTT broker has no data (e.g. it was just reset), the addon automatically queries the **Home Assistant API** to recover the last known values from your sensors.
 
 > [!NOTE]
-> On your first start after this update, the addon will automatically migrate any existing `measurement.json` data into MQTT and then retire the file.
+> This addon has fully migrated to a stateless architecture. Legacy `measurement.json` files are ignored and safe to delete.
 
 ## Configuration via Home Assistant UI
 

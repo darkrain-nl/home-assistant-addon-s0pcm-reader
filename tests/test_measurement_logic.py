@@ -1,99 +1,68 @@
 """
-Tests for measurement data reading and processing logic.
+Tests for measurement data processing logic within the AppState and AppContext models.
 """
 import pytest
-import json
-import os
 import datetime
-import importlib
-import s0pcm_reader
-import config as config_module
 import state as state_module
 
 
-def test_read_measurement_id_conversion(temp_config_dir, mocker):
-    """Test that meter IDs are converted from strings to integers."""
-    import s0pcm_reader
-    importlib.reload(s0pcm_reader)
+def test_state_update_id_conversion():
+    """Test that meter IDs are converted from strings to integers during update."""
+    context = state_module.get_context()
+    context.state.reset_state()
     
-    # measurement: { "1": { ... } } should become { 1: { ... } }
+    # Update data: { "1": { ... } } should become { 1: { ... } }
     sample_data = {
-        "date": "2026-01-24",
         "1": {"total": 100, "pulsecount": 10}
     }
     
-    measurement_path = os.path.join(temp_config_dir, 'measurement.json')
-    with open(measurement_path, 'w') as f:
-        json.dump(sample_data, f)
-        
-    config_module.measurementname = measurement_path
-    s0pcm_reader.ReadMeasurement()
+    context.state.update(sample_data)
     
     # Meter 1 should be an integer key now
-    assert 1 in state_module.measurement
-    assert "1" not in state_module.measurement
-    assert state_module.measurement[1]['total'] == 100
+    assert 1 in context.state.meters
+    assert "1" not in context.state.meters
+    assert context.state.meters[1].total == 100
 
-def test_read_measurement_date_parsing(temp_config_dir, mocker):
-    """Test different date formats in measurement.json."""
-    import s0pcm_reader
-    importlib.reload(s0pcm_reader)
+
+def test_state_date_parsing():
+    """Test standard date parsing in AppState."""
+    state = state_module.AppState()
     
     # 1. Standard string date
     sample_data = {"date": "2026-01-20"}
-    measurement_path = os.path.join(temp_config_dir, 'measurement.json')
+    state.update(sample_data)
     
-    with open(measurement_path, 'w') as f:
-        json.dump(sample_data, f)
-    
-    config_module.measurementname = measurement_path
-    s0pcm_reader.ReadMeasurement()
-    assert isinstance(state_module.measurement['date'], datetime.date)
-    assert state_module.measurement['date'].year == 2026
+    assert isinstance(state.date, datetime.date)
+    assert state.date.year == 2026
+    assert state.date.day == 20
 
-def test_read_measurement_missing_file(temp_config_dir, mocker):
-    """Test behavior when measurement.json is missing."""
-    import s0pcm_reader
-    importlib.reload(s0pcm_reader)
-    
-    # Point to a non-existent file
-    config_module.measurementname = os.path.join(temp_config_dir, 'no_such_file.json')
-    s0pcm_reader.ReadMeasurement()
-    
-    # Should default to today's date and empty dict
-    assert isinstance(state_module.measurement['date'], datetime.date)
-    assert state_module.measurement['date'] == datetime.date.today()
 
-def test_read_measurement_invalid_json(temp_config_dir, mocker):
-    """Test behavior when measurement.json is corrupt."""
-    import s0pcm_reader
-    importlib.reload(s0pcm_reader)
+def test_state_default_initialization():
+    """Test default state initialization."""
+    state = state_module.AppState()
     
-    measurement_path = os.path.join(temp_config_dir, 'corrupt.json')
-    with open(measurement_path, 'w') as f:
-        f.write("this is not json")
-        
-    config_module.measurementname = measurement_path
-    s0pcm_reader.ReadMeasurement()
-    
-    # Should recover with defaults
-    assert isinstance(state_module.measurement['date'], datetime.date)
+    # Should default to today's date and empty meters
+    assert isinstance(state.date, datetime.date)
+    assert state.date == datetime.date.today()
+    assert len(state.meters) == 0
 
-def test_read_measurement_not_a_dict(temp_config_dir, mocker):
-    """Test behavior when measurement.json contains a list instead of a dict."""
-    import s0pcm_reader
-    importlib.reload(s0pcm_reader)
+
+def test_state_update_invalid_keys():
+    """Test behavior when update data contains non-integer keys."""
+    state = state_module.AppState()
     
-    measurement_path = os.path.join(temp_config_dir, 'list.json')
-    with open(measurement_path, 'w') as f:
-        json.dump(["this", "is", "a", "list"], f)
-        
-    config_module.measurementname = measurement_path
-    s0pcm_reader.ReadMeasurement()
+    sample_data = {
+        "invalid": {"total": 100},
+        "2": {"total": 200}
+    }
     
-    # Should recover with defaults
-    assert isinstance(state_module.measurement, dict)
-    assert 'date' in state_module.measurement
+    state.update(sample_data)
+    
+    # "invalid" should be ignored, "2" should be converted to 2
+    assert "invalid" not in state.meters
+    assert 2 in state.meters
+    assert state.meters[2].total == 200
+
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

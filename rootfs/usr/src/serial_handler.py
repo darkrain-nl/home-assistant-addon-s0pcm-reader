@@ -7,8 +7,9 @@ Contains the TaskReadSerial class for reading and parsing S0PCM data from serial
 import threading
 import time
 import datetime
-import copy
 import logging
+from typing import Optional
+
 import serial
 import state as state_module
 from protocol import parse_s0pcm_packet
@@ -16,130 +17,165 @@ from protocol import parse_s0pcm_packet
 logger = logging.getLogger(__name__)
 
 class TaskReadSerial(threading.Thread):
+    """
+    Task to read the serial port and update meter measurements.
+    
+    This thread continuously reads from the configured serial port, parses S0PCM packets,
+    and updates the application state.
+    """
 
-    def __init__(self, trigger, stopper):
+    def __init__(self, trigger: threading.Event, stopper: threading.Event) -> None:
+        """
+        Initialize the serial reader task.
+        
+        Args:
+            trigger: Event to signal when new data is available.
+            stopper: Event to signal when the task should stop.
+        """
         super().__init__()
         self._trigger = trigger
         self._stopper = stopper
         self._serialerror = 0
+        self._context = state_module.get_context()
 
-    def _connect(self):
-        """Argument-less method to connect to serial port with retry logic."""
+    def _connect(self) -> Optional[serial.Serial]:
+        """
+        Established a connection to the serial port.
+        
+        Returns:
+            serial.Serial: The connected serial object, or None if failed and stopped.
+        """
         while not self._stopper.is_set():
-            logger.debug(f"Opening serialport '{state_module.config['serial']['port']}'")
+            logger.debug(f"Opening serialport '{self._context.config['serial']['port']}'")
             try:
-                ser = serial.Serial(state_module.config['serial']['port'], 
-                                    baudrate=state_module.config['serial']['baudrate'],
-                                    parity=state_module.config['serial']['parity'],
-                                    stopbits=state_module.config['serial']['stopbits'],
-                                    bytesize=state_module.config['serial']['bytesize'],
-                                    timeout=state_module.config['serial']['timeout'])
+                ser = serial.Serial(self._context.config['serial']['port'], 
+                                    baudrate=self._context.config['serial']['baudrate'],
+                                    parity=self._context.config['serial']['parity'],
+                                    stopbits=self._context.config['serial']['stopbits'],
+                                    bytesize=self._context.config['serial']['bytesize'],
+                                    timeout=self._context.config['serial']['timeout'])
                 self._serialerror = 0
                 return ser
             except Exception as e:
                 self._serialerror += 1
-                state_module.SetError(f"Serialport connection failed: {type(e).__name__}: '{str(e)}'", category='serial')
-                logger.error(f"Retry in {state_module.config['serial']['connect_retry']} seconds")
-                time.sleep(state_module.config['serial']['connect_retry'])
+                self._context.set_error(f"Serialport connection failed: {type(e).__name__}: '{str(e)}'", category='serial')
+                logger.error(f"Retry in {self._context.config['serial']['connect_retry']} seconds")
+                time.sleep(self._context.config['serial']['connect_retry'])
         return None
 
-    def _handle_header(self, datastr):
-        """Parse header packet to extract firmware version."""
+    def _handle_header(self, datastr: str) -> None:
+        """
+        Parse header packet to extract firmware version.
+        
+        Args:
+            datastr: Raw header string from serial port.
+        """
         logger.debug(f"Header Packet: '{datastr}'")
-        # Example: /8237:S0 Pulse Counter V0.6 - 30/30/30/30/30ms
         try:
             if ':' in datastr:
-                state_module.s0pcm_firmware = datastr.split(':', 1)[1].strip()
+                self._context.s0pcm_firmware = datastr.split(':', 1)[1].strip()
             else:
-                state_module.s0pcm_firmware = datastr[1:].strip()
+                self._context.s0pcm_firmware = datastr[1:].strip()
         except Exception:
-            state_module.s0pcm_firmware = datastr
+            self._context.s0pcm_firmware = datastr
 
-    def _handle_data_packet(self, datastr):
-        """Parse data packet and update measurements."""
+    def _handle_data_packet(self, datastr: str) -> None:
+        """
+        Parse data packet and update measurements in state.
+        
+        Args:
+            datastr: Raw data packet string from serial port.
+        """
         logger.debug(f"S0PCM Packet: '{datastr}'")
 
         try:
             parsed_data = parse_s0pcm_packet(datastr)
         except ValueError as e:
-            state_module.SetError(f"Invalid Packet: {str(e)}. Packet: '{datastr}'", category='serial')
+            self._context.set_error(f"Invalid Packet: {str(e)}. Packet: '{datastr}'", category='serial')
             return
 
-        # Keep a copy to check for changes later (debug use, logic seems unused in original code but kept)
-        # measurementstr = str(state_module.measurement) 
+        with self._context.lock:
+            for meter_id, data in parsed_data.items():
+                self._update_meter(meter_id, data['pulsecount'])
 
-        # Loop through parsed data and update
-        with state_module.lock:
-            for count, data in parsed_data.items():
-                self._update_meter(count, data['pulsecount'])
-
-            # Update todays date if needed
-            if str(state_module.measurement['date']) != str(datetime.date.today()):
-                state_module.measurement['date'] = datetime.date.today()
-
-            # Update shared state
-            state_module.measurementshare = copy.deepcopy(state_module.measurement)
+            # Update shared state snapshot for MQTT
+            self._context.state_share = self._context.state.model_copy(deep=True)
         
-        # Valid packet processed
-        state_module.SetError(None, category='serial')
+        # Clear serial error
+        self._context.set_error(None, category='serial')
         
-        # Signal new data
+        # Signal MQTT task that new data is available
         self._trigger.set()
 
-    def _update_meter(self, count, pulsecount):
-        """Update logic for a single meter."""
-        # Initialize if missing
-        if count not in state_module.measurement: state_module.measurement[count] = {}
-        if 'pulsecount' not in state_module.measurement[count]: state_module.measurement[count]['pulsecount'] = 0
-        if 'total' not in state_module.measurement[count]: state_module.measurement[count]['total'] = 0
-        if 'today' not in state_module.measurement[count]: state_module.measurement[count]['today'] = 0
-        if 'yesterday' not in state_module.measurement[count]: state_module.measurement[count]['yesterday'] = 0
+    def _update_meter(self, meter_id: int, pulsecount: int) -> None:
+        """
+        Update logic for a single meter.
         
-        # Check date change
-        if str(state_module.measurement['date']) != str(datetime.date.today()):
-            logger.debug(f"Day changed from '{str(state_module.measurement['date'])}' to '{str(datetime.date.today())}', resetting today counter '{count}' to '0'. Yesterday counter is '{state_module.measurement[count]['today']}'")
-            state_module.measurement[count]['yesterday'] = state_module.measurement[count]['today']
-            state_module.measurement[count]['today'] = 0
+        Handles day-rollover and pulsecount increment/reset logic.
+        
+        Args:
+            meter_id: The ID of the meter to update.
+            pulsecount: The current pulsecount from the device.
+        """
+        # Ensure meter exists
+        if meter_id not in self._context.state.meters:
+            self._context.state.meters[meter_id] = state_module.MeterState()
+        
+        meter = self._context.state.meters[meter_id]
+        
+        # Handle day-rollover
+        today = datetime.date.today()
+        if self._context.state.date != today:
+             logger.debug(f"Day changed from '{self._context.state.date}' to '{today}', rolling over counter '{meter_id}'.")
+             meter.yesterday = meter.today
+             meter.today = 0
+             # Note: context.state.date update should ideally happen once. 
+             # We'll update it here so subsequent meters in the same packet also see the change.
+             self._context.state.date = today
+        
+        # Check delta and update
+        if pulsecount > meter.pulsecount:
+            logger.debug(f"Pulsecount changed from '{meter.pulsecount}' to '{pulsecount}' for meter {meter_id}")
+            delta = pulsecount - meter.pulsecount
+            meter.pulsecount = pulsecount
+            meter.total += delta
+            meter.today += delta
 
-
-        # Calculate delta
-        if pulsecount > state_module.measurement[count]['pulsecount']:
-            logger.debug(f"Pulsecount changed from '{state_module.measurement[count]['pulsecount']}' to '{pulsecount}'")
-            delta = pulsecount - state_module.measurement[count]['pulsecount']
-            state_module.measurement[count]['pulsecount'] = pulsecount
-            state_module.measurement[count]['total'] += delta
-            state_module.measurement[count]['today'] += delta
-
-        elif pulsecount < state_module.measurement[count]['pulsecount']:
+        elif pulsecount < meter.pulsecount:
             # Pulsecount reset (e.g. device restart)
             if pulsecount == 0:
-                state_module.SetError(f"S0PCM Reset detected for meter {count}: Pulsecounters cleared. Restoring from total {state_module.measurement[count]['total']}.", category='serial', level=logging.WARNING)
+                self._context.set_error(f"S0PCM Reset detected for meter {meter_id}: Pulsecounters cleared. Restoring from total {meter.total}.", category='serial', level=logging.WARNING)
             else:
-                state_module.SetError(f"Pulsecount anomaly detected for meter {count}: Stored pulsecount '{state_module.measurement[count]['pulsecount']}' is higher than read '{pulsecount}'.", category='serial')
+                self._context.set_error(f"Pulsecount anomaly detected for meter {meter_id}: Stored pulsecount '{meter.pulsecount}' is higher than read '{pulsecount}'.", category='serial')
             
             delta = pulsecount
-            state_module.measurement[count]['pulsecount'] = pulsecount
-            state_module.measurement[count]['total'] += delta
-            state_module.measurement[count]['today'] += delta
+            meter.pulsecount = pulsecount
+            meter.total += delta
+            meter.today += delta
 
-    def _read_loop(self, ser):
-        """Read loop using the connected serial object."""
+    def _read_loop(self, ser: serial.Serial) -> None:
+        """
+        Continuous read loop from serial port.
+        
+        Args:
+            ser: The connected serial object.
+        """
         while not self._stopper.is_set():
             try:
                 datain = ser.readline()
             except Exception as e:
-                state_module.SetError(f"Serialport read error: {type(e).__name__}: '{str(e)}'", category='serial')
+                self._context.set_error(f"Serialport read error: {type(e).__name__}: '{str(e)}'", category='serial')
                 break # Break to reconnect
             
             if len(datain) == 0:
                 # Timeout
-                state_module.SetError("Serialport read timeout: Failed to read any data", category='serial')
+                self._context.set_error("Serialport read timeout: Failed to read any data", category='serial')
                 break
 
             try:
                 datastr = datain.decode('ascii').rstrip('\r\n')
             except UnicodeDecodeError:
-                state_module.SetError(f"Failed to decode serial data: '{str(datain)}'", category='serial')
+                self._context.set_error(f"Failed to decode serial data: '{str(datain)}'", category='serial')
                 continue
 
             if datastr.startswith('/'):
@@ -149,13 +185,14 @@ class TaskReadSerial(threading.Thread):
             elif datastr == '':
                 logger.warning('Empty Packet received, this can happen during start-up')
             else:
-                state_module.SetError(f"Invalid Packet: '{datastr}'", category='serial')
+                self._context.set_error(f"Invalid Packet: '{datastr}'", category='serial')
 
-    def run(self):
+    def run(self) -> None:
+        """Main thread execution."""
         try:
             # Wait for MQTT recovery to complete before starting to process serial data
             logger.info("Serial Task: Waiting for MQTT/HA state recovery...")
-            state_module.recovery_event.wait()
+            self._context.recovery_event.wait()
             logger.info("Serial Task: Recovery complete, starting serial read loop.")
 
             while not self._stopper.is_set():

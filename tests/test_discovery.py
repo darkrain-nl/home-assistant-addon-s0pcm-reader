@@ -10,14 +10,15 @@ import state as state_module
 def test_send_global_discovery(mocker):
     """Test global discovery message publishing."""
     mock_mqttc = MagicMock()
-    state_module.config['mqtt'] = {
+    context = state_module.get_context()
+    context.config['mqtt'] = {
         'discovery': True,
         'base_topic': 's0pcm',
         'discovery_prefix': 'homeassistant',
         'online': 'online',
         'offline': 'offline'
     }
-    state_module.s0pcmreaderversion = '3.0.0'
+    context.s0pcm_reader_version = '3.0.0'
     
     discovery.send_global_discovery(mock_mqttc)
     
@@ -34,7 +35,8 @@ def test_send_global_discovery(mocker):
 def test_send_meter_discovery(mocker):
     """Test meter discovery message publishing."""
     mock_mqttc = MagicMock()
-    state_module.config['mqtt'] = {
+    context = state_module.get_context()
+    context.config['mqtt'] = {
         'discovery': True,
         'base_topic': 's0pcm',
         'discovery_prefix': 'homeassistant',
@@ -56,7 +58,8 @@ def test_send_meter_discovery(mocker):
 def test_discovery_disabled(mocker):
     """Test behavior when discovery is disabled."""
     mock_mqttc = MagicMock()
-    state_module.config['mqtt'] = {'discovery': False}
+    context = state_module.get_context()
+    context.config['mqtt'] = {'discovery': False}
     
     discovery.send_global_discovery(mock_mqttc)
     assert not mock_mqttc.publish.called

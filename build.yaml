@@ -1,8 +1,8 @@
 image: homeassistant/{arch}-homeassistant-base
 shadow_repository: ghcr.io/home-assistant
 build_from:
-  aarch64: ghcr.io/home-assistant/aarch64-base-python:3.14-alpine3.23
-  amd64: ghcr.io/home-assistant/amd64-base-python:3.14-alpine3.23
+  aarch64: ghcr.io/home-assistant/aarch64-base-python:3.13-alpine3.23
+  amd64: ghcr.io/home-assistant/amd64-base-python:3.13-alpine3.23
 labels:
   io.hass.type: homeassistant-base
   org.opencontainers.image.title: Home Assistant Core baseimage
@@ -12,4 +12,3 @@ labels:
   org.opencontainers.image.url: https://www.home-assistant.io/
   org.opencontainers.image.documentation: https://www.home-assistant.io/docs/
   org.opencontainers.image.licenses: Apache License 2.0
-
