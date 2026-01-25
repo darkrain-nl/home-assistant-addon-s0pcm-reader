@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Quality Tooling Integration**: Configured **Ruff** in `pyproject.toml` for high-performance linting and formatting, ensuring consistent code quality across all modules.
 - **Codebase Sanitization**: Completed a full purge of legacy "CamelCase" aliases and special module proxies. Standardized on strict `AppContext` usage for all state interactions.
 - **Legacy Cleanup**: Completely purged all remaining logic for the deprecated `measurement.json` local file storage, removing confusing startup warnings.
+- **CI/CD Stability**: Pinned GitHub Actions Python version to 3.13 (stable) to avoid build regressions with experimental 3.14 environments.
 
 ## [2.3.6] - 2026-01-24
 ### Fixed
