@@ -23,6 +23,8 @@ if bashio::supervisor.ping; then
         " ($(bashio::info.arch) / $(bashio::info.machine))"
     bashio::log.blue " Home Assistant Core: $(bashio::info.homeassistant)"
     bashio::log.blue " Home Assistant Supervisor: $(bashio::info.supervisor)"
+    bashio::log.blue " Container OS: $(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)"
+    bashio::log.blue " Python Version: $(python3 --version)"
 
     bashio::log.blue \
         '-----------------------------------------------------------'
