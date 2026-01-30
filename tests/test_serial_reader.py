@@ -20,7 +20,7 @@ def setup_serial_test_state():
 class TestSerialPacketParsing:
     def test_handle_data_packet_updates_measurement(self, s0pcm_packets, mocker):
         task = s0pcm_reader.TaskReadSerial(threading.Event(), threading.Event())
-        mocker.patch.object(task._context, 'set_error')
+        mocker.patch.object(task.app_context, 'set_error')
         
         data_str = s0pcm_packets['s0pcm2_data'].decode('ascii').rstrip('\r\n')
         task._handle_data_packet(data_str)
@@ -31,7 +31,7 @@ class TestSerialPacketParsing:
         
     def test_invalid_packet_sets_error(self, s0pcm_packets, mocker):
         task = s0pcm_reader.TaskReadSerial(threading.Event(), threading.Event())
-        mock_set_error = mocker.patch.object(task._context, 'set_error')
+        mock_set_error = mocker.patch.object(task.app_context, 'set_error')
         task._handle_data_packet("ID:8237:I:10:M1:0:100") # Too short
         assert mock_set_error.called
 
@@ -66,8 +66,8 @@ class TestSerialPacketAdvanced:
         task = s0pcm_reader.TaskReadSerial(None, None)
         
         # Verify context identity
-        assert task._context is context
-        assert task._context is state_module.get_context()
+        assert task.app_context is context
+        assert task.app_context is state_module.get_context()
         
         task._handle_header("/8237:S0 Pulse Counter V0.6")
         assert context.s0pcm_firmware == "S0 Pulse Counter V0.6"
@@ -76,7 +76,7 @@ class TestSerialPacketAdvanced:
         mock_ser = MagicMock()
         mock_ser.readline.side_effect = [b'\xff\xfe\xfd', b''] 
         task = s0pcm_reader.TaskReadSerial(None, threading.Event())
-        mock_set_error = mocker.patch.object(task._context, 'set_error')
+        mock_set_error = mocker.patch.object(task.app_context, 'set_error')
         task._read_loop(mock_ser)
         assert any("Failed to decode" in str(c) for c in mock_set_error.call_args_list)
 
