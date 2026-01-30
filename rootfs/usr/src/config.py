@@ -107,7 +107,7 @@ def read_config(config_dict: Optional[Dict[str, Any]] = None, version: str = "Un
     
     Args:
         config_dict: Optional dictionary to populate (for backwards compatibility)
-        version: The addon version string for logging
+        version: The app version string for logging
         
     Returns:
         ConfigModel: The populated configuration object

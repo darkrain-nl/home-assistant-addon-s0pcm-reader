@@ -30,7 +30,7 @@ The **Meter Entity** names and MQTT topics are determined by the configured **Me
 > You can easily set or change these names via Home Assistant. See the **Naming Your Meters** section below for details.
 
 > [!NOTE]
-> **Historic Data**: Your historical data in Home Assistant is safely preserved even if you change the name of a meter. The addon uses a stable `unique_id` based on the numerical input ID and the **MQTT Base Topic**, so Home Assistant will keep the data linked even if you rename "Meter 1" to "Water". Note that changing the base topic *will* break this link.
+> **Historic Data**: Your historical data in Home Assistant is safely preserved even if you change the name of a meter. The app uses a stable `unique_id` based on the numerical input ID and the **MQTT Base Topic**, so Home Assistant will keep the data linked even if you rename "Meter 1" to "Water". Note that changing the base topic *will* break this link.
 
 ### Stateless Architecture (Storage & Persistence)
 
@@ -109,7 +109,7 @@ You can update the total value of any meter (e.g., to sync with a physical meter
 4. Click **Perform Action**.
 
 > [!NOTE]
-> You can use either the numerical **Meter ID** or your custom **Meter Name** (case-insensitive) in the topic. The addon will automatically find the correct meter to update.
+> You can use either the numerical **Meter ID** or your custom **Meter Name** (case-insensitive) in the topic. The app will automatically find the correct meter to update.
 
 ### Option 3: Using raw MQTT
 
@@ -139,7 +139,7 @@ Since measurement data is now stored in a private folder for better security and
 3. Under the **Configuration** section, look for the **Name** entity for your meter (e.g., `text.1_name`).
 4. Type your desired name (e.g., `Kitchen`) and press **Enter**.
 
-The addon will immediately:
+The app will immediately:
 - Update the internal name.
 - Update the `total`, `today`, and `yesterday` sensor names in Home Assistant.
 
@@ -203,16 +203,16 @@ This app implements a multi-layered state recovery mechanism to ensure your tota
 The app publishes all internal states (totals, daily counts, and pulse counters) to MQTT with the `retain` flag. On startup, it listens for 5 seconds to rebuild its internal memory from these messages.
 
 ### Layer 2: Home Assistant API (Secondary)
-If MQTT recovery fails (e.g., the broker's database was cleared), the addon will automatically query the **Home Assistant State API**. It fetches the last known value of your sensors (e.g., `sensor.s0pcm_reader_1_total`) and uses them to resume counting.
+If MQTT recovery fails (e.g., the broker's database was cleared), the app will automatically query the **Home Assistant State API**. It fetches the last known value of your sensors (e.g., `sensor.s0pcm_reader_1_total`) and uses them to resume counting.
 
 > [!TIP]
-> This dual-recovery system ensures that as long as either your MQTT broker or your Home Assistant instance has the data, the addon will resume correctly.
+> This dual-recovery system ensures that as long as either your MQTT broker or your Home Assistant instance has the data, the app will resume correctly.
 
 > [!NOTE]
 > **Recovery scope:** While Layer 1 (MQTT) recovers all statistics (today, yesterday, names, etc.), Layer 2 (HA API) is designed as a "surgical fallback" and only recovers **Lifetime Totals**. This ensures your long-term statistics and Energy Dashboard remain accurate even in a total MQTT wipeout.
 
 > [!WARNING]
-> **State Dependency Limitation**: If you wipe your MQTT broker and restart this app at the same time, the sensors in Home Assistant will likely show as **"Unavailable"**. In this state, Home Assistant cannot provide the numerical totals to the addon, and recovery will fail. To avoid permanent data loss, **always back up your MQTT broker's database.**
+> **State Dependency Limitation**: If you wipe your MQTT broker and restart this app at the same time, the sensors in Home Assistant will likely show as **"Unavailable"**. In this state, Home Assistant cannot provide the numerical totals to the app, and recovery will fail. To avoid permanent data loss, **always back up your MQTT broker's database.**
 
 > [!CAUTION]
 > **Backup Advice**: While the recovery system is robust, it relies on external services. **Regularly back up your Home Assistant instance.** When performing a backup, ensure both the **S0PCM Reader** and your **MQTT broker** app are included.
@@ -259,7 +259,7 @@ The following MQTT messages are sent:
 <base_topic>/info  (JSON containing all diagnostic info)
 ```
 
-The addon **subscribes** to the following topics for control:
+The app **subscribes** to the following topics for control:
 
 ```
 <base_topic>/<name_or_id>/total/set   (Payload: New total value)

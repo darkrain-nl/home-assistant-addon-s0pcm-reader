@@ -25,7 +25,7 @@ This app is based on the [docker-s0pcm-reader](https://github.com/ualex73/docker
 ## 🛠️ Prerequisites
 
 - An **S0PCM reader** (S0PCM-2 or S0PCM-5) connected via USB.
-- An **MQTT Broker** (e.g., the official Mosquitto broker add-on).
+- An **MQTT Broker** (e.g., the official Mosquitto broker app).
 
 ## 🚀 Installation (Recommended & Supported method)
 

@@ -69,7 +69,7 @@ def send_global_discovery(mqttc: mqtt.Client) -> None:
 
     # Diagnostics
     diagnostics = [
-        {"id": "version", "name": "Addon Version", "icon": "mdi:information-outline"},
+        {"id": "version", "name": "App Version", "icon": "mdi:information-outline"},
         {"id": "firmware", "name": "S0PCM Firmware", "icon": "mdi:chip"},
         {"id": "startup_time", "name": "Startup Time", "icon": "mdi:clock-outline", "class": "timestamp"},
         {"id": "port", "name": "Serial Port", "icon": "mdi:serial-port"}
