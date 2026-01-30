@@ -3,9 +3,9 @@
 [![GitHub Release][releases-shield]][releases]
 ![Reported Installations][installations-shield-stable]
 
-An easy-to-use Home Assistant Add-on that reads pulse counters from an **S0PCM-2** or **S0PCM-5** device and sends the data to Home Assistant via MQTT.
+An easy-to-use Home Assistant App that reads pulse counters from an **S0PCM-2** or **S0PCM-5** device and sends the data to Home Assistant via MQTT.
 
-This add-on is based on the [docker-s0pcm-reader](https://github.com/ualex73/docker-s0pcm-reader) by @ualex73.
+This app is based on the [docker-s0pcm-reader](https://github.com/ualex73/docker-s0pcm-reader) by @ualex73.
 
 ## ✨ Features
 
@@ -29,19 +29,19 @@ This add-on is based on the [docker-s0pcm-reader](https://github.com/ualex73/doc
 
 ## 🚀 Installation (Recommended & Supported method)
 
-1. Add this repository to your Home Assistant Add-on store:
+1. Add this repository to your Home Assistant App store:
    `https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader`
 2. Search for **S0PCM Reader** and click **Install**.
 3. Navigate to the **Configuration** tab.
 4. Select your **S0PCM USB device** (e.g., `/dev/ttyACM0`).
-5. **Start** the add-on.
+5. **Start** the app.
 
 ## 🐳 Home Assistant Container (Standalone & Advanced method, only use if you know what you're doing)
 
 > [!IMPORTANT]
-> **Community Support Only**: This configuration is intended for advanced users. Official support is only provided for the standard Home Assistant Add-on installation. Use this at your own risk.
+> **Community Support Only**: This configuration is intended for advanced users. Official support is only provided for the standard Home Assistant App installation. Use this at your own risk.
 
-If you are running Home Assistant in a standalone Docker container (without Supervisor/Add-ons), you can run this reader as a standalone container.
+If you are running Home Assistant in a standalone Docker container (without Supervisor/Apps), you can run this reader as a standalone container.
 
 ### Quick Start (Local Build)
 
@@ -91,7 +91,7 @@ services:
 
 ## 📖 Documentation
 
-Detailed documentation, including configuration guides and advanced settings, can be found in the **Documentation** tab within the Home Assistant add-on interface.
+Detailed documentation, including configuration guides and advanced settings, can be found in the **Documentation** tab within the Home Assistant app interface.
 
 ### [Full Documentation (GitHub)](https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/blob/main/DOCS.md)
 *Use this link if you are viewing the repository on GitHub.*

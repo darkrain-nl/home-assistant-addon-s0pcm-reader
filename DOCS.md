@@ -1,10 +1,10 @@
-# S0PCM Reader add-on documentation
+# S0PCM Reader App documentation
 
 ## MQTT Discovery
 
-The add-on supports Home Assistant MQTT Discovery, which is **enabled by default**. This means you generally do **not** need to manually configure sensors in your `configuration.yaml` anymore.
+The app supports Home Assistant MQTT Discovery, which is **enabled by default**. This means you generally do **not** need to manually configure sensors in your `configuration.yaml` anymore.
 
-When the add-on starts, it automatically creates a device named **S0PCM Reader** in Home Assistant with the following entities:
+When the app starts, it automatically creates a device named **S0PCM Reader** in Home Assistant with the following entities:
 
 ### Meter Entities (per enabled input)
 These entities are replicated for every enabled input (e.g., 1, 2, 3...):
@@ -15,12 +15,12 @@ These entities are replicated for every enabled input (e.g., 1, 2, 3...):
 - **Total Correction**: Number configuration to set the total count.
 
 ### Device Sensors (global)
-These sensors are unique and report on the addon itself:
+These sensors are unique and report on the app itself:
 - **Status**: A binary sensor showing if the reader is connected to MQTT.
 - **Error**: A diagnostic sensor that displays the last error encountered.
-- **Addon Version**: Current version of the S0PCM Reader addon.
+- **App Version**: Current version of the S0PCM Reader app.
 - **S0PCM Firmware**: Firmware version reported by the hardware.
-- **Startup Time**: Timestamp of when the addon started.
+- **Startup Time**: Timestamp of when the app started.
 - **Serial Port**: The configured USB/serial port.
 
 ### Naming Concept
@@ -34,19 +34,19 @@ The **Meter Entity** names and MQTT topics are determined by the configured **Me
 
 ### Stateless Architecture (Storage & Persistence)
 
-To protect your hardware (reduce SD card wear) and simplify management, this addon is **stateless**. It does not use a local database file like `measurement.json` anymore. Instead, it leverages your **MQTT broker** and **Home Assistant** to store and recover your meter data.
+To protect your hardware (reduce SD card wear) and simplify management, this app is **stateless**. It does not use a local database file like `measurement.json` anymore. Instead, it leverages your **MQTT broker** and **Home Assistant** to store and recover your meter data.
 
 #### How it works:
-1. **Persistence**: Every time a pulse is counted, the addon publishes the updated totals and internal state to your MQTT broker as **retained messages**.
-2. **Recovery**: When the addon starts, it automatically fetches its last known state from MQTT.
-3. **Safety Net (HA API)**: If the MQTT broker has no data (e.g. it was just reset), the addon automatically queries the **Home Assistant API** to recover the last known values from your sensors.
+1. **Persistence**: Every time a pulse is counted, the app publishes the updated totals and internal state to your MQTT broker as **retained messages**.
+2. **Recovery**: When the app starts, it automatically fetches its last known state from MQTT.
+3. **Safety Net (HA API)**: If the MQTT broker has no data (e.g. it was just reset), the app automatically queries the **Home Assistant API** to recover the last known values from your sensors.
 
 > [!NOTE]
-> This addon has fully migrated to a stateless architecture. Legacy `measurement.json` files are ignored and safe to delete.
+> This app has fully migrated to a stateless architecture. Legacy `measurement.json` files are ignored and safe to delete.
 
 ## Configuration via Home Assistant UI
 
-You can configure the following options directly in the **Settings > Add-ons > S0PCM Reader > Configuration** tab in Home Assistant:
+You can configure the following options directly in the **Settings > Apps > S0PCM Reader > Configuration** tab in Home Assistant:
 
 ### Required Settings
 - **Device**: The serial port device (e.g., `/dev/ttyACM0`).
@@ -57,7 +57,7 @@ You can configure the following options directly in the **Settings > Add-ons > S
 > Most optional settings are hidden by default for a cleaner interface. Click **"Show unused optional configuration options"** in the Home Assistant UI to reveal additional settings like MQTT host, port, protocol, discovery options, and more. All hidden settings have sensible defaults that work out-of-the-box.
 
 #### General
-- **Log Level**: The detail of the logs (debug, info, warning, error, critical). Defaults to `info`. Logs are streamed directly to the Home Assistant addon console.
+- **Log Level**: The detail of the logs (debug, info, warning, error, critical). Defaults to `info`. Logs are streamed directly to the Home Assistant app console.
 
 #### Connection Options
 - **MQTT Host**: Manual host for an external broker. If not set, it uses the internally discovered broker (typically `core-mosquitto`).
@@ -161,14 +161,14 @@ Send an MQTT message to the following topic:
 > [!TIP]
 > To remove a name and revert to the default ID-based name, simply send an **empty payload** to the `name/set` topic.
 
-The addon will immediately:
+The app will immediately:
 - Update the internal name for that meter.
 - Save the change permanently.
 - Re-send MQTT Discovery messages to update the sensor names in Home Assistant.
 
 ## MQTT Error Reporting
 
-The add-on monitors its internal operations and reports any issues to the `<base_topic>/error` topic. If MQTT Discovery is enabled, this will appear as an **Error** sensor in Home Assistant.
+The app monitors its internal operations and reports any issues to the `<base_topic>/error` topic. If MQTT Discovery is enabled, this will appear as an **Error** sensor in Home Assistant.
 
 **Reported errors include:**
 - **Serial Connection Failures:** If the S0PCM device is unplugged or the port is invalid.
@@ -176,7 +176,7 @@ The add-on monitors its internal operations and reports any issues to the `<base
 - **Packet Parsing Issues:** If the data received from the S0PCM is corrupted or in an unknown format.
 - **MQTT Command Errors:** If an invalid payload is sent to a `/total/set` topic.
 - **Pulsecount Anomalies:** If a sudden jump or reset in pulse count is detected.
-  - **S0PCM Reset (Warning):** If the device reads 0 (hardware restart), the addon automatically recovers your totals and logs a Warning.
+  - **S0PCM Reset (Warning):** If the device reads 0 (hardware restart), the app automatically recovers your totals and logs a Warning.
   - **Data Anomaly (Error):** If the pulse count drops unexpectedly but is not 0, a full Error is logged as this may indicate data corruption.
 
 
@@ -184,23 +184,23 @@ Once the issue is resolved and a valid data packet is successfully processed, th
 
 ## MQTT TLS Support
 
-The add-on supports secure MQTT connections using TLS.
+The app supports secure MQTT connections using TLS.
 
 > [!WARNING]
-> **Security Notice**: This addon defaults to unencrypted MQTT for ease of setup with local brokers. If your MQTT broker is exposed to external networks or you want additional security, enable the **mqtt_tls** option in the **Configuration** tab.
+> **Security Notice**: This app defaults to unencrypted MQTT for ease of setup with local brokers. If your MQTT broker is exposed to external networks or you want additional security, enable the **mqtt_tls** option in the **Configuration** tab.
 
-- **Automatic Fallback:** If TLS connection fails (e.g., certificate error), the add-on will automatically fall back to a plain non-encrypted connection to ensure stable operation.
-- **Port Swapping:** By default, the addon uses **MQTT Port** for plain connections and **MQTT TLS Port** for encrypted connections.
+- **Automatic Fallback:** If TLS connection fails (e.g., certificate error), the app will automatically fall back to a plain non-encrypted connection to ensure stable operation.
+- **Port Swapping:** By default, the app uses **MQTT Port** for plain connections and **MQTT TLS Port** for encrypted connections.
 - **Insecure by Default:** Certificate validation is disabled by default (`mqtt_tls_check_peer: false`) for compatibility with local brokers using self-signed certificates. To enable strict verification, set `mqtt_tls_check_peer` to `true`.
 - **CA Certificate:** Provide the path to your CA certificate.
   - **Recommended:** Put your certificate in the Home Assistant `/ssl/` folder (accessible via Samba/SSH) and use the absolute path: `/ssl/your-ca.crt`.
 
 ## State Recovery & Data Safety
 
-This addon implements a multi-layered state recovery mechanism to ensure your totals are never lost, even without a local data file.
+This app implements a multi-layered state recovery mechanism to ensure your totals are never lost, even without a local data file.
 
 ### Layer 1: MQTT Retained Messages (Primary)
-The addon publishes all internal states (totals, daily counts, and pulse counters) to MQTT with the `retain` flag. On startup, it listens for 5 seconds to rebuild its internal memory from these messages.
+The app publishes all internal states (totals, daily counts, and pulse counters) to MQTT with the `retain` flag. On startup, it listens for 5 seconds to rebuild its internal memory from these messages.
 
 ### Layer 2: Home Assistant API (Secondary)
 If MQTT recovery fails (e.g., the broker's database was cleared), the addon will automatically query the **Home Assistant State API**. It fetches the last known value of your sensors (e.g., `sensor.s0pcm_reader_1_total`) and uses them to resume counting.
@@ -212,35 +212,35 @@ If MQTT recovery fails (e.g., the broker's database was cleared), the addon will
 > **Recovery scope:** While Layer 1 (MQTT) recovers all statistics (today, yesterday, names, etc.), Layer 2 (HA API) is designed as a "surgical fallback" and only recovers **Lifetime Totals**. This ensures your long-term statistics and Energy Dashboard remain accurate even in a total MQTT wipeout.
 
 > [!WARNING]
-> **State Dependency Limitation**: If you wipe your MQTT broker and restart this addon at the same time, the sensors in Home Assistant will likely show as **"Unavailable"**. In this state, Home Assistant cannot provide the numerical totals to the addon, and recovery will fail. To avoid permanent data loss, **always back up your MQTT broker's database.**
+> **State Dependency Limitation**: If you wipe your MQTT broker and restart this app at the same time, the sensors in Home Assistant will likely show as **"Unavailable"**. In this state, Home Assistant cannot provide the numerical totals to the addon, and recovery will fail. To avoid permanent data loss, **always back up your MQTT broker's database.**
 
 > [!CAUTION]
-> **Backup Advice**: While the recovery system is robust, it relies on external services. **Regularly back up your Home Assistant instance.** When performing a backup, ensure both the **S0PCM Reader** and your **MQTT broker** addon are included.
+> **Backup Advice**: While the recovery system is robust, it relies on external services. **Regularly back up your Home Assistant instance.** When performing a backup, ensure both the **S0PCM Reader** and your **MQTT broker** app are included.
 
 ### Testing the Recovery System
 
 If you want to verify that the recovery system is working correctly, you can perform the following safe test:
 
-1. Go to the **Configuration** tab of the addon.
+1. Go to the **Configuration** tab of the app.
 2. Change the **MQTT Base Topic** to a temporary name (e.g., `s0test`).
-3. **Restart** the addon.
-4. Check the **Logs**. You should see the addon searching MQTT, finding nothing, and then logging:
+3. **Restart** the app.
+4. Check the **Logs**. You should see the app searching MQTT, finding nothing, and then logging:
    `Recovery: Recovered total for meter 1 from HA API: <your_previous_total>`
 
-By changing the topic, you effectively show the addon a "blank slate" on MQTT, forcing it to use the secondary Layer 2 recovery from Home Assistant. Once verified, simply change the topic back to your original name.
+By changing the topic, you effectively show the app a "blank slate" on MQTT, forcing it to use the secondary Layer 2 recovery from Home Assistant. Once verified, simply change the topic back to your original name.
 
 > [!IMPORTANT]
 > **Cleanup after testing:** Because Home Assistant uses the MQTT topic to uniquely identify the device, changing the topic for testing will create a **second device** in your Home Assistant dashboard. 
 > 1. Once you revert to your original topic, the test device will show as "Unavailable."
 > 2. You can then safely remove the test device by going to **Settings** > **Devices & Services** > **MQTT**, selecting the test device, and clicking **Delete**.
 
-### Data Accuracy & Addon Downtime
-The S0PCM hardware is a "live" counter. It does not store historical pulses while the addon is stopped. Any pulses that occur while the addon is not running will be lost by the software. 
-To maintain perfect accuracy, you should occasionally check your physical meter's reading and sync it with the addon using the **Setting Meter Totals** feature described above.
+### Data Accuracy & App Downtime
+The S0PCM hardware is a "live" counter. It does not store historical pulses while the app is stopped. Any pulses that occur while the app is not running will be lost by the software. 
+To maintain perfect accuracy, you should occasionally check your physical meter's reading and sync it with the app using the **Setting Meter Totals** feature described above.
 
 ## Watchdog / Auto-restart
 
-This add-on uses the [S6 Overlay](https://github.com/just-containers/s6-overlay) for process supervision. If the S0PCM reader script crashes or exits unexpectedly, it will be automatically restarted.
+This app uses the [S6 Overlay][s6-overlay] for process supervision. If the S0PCM reader script crashes or exits unexpectedly, it will be automatically restarted.
 
 ## MQTT Message Details
 
@@ -290,7 +290,7 @@ To use your meter data in the Home Assistant Energy Dashboard, you need to creat
      ```jinja
      {{ states('sensor.s0pcm_reader_1_total') | is_number }}
      ```
-     *(This ensures the sensor doesn't show "0" or "Unknown" when the addon or MQTT is restarting)*
+     *(This ensures the sensor doesn't show "0" or "Unknown" when the app or MQTT is restarting)*
 4. Click **Submit**.
 
 > [!TIP]

@@ -12,10 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Improved Maintainability**: Threading logic, configuration loading, and protocol parsing are now isolated and properly encapsulated.
 - **Enhanced Logging Visibility**: Restored full DEBUG log availability by centralizing logger configuration at the root level and ensuring uniform propagation across all modular components. Standardized log format to `LEVEL: message` for better Home Assistant compatibility.
 - **Modern Python Standards**: Added PEP 484 type hints across the entire codebase and standardized on Google-style docstrings.
-- **Python Upgrade**: Upgraded base image and runtime to **Python 3.14** (Alpine 3.23) for improved performance and security.
 
 ### Added
-- **Startup Diagnostics**: Added Python version and Container OS details to the addon startup logs for better troubleshooting.
+- **Startup Diagnostics**: Added Python version and Container OS details to the app startup logs for better troubleshooting.
 
 ### Fixed
 - **Module Compatibility Layer**: Implemented a sophisticated `ModuleType` proxy in `state.py` to ensure that legacy tests and scripts assigning directly to module attributes (e.g., `state.measurement = ...`) remain fully functional while synchronizing with the new central context.
