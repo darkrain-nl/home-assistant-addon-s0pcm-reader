@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
-## [3.0.0] - 2026-01-25
+## [3.0.0] - 2026-01-30
 ### Changed
 - **Modular Architecture overhaul**: Successfully refactored the monolithic `s0pcm_reader.py` (nearly 1500 lines) into a clean, modular structure. Core logic is now distributed across focused modules: `config`, `state`, `utils`, `protocol`, `serial_handler`, `mqtt_handler`, and `discovery`.
 - **Type-Safe State Management**: Introduced **Pydantic v2** models for configuration and meter state, providing deep validation and clear data structures.
@@ -12,16 +12,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Improved Maintainability**: Threading logic, configuration loading, and protocol parsing are now isolated and properly encapsulated.
 - **Enhanced Logging Visibility**: Restored full DEBUG log availability by centralizing logger configuration at the root level and ensuring uniform propagation across all modular components. Standardized log format to `LEVEL: message` for better Home Assistant compatibility.
 - **Modern Python Standards**: Added PEP 484 type hints across the entire codebase and standardized on Google-style docstrings.
+- **Python Upgrade**: Upgraded base image and runtime to **Python 3.14** (Alpine 3.23) for improved performance and security.
+
+### Added
+- **Startup Diagnostics**: Added Python version and Container OS details to the addon startup logs for better troubleshooting.
 
 ### Fixed
 - **Module Compatibility Layer**: Implemented a sophisticated `ModuleType` proxy in `state.py` to ensure that legacy tests and scripts assigning directly to module attributes (e.g., `state.measurement = ...`) remain fully functional while synchronizing with the new central context.
 - **State Recovery Logic**: Restored robust recovery logic that correctly rebuilds meter mappings from discovery messages and MQTT retained stats.
 - **Day Change Consistency**: Fixed a bug where "today" counters could fail to reset correctly under certain startup sequences by synchronizing shared state references.
-- **Test Infrastructure**: Fully modularized the test suite, achieving a 100% pass rate (**108 tests**) with >90% coverage for critical components (`recovery`, `state`, `utils`).
+- **Python 3.14 Compatibility**: Resolved a critical naming collision with `threading.Thread._context` by renaming internal context references to `app_context`, preventing runtime crashes.
+- **Test Infrastructure**: Fully modularized the test suite, achieving a 100% pass rate (**111 tests**) with >90% coverage for critical components (`recovery`, `state`, `utils`).
 - **Quality Tooling Integration**: Configured **Ruff** in `pyproject.toml` for high-performance linting and formatting, ensuring consistent code quality across all modules.
 - **Codebase Sanitization**: Completed a full purge of legacy "CamelCase" aliases and special module proxies. Standardized on strict `AppContext` usage for all state interactions.
 - **Legacy Cleanup**: Completely purged all remaining logic for the deprecated `measurement.json` local file storage, removing confusing startup warnings.
-- **CI/CD Stability**: Pinned GitHub Actions Python version to 3.13 (stable) to avoid build regressions with experimental 3.14 environments.
 
 ## [2.3.6] - 2026-01-24
 ### Fixed
