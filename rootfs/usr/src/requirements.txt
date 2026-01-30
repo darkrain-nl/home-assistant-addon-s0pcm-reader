@@ -1,4 +1,4 @@
 pyyaml==6.0.3
 pyserial==3.5
 paho-mqtt==2.1.0
-pydantic==2.10.6
+pydantic==2.12.5
