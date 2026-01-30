@@ -36,7 +36,7 @@ tests/
 ├── pytest.ini                # Pytest & Coverage configuration
 ├── requirements-test.txt     # Test dependencies (includes Ruff)
 ├── docker-test.ps1/sh        # Dockerized test runners
-├── Dockerfile.test           # Test container definition (Python 3.13-alpine)
+├── Dockerfile.test           # Test container definition (Python 3.14-alpine)
 ├── test_config.py            # Config loading & validation tests
 ├── test_discovery.py         # MQTT discovery message tests
 ├── test_helpers.py           # State and Utility helper tests

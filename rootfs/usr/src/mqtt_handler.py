@@ -46,7 +46,7 @@ class TaskDoMQTT(threading.Thread):
         self._last_diagnostics: Dict[str, Any] = {}
         self._last_info_payload: Optional[str] = None
         self._last_error_msg: Optional[str] = None
-        self._context = state_module.get_context()
+        self.app_context = state_module.get_context()
 
 
 
@@ -55,7 +55,7 @@ class TaskDoMQTT(threading.Thread):
         recoverer = StateRecoverer(self._mqttc)
         recoverer.run()
         self._recovery_complete = True
-        self._context.recovery_event.set()
+        self.app_context.recovery_event.set()
 
     def on_connect(self, mqttc, obj, flags, reason_code, properties):
         context = state_module.get_context()
