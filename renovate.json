@@ -7,6 +7,10 @@
         ":combinePatchMinorReleases",
         ":disableDependencyDashboard"
     ],
+    "baseBranches": [
+        "main",
+        "dev"
+    ],
     "ignorePaths": [
         "**/node_modules/**"
     ],
