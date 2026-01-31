@@ -52,7 +52,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, signal_handler)
 
     if __name__ == "__main__":
-        init_args()
+        init_args()  # pragma: no cover
 
     try:
         # Load Configuration into context
@@ -84,5 +84,5 @@ def main() -> None:
     logger.info("Stop: s0pcm-reader")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

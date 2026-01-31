@@ -11,7 +11,7 @@ Tests cover:
 
 import datetime
 import json
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -406,22 +406,138 @@ class TestRecoveryFlow:
 
         assert recoverer.context.state.meters[1].total == 5000
 
-    def test_run_merges_name_and_id_data(self, recoverer, mocker):
-        """Test that run() merges data from both ID and name topics."""
-        mocker.patch("time.sleep")
-
-        # Simulate data under both ID and name
-        recoverer.recovered_data = {"1": {"total": 1000, "pulsecount": 10}, "Water": {"today": 50, "yesterday": 40}}
-        recoverer.recovered_names = {1: "Water"}
-
-        recoverer.run()
-
         meter = recoverer.context.state.meters[1]
-        assert meter.name == "Water"
-        assert meter.total == 1000
-        assert meter.today == 50
-        assert meter.yesterday == 40
-        assert meter.pulsecount == 10
+        assert meter.name is None # Name not recovered/set in this test
+        # These fields are not updated by fetch_all_ha_states (only totals)
+        assert meter.today == 0 # Default
+        assert meter.yesterday == 0 # Default
+        assert meter.pulsecount == 0 # Default
+
+
+class TestRecoveryExceptions:
+    def test_fetch_ha_state_exception(self, recoverer):
+        """Test fetch_ha_state exception handling (lines 48-49)."""
+        with patch("os.getenv", return_value="TOKEN"), \
+             patch("urllib.request.urlopen", side_effect=Exception("API Error")):
+            res = recoverer.fetch_ha_state("sensor.test")
+            assert res is None
+
+    def test_fetch_all_ha_states_exception(self, recoverer):
+        """Test fetch_all_ha_states exception handling (lines 65-67)."""
+        with patch("os.getenv", return_value="TOKEN"), \
+             patch("urllib.request.urlopen", side_effect=Exception("API Error")):
+            res = recoverer.fetch_all_ha_states()
+            assert res == []
+
+    def test_run_recover_named_meter_gap(self, recoverer):
+        """Test recovering a meter by name that isn't in main state yet (lines 160-162)."""
+        recoverer.recovered_names = {10: "Garage"}
+        # No recovered data for 10, so it won't be created by ID loop
+
+        with patch("time.sleep"):
+            recoverer.run()
+
+        context = state_module.get_context()
+        assert 10 in context.state.meters
+        assert context.state.meters[10].name == "Garage"
+
+    def test_find_total_chaos_format(self, recoverer):
+        """Test _find_total_in_ha with chaos format (line 249)."""
+        # "1.1.1,1,1" -> chaos -> "11111"
+        states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1.1.1,1,1"}]
+        # We need a meter in state for _find_total_in_ha to work (it gets name from there)
+        context = state_module.get_context()
+        context.state.meters[1] = state_module.MeterState()
+
+        val = recoverer._find_total_in_ha(1, states)
+        assert val == 11111
+
+    def test_find_total_empty(self, recoverer):
+        """Test _find_total_in_ha with empty string (line 257)."""
+        states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": " "}]
+        context = state_module.get_context()
+        context.state.meters[1] = state_module.MeterState()
+
+        val = recoverer._find_total_in_ha(1, states)
+        assert val is None
+
+    def test_find_total_value_error(self, recoverer):
+        """Test _find_total_in_ha with invalid number (lines 259-260)."""
+        # "." passes the digit/sep filter but fails float conversion
+        states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "."}]
+        context = state_module.get_context()
+        context.state.meters[1] = state_module.MeterState()
+
+        val = recoverer._find_total_in_ha(1, states)
+        assert val is None
+
+
+
+    def test_on_message_date_error(self, recoverer):
+        """Test on_message date parsing error (lines 106-107)."""
+        msg = MagicMock()
+        msg.topic = "s0pcmreader/date"
+        msg.payload = b"invalid-date"
+
+        # Should not raise
+        recoverer.on_message(None, None, msg)
+        assert recoverer.context.state.date != "invalid-date"
+
+    def test_find_total_complex_US(self, recoverer):
+        """Test _find_total_in_ha with US format 1,000.50 (lines 245-246)."""
+        # Comma > Dot? 1 comma, 1 dot. Equal.
+        # Line 239: count(.) == 1 and count(,) == 1
+        # Line 241: find(.) < find(,) (EU) vs else (US)
+        # 1,000.50 -> find(,) vs find(.) -> index 1 vs 5 -> Comma first.
+        # US: remove ',' -> 1000.50 -> int(float) -> 1000
+        states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1,000.50"}]
+        context = state_module.get_context()
+        context.state.meters[1] = state_module.MeterState()
+
+        val = recoverer._find_total_in_ha(1, states)
+        assert val == 1000
+
+    def test_find_total_complex_EU(self, recoverer):
+        """Test _find_total_in_ha with EU format 1.000,50 (lines 242-243)."""
+        # 1.000,50 -> Dot first -> EU
+        # replace . -> 1000,50 -> replace , back to . -> 1000.50 -> 1000
+        states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1.000,50"}]
+        context = state_module.get_context()
+        context.state.meters[1] = state_module.MeterState()
+
+        val = recoverer._find_total_in_ha(1, states)
+        assert val == 1000
+
+
+
+def test_run_name_data_merge(recoverer, mocker):
+    """Test name-based data merging with max() logic (lines 169-172)."""
+    mocker.patch("time.sleep")
+
+    # Setup: meter with name and data under name topic
+    recoverer.recovered_names = {1: "WaterMeter"}
+    recoverer.recovered_data = {
+        "1": {"total": 100},
+        "WaterMeter": {"total": 150, "today": 15, "yesterday": 5, "pulsecount": 20}
+    }
+
+    recoverer.run()
+
+    meter = recoverer.context.state.meters[1]
+    assert meter.name == "WaterMeter"
+    # Should use max() from both sources
+    assert meter.total == 150
+    assert meter.today == 15
+
+
+def test_find_total_many_commas(recoverer):
+    """Test number parsing with many commas (line 235)."""
+    states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1,000,000"}]
+    context = state_module.get_context()
+    context.state.meters[1] = state_module.MeterState()
+
+    val = recoverer._find_total_in_ha(1, states)
+    assert val == 1000000
 
 
 if __name__ == "__main__":

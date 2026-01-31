@@ -15,13 +15,15 @@ import pytest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "rootfs", "usr", "src")))
 
 import config as config_module
-import s0pcm_reader
 import state as state_module
 
 
 @pytest.fixture(autouse=True)
 def setup_s0pcm_globals():
     """Ensure global variables expected by s0pcm_reader are initialized."""
+    # Lazy import to avoid coverage issues
+    import s0pcm_reader
+
     # Use the real context from state_module
     context = state_module.get_context()
     # Register trigger with context

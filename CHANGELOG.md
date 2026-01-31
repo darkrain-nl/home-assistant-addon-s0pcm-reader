@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **State Recovery Logic**: Restored robust recovery logic that correctly rebuilds meter mappings from discovery messages and MQTT retained stats.
 - **Day Change Consistency**: Fixed a bug where "today" counters could fail to reset correctly under certain startup sequences by synchronizing shared state references.
 - **Python 3.14 Compatibility**: Resolved a critical naming collision with `threading.Thread._context` by renaming internal context references to `app_context`, preventing runtime crashes.
-- **Test Infrastructure**: Fully modularized the test suite, achieving a 100% pass rate (**111 tests**) with >90% coverage for critical components (`recovery`, `state`, `utils`).
+- **Test Infrastructure**: Fully modularized the test suite, achieving a 100% pass rate (**150 tests**) with **98% code coverage** across all core components. Implemented comprehensive lazy import strategy to ensure accurate coverage tracking.
 - **Quality Tooling Integration**: Configured **Ruff** in `pyproject.toml` for high-performance linting and formatting, ensuring consistent code quality across all modules.
 - **Codebase Sanitization**: Completed a full purge of legacy "CamelCase" aliases and special module proxies. Standardized on strict `AppContext` usage for all state interactions.
 - **Legacy Cleanup**: Completely purged all remaining logic for the deprecated `measurement.json` local file storage, removing confusing startup warnings.

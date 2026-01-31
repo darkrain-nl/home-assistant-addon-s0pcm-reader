@@ -14,6 +14,13 @@ import state as state_module
 
 logger = logging.getLogger(__name__)
 
+GLOBAL_DIAGNOSTICS = [
+    {"id": "version", "name": "App Version", "icon": "mdi:information-outline"},
+    {"id": "firmware", "name": "S0PCM Firmware", "icon": "mdi:chip"},
+    {"id": "startup_time", "name": "Startup Time", "icon": "mdi:clock-outline", "class": "timestamp"},
+    {"id": "port", "name": "Serial Port", "icon": "mdi:serial-port"},
+]
+
 
 def send_global_discovery(mqttc: mqtt.Client) -> None:
     """
@@ -70,13 +77,7 @@ def send_global_discovery(mqttc: mqtt.Client) -> None:
     mqttc.publish(error_topic, json.dumps(error_payload), retain=True)
 
     # Diagnostics
-    diagnostics = [
-        {"id": "version", "name": "App Version", "icon": "mdi:information-outline"},
-        {"id": "firmware", "name": "S0PCM Firmware", "icon": "mdi:chip"},
-        {"id": "startup_time", "name": "Startup Time", "icon": "mdi:clock-outline", "class": "timestamp"},
-        {"id": "port", "name": "Serial Port", "icon": "mdi:serial-port"},
-    ]
-    for diag in diagnostics:
+    for diag in GLOBAL_DIAGNOSTICS:
         diag_unique_id = f"s0pcm_{base_topic}_{diag['id']}"
         diag_topic = f"{discovery_prefix}/sensor/{base_topic}/{diag_unique_id}/config"
         diag_payload = {
