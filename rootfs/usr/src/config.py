@@ -10,10 +10,10 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any
 
-import serial
 import paho.mqtt.client as mqtt
+import serial
 from pydantic import BaseModel, Field
 
 from utils import get_supervisor_config
@@ -36,7 +36,7 @@ class SerialConfig(BaseModel):
     parity: str = serial.PARITY_EVEN
     stopbits: int = serial.STOPBITS_ONE
     bytesize: int = serial.SEVENBITS
-    timeout: Optional[float] = None
+    timeout: float | None = None
     connect_retry: int = 5
 
 
@@ -45,10 +45,10 @@ class MqttConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 1883
     tls_port: int = 8883
-    username: Optional[str] = None
-    password: Optional[str] = None
+    username: str | None = None
+    password: str | None = None
     base_topic: str = "s0pcmreader"
-    client_id: Optional[str] = None
+    client_id: str | None = None
     version: Any = mqtt.MQTTv5
     retain: bool = True
     split_topic: bool = True
@@ -79,17 +79,17 @@ configdirectory = './'
 def init_args():
     """Initialize arguments and global configuration paths."""
     global configdirectory
-    
+
     parser = argparse.ArgumentParser(
-        prog='s0pcm-reader', 
+        prog='s0pcm-reader',
         description='S0 Pulse Counter Module'
     )
     # Determine default config directory: /data for HA, ./ for local dev
     default_config = '/data' if os.path.exists('/data') else './'
     parser.add_argument(
-        '-c', '--config', 
-        help='Directory where the configuration resides', 
-        type=str, 
+        '-c', '--config',
+        help='Directory where the configuration resides',
+        type=str,
         default=default_config
     )
     args = parser.parse_args()
@@ -101,14 +101,14 @@ def init_args():
 
 
 
-def read_config(config_dict: Optional[Dict[str, Any]] = None, version: str = "Unknown") -> ConfigModel:
+def read_config(config_dict: dict[str, Any] | None = None, version: str = "Unknown") -> ConfigModel:
     """
     Read and populate the configuration.
-    
+
     Args:
         config_dict: Optional dictionary to populate (for backwards compatibility)
         version: The app version string for logging
-        
+
     Returns:
         ConfigModel: The populated configuration object
     """
@@ -184,13 +184,13 @@ def read_config(config_dict: Optional[Dict[str, Any]] = None, version: str = "Un
         config_dict['mqtt']['version'] = model.mqtt.version
 
     logger.info(f'Start: s0pcm-reader - version: {version}')
-    
+
     # Debug logging with redacted password
     config_log = model.model_dump()
     if config_log['mqtt'].get('password'):
         config_log['mqtt']['password'] = '********'
     logger.debug(f'Config: {str(config_log)}')
-    
+
     return model
 
 

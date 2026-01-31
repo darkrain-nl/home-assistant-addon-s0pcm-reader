@@ -4,11 +4,11 @@ S0PCM Reader Utilities
 Helper functions for version detection and Home Assistant Supervisor API access.
 """
 
-import os
 import json
 import logging
+import os
 import urllib.request
-from typing import Dict, Any, List
+from typing import Any
 
 import yaml
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 def get_version() -> str:
     """
     Get the S0PCM Reader version.
-    
+
     Priority:
     1. S0PCM_READER_VERSION environment variable (set by HA addon)
     2. config.yaml in common locations (for local development)
@@ -50,19 +50,19 @@ def get_version() -> str:
                         return f"{config_yaml['version']} (local)"
             except Exception:
                 pass
-    
+
     return 'dev'
 
 
-def get_supervisor_config(service: str) -> Dict[str, Any]:
+def get_supervisor_config(service: str) -> dict[str, Any]:
     """
     Fetch service configuration from the Home Assistant Supervisor API.
-    
+
     Args:
         service: The service name (e.g., 'mqtt')
-        
+
     Returns:
-        Dict[str, Any]: Service configuration data, or empty dict on failure.
+        dict[str, Any]: Service configuration data, or empty dict on failure.
     """
     token = os.getenv('SUPERVISOR_TOKEN')
     if not token:

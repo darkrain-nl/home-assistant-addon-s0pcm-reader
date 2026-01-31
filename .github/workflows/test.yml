@@ -31,6 +31,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r tests/requirements-test.txt
 
+      - name: Lint with Ruff
+        run: |
+          ruff check .
+          ruff format --check .
+
       - name: Run tests with pytest
         run: |
           pytest tests/ -v --tb=short --cov=rootfs/usr/src --cov-report=xml --cov-report=term

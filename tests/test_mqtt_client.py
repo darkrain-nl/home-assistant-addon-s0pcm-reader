@@ -14,11 +14,11 @@ import config as config_module
 def setup_mqtt_config():
     # state_module.config/measurement cleared by conftest.py
     context = state_module.get_context()
-    
+
     # Initialize basic MQTT config using the standard read_config logic
     context.config = config_module.read_config(version="test").model_dump()
     context.s0pcm_reader_version = "dev"
-    
+
     # Override keys specifically needed for tests
     context.config['mqtt'].update({
         'base_topic': 's0',
@@ -47,23 +47,23 @@ class TestMQTTPublish:
         context.config['mqtt']['split_topic'] = True
         task = s0pcm_reader.TaskDoMQTT(None, None)
         task._mqttc = mock_mqtt_client
-        
+
         # Build proper AppState
         state = state_module.AppState()
         state.meters[1] = state_module.MeterState(name='Water', total=100)
-        
+
         task._publish_measurements(state, None)
         assert any('s0/Water/total' in str(c) for c in mock_mqtt_client.publish.call_args_list)
 
 class TestStateRecovery:
     def test_recover_state_logic(self, mock_mqtt_client, mocker):
         mocker.patch('time.sleep')
-        # Mock StateRecoverer instead of the internal method if possible, 
+        # Mock StateRecoverer instead of the internal method if possible,
         # or just verify _recover_state calls it.
         # Since we removed the internal logic, we verify the high-level call.
         task = s0pcm_reader.TaskDoMQTT(None, None)
         task._mqttc = mock_mqtt_client
-        
+
         with patch('mqtt_handler.StateRecoverer') as mock_recoverer:
             task._recover_state()
             assert mock_recoverer.return_value.run.called
@@ -83,7 +83,7 @@ class TestMQTTSetCommands:
         task._mqttc = mock_mqtt_client
         task._handle_name_set(MagicMock(topic='s0/1/name/set', payload=b'Kitchen'))
         assert context.state[1].name == 'Kitchen'
-        
+
         # Name clearing
         task._handle_name_set(MagicMock(topic='s0/1/name/set', payload=b''))
         assert context.state[1].name is None
@@ -93,20 +93,20 @@ def test_mqtt_handler_error_cases(mocker):
     task = s0pcm_reader.TaskDoMQTT(MagicMock(), MagicMock())
     context = state_module.get_context()
     context.state[1] = state_module.MeterState(total=100)
-    
+
     # 1. Unknown identifier (not ID, not Name)
     context = state_module.get_context()
     with patch.object(context, 'set_error') as mock_err:
         task._handle_set_command(MagicMock(topic='s0/UnknownMeter/total/set', payload=b'500'))
         assert mock_err.called
         assert "unknown meter" in str(mock_err.call_args).lower()
-        
+
     # 2. Invalid payload (non-numeric)
     with patch.object(context, 'set_error') as mock_err:
         task._handle_set_command(MagicMock(topic='s0/1/total/set', payload=b'ABC'))
         assert mock_err.called
         assert "invalid payload" in str(mock_err.call_args).lower()
-        
+
     # 3. Unknown name in set
     with patch.object(context, 'set_error') as mock_err:
         task._handle_set_command(MagicMock(topic='s0/NonExistent/total/set', payload=b'500'))
@@ -116,17 +116,17 @@ def test_mqtt_callbacks(mocker):
     """Test standard MQTT callbacks."""
     task = s0pcm_reader.TaskDoMQTT(MagicMock(), MagicMock())
     task._mqttc = MagicMock()
-    
+
     # on_connect failure
     context = state_module.get_context()
     with patch.object(context, 'set_error') as mock_set:
         task.on_connect(None, None, None, 5, None)  # 5 is unauthorized
         assert mock_set.called
-    
+
     # on_disconnect
     task.on_disconnect(None, None, None, 0, None)
     assert not task._connected
-    
+
 
 def test_publish_measurements_json(mocker):
     """Test MQTT publication in JSON mode (split_topic=False)."""
@@ -135,14 +135,14 @@ def test_publish_measurements_json(mocker):
     context.config['mqtt']['split_topic'] = False
     context.config['mqtt']['base_topic'] = 's0'
     context.config['mqtt']['retain'] = True
-    
+
     task._mqttc = MagicMock()
-    
+
     state = state_module.AppState()
     state.meters[1] = state_module.MeterState(name='Water', total=100, today=5, yesterday=2)
-    
+
     task._publish_measurements(state, None)
-    
+
     # Check if JSON was published to s0/Water
     json_call = [c for c in task._mqttc.publish.call_args_list if 's0/Water' in str(c)]
     assert json_call

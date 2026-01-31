@@ -4,25 +4,26 @@ MQTT Handler Module
 Contains the TaskDoMQTT class for handling MQTT communication, data publishing, and state recovery.
 """
 
-import threading
-import time
 import datetime
 import json
 import logging
 import ssl
-from typing import Optional, Dict, Any
+import threading
+import time
+from typing import Any
 
 import paho.mqtt.client as mqtt
-import state as state_module
+
 import discovery
 from recovery import StateRecoverer
+import state as state_module
 
 logger = logging.getLogger(__name__)
 
 class TaskDoMQTT(threading.Thread):
     """
     Task to handle MQTT communications.
-    
+
     Responsible for connecting to the broker, performing state recovery on startup,
     subscribing to commands, and publishing meter data and diagnostics.
     """
@@ -30,7 +31,7 @@ class TaskDoMQTT(threading.Thread):
     def __init__(self, trigger: threading.Event, stopper: threading.Event) -> None:
         """
         Initialize the MQTT task.
-        
+
         Args:
             trigger: Event to signal when work (publishing) is needed.
             stopper: Event to signal when the task should stop.
@@ -40,12 +41,12 @@ class TaskDoMQTT(threading.Thread):
         self._stopper = stopper
         self._connected = False
         self._global_discovery_sent = False
-        self._discovered_meters: Dict[int, str] = {} # Track {meter_id: "name"}
+        self._discovered_meters: dict[int, str] = {} # Track {meter_id: "name"}
         self._recovery_complete = False
-        self._mqttc: Optional[mqtt.Client] = None
-        self._last_diagnostics: Dict[str, Any] = {}
-        self._last_info_payload: Optional[str] = None
-        self._last_error_msg: Optional[str] = None
+        self._mqttc: mqtt.Client | None = None
+        self._last_diagnostics: dict[str, Any] = {}
+        self._last_info_payload: str | None = None
+        self._last_error_msg: str | None = None
         self.app_context = state_module.get_context()
 
 
@@ -90,7 +91,7 @@ class TaskDoMQTT(threading.Thread):
             parts = msg.topic.split('/')
             identifier = parts[-3]
             meter_id = None
-            
+
             try:
                 meter_id = int(identifier)
             except ValueError:
@@ -98,7 +99,7 @@ class TaskDoMQTT(threading.Thread):
                     if mstate.name and mstate.name.lower() == identifier.lower():
                         meter_id = mid
                         break
-            
+
             if meter_id is None:
                 context.set_error(f"Ignored set command for unknown meter: {identifier}", category='mqtt')
                 return
@@ -128,7 +129,7 @@ class TaskDoMQTT(threading.Thread):
             parts = msg.topic.split('/')
             identifier = parts[-3]
             meter_id = None
-            
+
             try:
                 meter_id = int(identifier)
             except ValueError:
@@ -136,7 +137,7 @@ class TaskDoMQTT(threading.Thread):
                     if mstate.name and mstate.name.lower() == identifier.lower():
                         meter_id = mid
                         break
-            
+
             if meter_id is None:
                 context.set_error(f"Ignored name/set command for unknown meter: {identifier}", category='mqtt')
                 return
@@ -151,7 +152,7 @@ class TaskDoMQTT(threading.Thread):
                     context.state.meters[meter_id] = state_module.MeterState()
                 context.state.meters[meter_id].name = new_name
                 context.state_share = context.state.model_copy(deep=True)
-                
+
                 # Re-trigger discovery
                 discovery.send_global_discovery(self._mqttc)
                 for mid, mstate in context.state.meters.items():
@@ -186,11 +187,11 @@ class TaskDoMQTT(threading.Thread):
                 else:
                     ssl_context.check_hostname = False
                     ssl_context.verify_mode = ssl.CERT_NONE
-                
+
                 try:
                     ssl_context.load_verify_locations(cafile=context.config['mqtt']['tls_ca'])
                 except Exception as e:
-                    context.set_error(f"Failed to load TLS CA file '{context.config['mqtt']['tls_ca']}': {str(e)}", category='mqtt')
+                    context.set_error(f"Failed to load TLS CA file '{context.config['mqtt']['tls_ca']}': {e}", category='mqtt')
                     return False
             self._mqttc.tls_set_context(context=ssl_context)
 
@@ -209,23 +210,25 @@ class TaskDoMQTT(threading.Thread):
 
             port = int(context.config['mqtt']['tls_port'] if use_tls else context.config['mqtt']['port'])
             logger.debug(f"Connecting to MQTT Broker '{context.config['mqtt']['host']}:{port}' (TLS: {use_tls})")
-            
+
             try:
                 self._mqttc.connect(context.config['mqtt']['host'], port, 60)
                 self._mqttc.loop_start()
-                
-                timeout = time.time() + 10 
+
+                timeout = time.time() + 10
                 while time.time() < timeout and not self._connected and not self._stopper.is_set():
                     time.sleep(0.5)
 
                 if self._connected:
                     self._recover_state()
-                    return 
+                    return
                 else:
                     raise ConnectionError("Timeout waiting for MQTT CONNACK")
 
             except Exception as e:
-                if self._mqttc: self._mqttc.loop_stop(); self._mqttc = None
+                if self._mqttc:
+                    self._mqttc.loop_stop()
+                    self._mqttc = None
                 if use_tls and not fallback_happened:
                     context.set_error(f"MQTT TLS failed: {e}. Falling back to plain.", category='mqtt')
                     use_tls = False; fallback_happened = True
@@ -249,7 +252,7 @@ class TaskDoMQTT(threading.Thread):
                     topic = context.config['mqtt']['base_topic'] + '/' + key
                     self._mqttc.publish(topic, str(val), retain=context.config['mqtt']['retain'])
                     self._last_diagnostics[key] = val
-            
+
             info_payload = json.dumps(current_diagnostics)
             if self._last_info_payload != info_payload:
                 self._mqttc.publish(context.config['mqtt']['base_topic'] + '/info', info_payload, retain=context.config['mqtt']['retain'])
@@ -257,9 +260,9 @@ class TaskDoMQTT(threading.Thread):
         except Exception as e:
             logger.error(f"Failed to publish info state to MQTT: {e}")
 
-    def _publish_measurements(self, state_snapshot: state_module.AppState, previous_snapshot: Optional[state_module.AppState]):
+    def _publish_measurements(self, state_snapshot: state_module.AppState, previous_snapshot: state_module.AppState | None):
         context = state_module.get_context()
-        
+
         # Date
         current_date_str = str(state_snapshot.date)
         previous_date_str = str(previous_snapshot.date) if previous_snapshot else ""
@@ -286,7 +289,7 @@ class TaskDoMQTT(threading.Thread):
             for field in ['total', 'today', 'yesterday']:
                 val = getattr(mstate, field)
                 old_val = getattr(prev_mstate, field) if prev_mstate else -1
-                
+
                 if val != old_val or (prev_mstate and mstate.name != prev_mstate.name):
                     if context.config['mqtt']['split_topic']:
                         topic = f"{context.config['mqtt']['base_topic']}/{instancename}/{field}"
@@ -317,7 +320,7 @@ class TaskDoMQTT(threading.Thread):
                 state_snapshot = context.state_share.model_copy(deep=True)
                 error_msg = context.lasterror_share
 
-            if not self._connected: return 
+            if not self._connected: return
 
             if not self._global_discovery_sent:
                 discovery.send_global_discovery(self._mqttc)
@@ -341,7 +344,7 @@ class TaskDoMQTT(threading.Thread):
                 if self._last_error_msg != error_to_publish:
                     self._mqttc.publish(context.config['mqtt']['base_topic'] + '/error', error_to_publish, retain=context.config['mqtt']['retain'])
                     self._last_error_msg = error_to_publish
-                    
+
                 if self._connected and error_msg is None:
                     context.set_error(None, category='mqtt', trigger_event=False)
             except Exception as e:
@@ -360,7 +363,9 @@ class TaskDoMQTT(threading.Thread):
                 if self._mqttc:
                     if self._connected:
                          self._mqttc.publish(context.config['mqtt']['base_topic'] + '/status', context.config['mqtt']['offline'], retain=context.config['mqtt']['retain'])
-                    self._mqttc.loop_stop(); self._mqttc.disconnect(); self._mqttc = None
+                    self._mqttc.loop_stop()
+                    self._mqttc.disconnect()
+                    self._mqttc = None
         except Exception:
             logger.error('Fatal MQTT exception', exc_info=True)
         finally:

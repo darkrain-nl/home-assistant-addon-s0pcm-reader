@@ -15,21 +15,21 @@ Where:
 - d/f/h/j/l = Total pulses since startup for meter 1/2/3/4/5
 """
 
-from typing import Dict
 
 
-def parse_s0pcm_packet(datastr: str) -> Dict[int, Dict[str, int]]:
+
+def parse_s0pcm_packet(datastr: str) -> dict[int, dict[str, int]]:
     """
     Parse a raw S0PCM data packet string.
-    
+
     Args:
         datastr: The raw data string from the serial port (e.g. "ID:8237:I:10:M1:0:100...")
-        
+
     Returns:
-        Dict[int, Dict[str, int]]: A dictionary of parsed meter data where keys are meter IDs (1-5) and values
+        dict[int, dict[str, int]]: A dictionary of parsed meter data where keys are meter IDs (1-5) and values
               are dictionaries containing 'pulsecount'.
               Example: {1: {'pulsecount': 100}, 2: {'pulsecount': 50}}
-              
+
     Raises:
         ValueError: If the packet format is invalid or values cannot be parsed.
     """
@@ -50,7 +50,7 @@ def parse_s0pcm_packet(datastr: str) -> Dict[int, Dict[str, int]]:
     # Loop through 2/5 s0pcm data
     for count in range(1, size + 1):
         offset = 4 + ((count - 1) * 3)
-        
+
         # expected format: M1:x:x
         expected_marker = 'M' + str(count)
         if s0arr[offset] != expected_marker:
@@ -62,5 +62,5 @@ def parse_s0pcm_packet(datastr: str) -> Dict[int, Dict[str, int]]:
             raise ValueError(f"Cannot convert pulsecount '{s0arr[offset + 2]}' into integer for meter {count}")
 
         result[count] = {'pulsecount': pulsecount}
-        
+
     return result

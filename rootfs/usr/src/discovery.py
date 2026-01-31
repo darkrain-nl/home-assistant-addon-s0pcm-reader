@@ -6,9 +6,10 @@ Handles MQTT discovery payload generation for Home Assistant.
 
 import json
 import logging
-from typing import Optional, Dict, Any
+from typing import Any
 
 import paho.mqtt.client as mqtt
+
 import state as state_module
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 def send_global_discovery(mqttc: mqtt.Client) -> None:
     """
     Send discovery for global entities (Status, Error, Version, etc.)
-    
+
     Args:
         mqttc: The connected MQTT client.
     """
@@ -26,7 +27,7 @@ def send_global_discovery(mqttc: mqtt.Client) -> None:
 
     base_topic = context.config['mqtt']['base_topic']
     discovery_prefix = context.config['mqtt']['discovery_prefix']
-    
+
     device_info = {
         "identifiers": [base_topic],
         "name": "S0PCM Reader",
@@ -93,17 +94,17 @@ def send_global_discovery(mqttc: mqtt.Client) -> None:
 
     logger.info('Sent global MQTT discovery messages')
 
-def send_meter_discovery(mqttc: mqtt.Client, meter_id: int, meter_data: Dict[str, Any]) -> Optional[str]:
+def send_meter_discovery(mqttc: mqtt.Client, meter_id: int, meter_data: dict[str, Any]) -> str | None:
     """
     Send discovery for a specific meter.
-    
+
     Args:
         mqttc: The connected MQTT client.
         meter_id: The unique ID of the meter.
         meter_data: Meter data dictionary (from model_dump).
-        
+
     Returns:
-        Optional[str]: The instance name (for tracking), or None if discovery is disabled.
+        str | None: The instance name (for tracking), or None if discovery is disabled.
     """
     context = state_module.get_context()
     if not context.config['mqtt']['discovery']:
@@ -111,7 +112,7 @@ def send_meter_discovery(mqttc: mqtt.Client, meter_id: int, meter_data: Dict[str
 
     base_topic = context.config['mqtt']['base_topic']
     discovery_prefix = context.config['mqtt']['discovery_prefix']
-    
+
     device_info = {"identifiers": [base_topic]} # Link to global device
     raw_name = meter_data.get('name')
     instancename = str(meter_id) if not raw_name or str(raw_name).lower() == 'none' else str(raw_name)
@@ -119,7 +120,7 @@ def send_meter_discovery(mqttc: mqtt.Client, meter_id: int, meter_data: Dict[str
     for subkey in ['total', 'today', 'yesterday']:
         unique_id = f"s0pcm_{base_topic}_{meter_id}_{subkey}"
         topic = f"{discovery_prefix}/sensor/{base_topic}/{unique_id}/config"
-        
+
         payload = {
             "name": f"{instancename} {subkey.capitalize()}",
             "unique_id": unique_id,
@@ -181,7 +182,7 @@ def send_meter_discovery(mqttc: mqtt.Client, meter_id: int, meter_data: Dict[str
 def cleanup_meter_discovery(mqttc: mqtt.Client, meter_id: int) -> None:
     """
     Clear discovery for a specific meter ID (useful for purging ghost sensors).
-    
+
     Args:
         mqttc: The connected MQTT client.
         meter_id: The ID of the meter to clear.
@@ -207,5 +208,5 @@ def cleanup_meter_discovery(mqttc: mqtt.Client, meter_id: int) -> None:
     num_uid = f"s0pcm_{base_topic}_{meter_id}_total_config"
     num_topic = f"{discovery_prefix}/number/{base_topic}/{num_uid}/config"
     mqttc.publish(num_topic, "", retain=True)
-    
+
     logger.debug(f"Cleared MQTT discovery for Meter {meter_id}")

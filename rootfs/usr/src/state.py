@@ -8,7 +8,7 @@ import datetime
 import logging
 import sys
 import threading
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class MeterState(BaseModel):
     """Current state of a single meter."""
-    name: Optional[str] = None
+    name: str | None = None
     total: int = 0
     today: int = 0
     yesterday: int = 0
@@ -63,7 +63,7 @@ class MeterState(BaseModel):
 class AppState(BaseModel):
     """Complete application state (measurements and date)."""
     date: datetime.date = Field(default_factory=datetime.date.today)
-    meters: Dict[int, MeterState] = Field(default_factory=dict)
+    meters: dict[int, MeterState] = Field(default_factory=dict)
 
     def __getitem__(self, key: Any) -> Any:
         if key == 'date':
@@ -91,7 +91,7 @@ class AppState(BaseModel):
             return True
         return key in self.meters
 
-    def update(self, data: Dict[Any, Any]) -> None:
+    def update(self, data: dict[Any, Any]) -> None:
         if 'date' in data:
             self.date = data.pop('date')
             if isinstance(self.date, str):
@@ -152,27 +152,27 @@ class AppState(BaseModel):
 class AppContext:
     """
     Application context holding all shared state, locks, and events.
-    
+
     This class is intended to be passed to components, reducing reliance on global state.
     """
     def __init__(self):
         # Threading & Events
         self.lock = threading.RLock()
         self.recovery_event = threading.Event()
-        self.trigger_event: Optional[threading.Event] = None
-        
+        self.trigger_event: threading.Event | None = None
+
         # Application State
         self.state = AppState()
         self.state_share = AppState() # Snapshot for MQTT
-        
+
         # Configuration (To be populated as ConfigModel)
-        self.config: Dict[str, Any] = {}
-        
+        self.config: dict[str, Any] = {}
+
         # Error State
-        self.lasterror_serial: Optional[str] = None
-        self.lasterror_mqtt: Optional[str] = None
-        self.lasterror_share: Optional[str] = None
-        
+        self.lasterror_serial: str | None = None
+        self.lasterror_mqtt: str | None = None
+        self.lasterror_share: str | None = None
+
         # Metadata
         self.startup_time: str = datetime.datetime.now(datetime.timezone.utc).isoformat()
         self.s0pcm_firmware: str = "Unknown"
@@ -182,7 +182,7 @@ class AppContext:
         """Register the main trigger event for MQTT publishing."""
         self.trigger_event = event
 
-    def set_error(self, message: Optional[str], category: str = 'serial', trigger_event: bool = True, level: Optional[int] = None):
+    def set_error(self, message: str | None, category: str = 'serial', trigger_event: bool = True, level: int | None = None):
         """Set or clear an error state."""
         changed = False
         if category == 'serial':
@@ -200,16 +200,16 @@ class AppContext:
                 errors.append(self.lasterror_serial)
             if self.lasterror_mqtt:
                 errors.append(self.lasterror_mqtt)
-            
+
             new_error = " | ".join(errors) if errors else None
-            
+
             with self.lock:
                 self.lasterror_share = new_error
 
             if message:
                 log_level = level if level is not None else logging.ERROR
                 logger.log(log_level, f"[{category.upper()}] {message}")
-            
+
             if trigger_event and self.trigger_event:
                 self.trigger_event.set()
 
@@ -217,7 +217,7 @@ class AppContext:
         """Deprecated: No-op. Persistence is handled via MQTT retained messages."""
         pass
 
-    def read_measurement(self, measurement_file: Optional[str] = None):
+    def read_measurement(self, measurement_file: str | None = None):
         """Deprecated: Startup recovery is now handled by recovery.py."""
         pass
 

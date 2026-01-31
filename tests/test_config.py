@@ -25,7 +25,7 @@ class TestConfigLoading:
         context.config = config_module.read_config().model_dump()
         assert 'mqtt' in context.config
         assert context.config['mqtt']['host'] == '127.0.0.1'
-    
+
     def test_load_config_from_options(self, sample_options, mocker):
         mocker.patch.object(Path, 'exists', return_value=True)
         mocker.patch.object(Path, 'read_text', return_value=json.dumps(sample_options))
@@ -74,12 +74,12 @@ class TestErrorHandling:
         context.lasterror_share = None
         context.lasterror_serial = None # Reset internal state too
         context.lasterror_mqtt = None
-        
+
         # 1. Set error
         context.set_error("Test Error")
         assert context.lasterror_share == "Test Error"
         assert trigger.is_set()
-        
+
         # 2. Clear error
         trigger.clear()
         context.set_error(None)

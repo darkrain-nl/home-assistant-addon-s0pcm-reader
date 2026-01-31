@@ -12,9 +12,9 @@ import threading
 from typing import Any
 
 import config as config_module
-import state as state_module
 from mqtt_handler import TaskDoMQTT
 from serial_handler import TaskReadSerial
+import state as state_module
 from utils import get_version
 
 logger = logging.getLogger(__name__)
@@ -38,10 +38,10 @@ stopper = threading.Event()
 def main() -> None:
     """ Main application entry point. """
     global trigger, stopper
-    
+
     # Initialize Context
     context = state_module.get_context()
-    
+
     version = get_version()
     context.s0pcm_reader_version = version
 

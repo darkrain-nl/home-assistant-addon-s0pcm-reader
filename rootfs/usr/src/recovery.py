@@ -4,16 +4,17 @@ Recovery Module
 Handles state recovery from MQTT retained messages and Home Assistant REST API.
 """
 
+import datetime
 import json
 import logging
-import re
-import urllib.request
 import os
-import datetime
+import re
 import time
-from typing import Dict, List, Any, Optional
+import urllib.request
+from typing import Any
 
 import paho.mqtt.client as mqtt
+
 import state as state_module
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ class StateRecoverer:
         self.recovered_names = {} # {id: name}
         self.context = state_module.get_context()
 
-    def fetch_ha_state(self, entity_id: str) -> Optional[str]:
+    def fetch_ha_state(self, entity_id: str) -> str | None:
         """Fetch the current state of an entity from Home Assistant."""
         token = os.getenv('SUPERVISOR_TOKEN')
         if not token: return None
@@ -46,7 +47,7 @@ class StateRecoverer:
             logger.debug(f"HA API state fetch for {entity_id} failed: {e}")
         return None
 
-    def fetch_all_ha_states(self) -> List[Dict[str, Any]]:
+    def fetch_all_ha_states(self) -> list[dict[str, Any]]:
         """Fetch all entity states from Home Assistant."""
         token = os.getenv('SUPERVISOR_TOKEN')
         if not token: return []
@@ -71,7 +72,7 @@ class StateRecoverer:
                 payload = json.loads(msg.payload.decode())
                 unique_id = payload.get('unique_id', '')
                 state_topic = payload.get('state_topic', '')
-                
+
                 match_id = re.search(fr"s0pcm_{base_topic}_(\d+)", unique_id)
                 if match_id:
                     meter_id = int(match_id.group(1))
@@ -92,7 +93,7 @@ class StateRecoverer:
                         value = int(float(msg.payload.decode()))
                         self.recovered_data.setdefault(identifier, {})[suffix] = value
                     except ValueError: pass
-            
+
             if msg.topic.endswith('/date'):
                 try:
                     dt = datetime.date.fromisoformat(msg.payload.decode())
@@ -114,7 +115,7 @@ class StateRecoverer:
 
         # Subscribe to recovery topics
         topics = [
-            f"{base_topic}/+/total", f"{base_topic}/+/today", 
+            f"{base_topic}/+/total", f"{base_topic}/+/today",
             f"{base_topic}/+/yesterday", f"{base_topic}/+/pulsecount",
             f"{base_topic}/date", f"{discovery_prefix}/sensor/{base_topic}/#"
         ]
@@ -138,21 +139,21 @@ class StateRecoverer:
                     if any(data.get(k, 0) > 0 for k in ['total', 'today', 'pulsecount', 'yesterday']):
                         if i not in self.context.state.meters:
                             self.context.state.meters[i] = state_module.MeterState()
-                        
+
                         meter = self.context.state.meters[i]
                         meter.total = data.get('total', meter.total)
                         meter.today = data.get('today', meter.today)
                         meter.yesterday = data.get('yesterday', meter.yesterday)
                         meter.pulsecount = data.get('pulsecount', meter.pulsecount)
-            
+
             # Second pass: Names (only if ID was already found or if name is solid)
             for mid, name in self.recovered_names.items():
                 if mid not in self.context.state.meters:
                     self.context.state.meters[mid] = state_module.MeterState()
-                
+
                 meter = self.context.state.meters[mid]
                 meter.name = name
-                
+
                 # Check for data under the name topic too (split_topic format)
                 if name in self.recovered_data:
                     meter.total = max(meter.total, self.recovered_data[name].get('total', 0))
@@ -164,10 +165,10 @@ class StateRecoverer:
             ha_states = None
             for mid, meter in self.context.state.meters.items():
                 if meter.total == 0:
-                    if ha_states is None: 
+                    if ha_states is None:
                         logger.info(f"Recovery: Meter {mid} not found on MQTT, attempting HA API fallback...")
                         ha_states = self.fetch_all_ha_states()
-                    
+
                     found_val = self._find_total_in_ha(mid, ha_states)
                     if found_val is not None:
                         meter.total = found_val
@@ -175,21 +176,21 @@ class StateRecoverer:
 
             # Baseline share
             self.context.state_share = self.context.state.model_copy(deep=True)
-            
+
             # Summary logging (Useful for verification)
             for mid, meter in self.context.state.meters.items():
                 logger.info(f"Recovered total for meter {mid}: {meter.total}")
                 logger.info(f"Recovered pulsecount for meter {mid}: {meter.pulsecount}")
                 logger.info(f"Recovered today for meter {mid}: {meter.today}")
                 logger.info(f"Recovered yesterday for meter {mid}: {meter.yesterday}")
-        
+
         logger.info("State Recovery complete.")
 
-    def _find_total_in_ha(self, mid: int, ha_states: List[Dict[str, Any]]) -> Optional[int]:
+    def _find_total_in_ha(self, mid: int, ha_states: list[dict[str, Any]]) -> int | None:
         """Surgically find the total for a meter in a list of HA states."""
         base_topic = self.context.config['mqtt']['base_topic']
         name = self.context.state.meters[mid].name
-        
+
         # Patterns to check
         patterns = [
             f"sensor.{base_topic}_{mid}_total",
@@ -211,14 +212,14 @@ class StateRecoverer:
                     clean_state = state_str
                     for unit in ['m³', 'm3', 'kwh', 'l/min', 'l']:
                         if unit in clean_state: clean_state = clean_state.replace(unit, '')
-                    
+
                     clean_state = "".join(c for c in clean_state if c.isdigit() or c in '.,-')
-                    
+
                     if clean_state.count('.') > 1 or clean_state.count(',') > 1 or (clean_state.count('.') == 1 and clean_state.count(',') == 1):
                         clean_state = clean_state.replace('.', '').replace(',', '')
                     elif clean_state.count(',') == 1 and '.' not in clean_state:
                         clean_state = clean_state.replace(',', '.')
-                    
+
                     clean_state = clean_state.strip()
 
                     try:

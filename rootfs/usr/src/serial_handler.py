@@ -4,13 +4,13 @@ Serial Handler Module
 Contains the TaskReadSerial class for reading and parsing S0PCM data from serial port.
 """
 
-import threading
-import time
 import datetime
 import logging
-from typing import Optional
+import threading
+import time
 
 import serial
+
 import state as state_module
 from protocol import parse_s0pcm_packet
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class TaskReadSerial(threading.Thread):
     """
     Task to read the serial port and update meter measurements.
-    
+
     This thread continuously reads from the configured serial port, parses S0PCM packets,
     and updates the application state.
     """
@@ -27,7 +27,7 @@ class TaskReadSerial(threading.Thread):
     def __init__(self, trigger: threading.Event, stopper: threading.Event) -> None:
         """
         Initialize the serial reader task.
-        
+
         Args:
             trigger: Event to signal when new data is available.
             stopper: Event to signal when the task should stop.
@@ -38,17 +38,17 @@ class TaskReadSerial(threading.Thread):
         self._serialerror = 0
         self.app_context = state_module.get_context()
 
-    def _connect(self) -> Optional[serial.Serial]:
+    def _connect(self) -> serial.Serial | None:
         """
         Established a connection to the serial port.
-        
+
         Returns:
             serial.Serial: The connected serial object, or None if failed and stopped.
         """
         while not self._stopper.is_set():
             logger.debug(f"Opening serialport '{self.app_context.config['serial']['port']}'")
             try:
-                ser = serial.Serial(self.app_context.config['serial']['port'], 
+                ser = serial.Serial(self.app_context.config['serial']['port'],
                                     baudrate=self.app_context.config['serial']['baudrate'],
                                     parity=self.app_context.config['serial']['parity'],
                                     stopbits=self.app_context.config['serial']['stopbits'],
@@ -58,7 +58,7 @@ class TaskReadSerial(threading.Thread):
                 return ser
             except Exception as e:
                 self._serialerror += 1
-                self.app_context.set_error(f"Serialport connection failed: {type(e).__name__}: '{str(e)}'", category='serial')
+                self.app_context.set_error(f"Serialport connection failed: {type(e).__name__}: '{e}'", category='serial')
                 logger.error(f"Retry in {self.app_context.config['serial']['connect_retry']} seconds")
                 time.sleep(self.app_context.config['serial']['connect_retry'])
         return None
@@ -66,7 +66,7 @@ class TaskReadSerial(threading.Thread):
     def _handle_header(self, datastr: str) -> None:
         """
         Parse header packet to extract firmware version.
-        
+
         Args:
             datastr: Raw header string from serial port.
         """
@@ -82,7 +82,7 @@ class TaskReadSerial(threading.Thread):
     def _handle_data_packet(self, datastr: str) -> None:
         """
         Parse data packet and update measurements in state.
-        
+
         Args:
             datastr: Raw data packet string from serial port.
         """
@@ -91,7 +91,7 @@ class TaskReadSerial(threading.Thread):
         try:
             parsed_data = parse_s0pcm_packet(datastr)
         except ValueError as e:
-            self.app_context.set_error(f"Invalid Packet: {str(e)}. Packet: '{datastr}'", category='serial')
+            self.app_context.set_error(f"Invalid Packet: {e}. Packet: '{datastr}'", category='serial')
             return
 
         with self.app_context.lock:
@@ -100,19 +100,19 @@ class TaskReadSerial(threading.Thread):
 
             # Update shared state snapshot for MQTT
             self.app_context.state_share = self.app_context.state.model_copy(deep=True)
-        
+
         # Clear serial error
         self.app_context.set_error(None, category='serial')
-        
+
         # Signal MQTT task that new data is available
         self._trigger.set()
 
     def _update_meter(self, meter_id: int, pulsecount: int) -> None:
         """
         Update logic for a single meter.
-        
+
         Handles day-rollover and pulsecount increment/reset logic.
-        
+
         Args:
             meter_id: The ID of the meter to update.
             pulsecount: The current pulsecount from the device.
@@ -120,19 +120,19 @@ class TaskReadSerial(threading.Thread):
         # Ensure meter exists
         if meter_id not in self.app_context.state.meters:
             self.app_context.state.meters[meter_id] = state_module.MeterState()
-        
+
         meter = self.app_context.state.meters[meter_id]
-        
+
         # Handle day-rollover
         today = datetime.date.today()
         if self.app_context.state.date != today:
              logger.debug(f"Day changed from '{self.app_context.state.date}' to '{today}', rolling over counter '{meter_id}'.")
              meter.yesterday = meter.today
              meter.today = 0
-             # Note: context.state.date update should ideally happen once. 
+             # Note: context.state.date update should ideally happen once.
              # We'll update it here so subsequent meters in the same packet also see the change.
              self.app_context.state.date = today
-        
+
         # Check delta and update
         if pulsecount > meter.pulsecount:
             logger.debug(f"Pulsecount changed from '{meter.pulsecount}' to '{pulsecount}' for meter {meter_id}")
@@ -147,7 +147,7 @@ class TaskReadSerial(threading.Thread):
                 self.app_context.set_error(f"S0PCM Reset detected for meter {meter_id}: Pulsecounters cleared. Restoring from total {meter.total}.", category='serial', level=logging.WARNING)
             else:
                 self.app_context.set_error(f"Pulsecount anomaly detected for meter {meter_id}: Stored pulsecount '{meter.pulsecount}' is higher than read '{pulsecount}'.", category='serial')
-            
+
             delta = pulsecount
             meter.pulsecount = pulsecount
             meter.total += delta
@@ -156,7 +156,7 @@ class TaskReadSerial(threading.Thread):
     def _read_loop(self, ser: serial.Serial) -> None:
         """
         Continuous read loop from serial port.
-        
+
         Args:
             ser: The connected serial object.
         """
@@ -164,9 +164,9 @@ class TaskReadSerial(threading.Thread):
             try:
                 datain = ser.readline()
             except Exception as e:
-                self.app_context.set_error(f"Serialport read error: {type(e).__name__}: '{str(e)}'", category='serial')
+                self.app_context.set_error(f"Serialport read error: {type(e).__name__}: '{e}'", category='serial')
                 break # Break to reconnect
-            
+
             if len(datain) == 0:
                 # Timeout
                 self.app_context.set_error("Serialport read timeout: Failed to read any data", category='serial')
@@ -175,7 +175,7 @@ class TaskReadSerial(threading.Thread):
             try:
                 datastr = datain.decode('ascii').rstrip('\r\n')
             except UnicodeDecodeError:
-                self.app_context.set_error(f"Failed to decode serial data: '{str(datain)}'", category='serial')
+                self.app_context.set_error(f"Failed to decode serial data: '{datain}'", category='serial')
                 continue
 
             if datastr.startswith('/'):

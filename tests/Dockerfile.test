@@ -28,5 +28,5 @@ ENV PYTHONPATH=/workspace
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Default command runs all tests with verbose output
-CMD ["pytest", "tests/", "-v", "--tb=short"]
+# Default command runs linting then tests
+CMD sh -c "ruff check . && ruff format --check . && pytest tests/ -v --tb=short"
