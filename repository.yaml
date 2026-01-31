@@ -1,3 +1,4 @@
 name: S0PCM-Reader
-url: 'https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader'
-maintainer: darkrain-nl <jan@darkrain.nl>
+description: Home Assistant Apps for S0PCM Reader
+url: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader"
+maintainer: darkrain-nl

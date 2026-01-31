@@ -1,6 +1,6 @@
 # S0PCM Reader Tests
 
-This directory contains the comprehensive test suite for the S0PCM Reader Home Assistant addon.
+This directory contains the comprehensive test suite for the S0PCM Reader Home Assistant app.
 
 ## 🚀 Quick Start
 

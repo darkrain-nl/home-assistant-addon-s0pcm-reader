@@ -4,11 +4,11 @@ build_from:
   aarch64: ghcr.io/home-assistant/aarch64-base-python:3.14-alpine3.23
   amd64: ghcr.io/home-assistant/amd64-base-python:3.14-alpine3.23
 labels:
-  io.hass.type: homeassistant-base
-  org.opencontainers.image.title: Home Assistant Core baseimage
-  org.opencontainers.image.description: Baseimage for Home Assistant Core container/supervisor installation
-  org.opencontainers.image.source: https://github.com/home-assistant/docker
-  org.opencontainers.image.authors: The Home Assistant Authors
-  org.opencontainers.image.url: https://www.home-assistant.io/
-  org.opencontainers.image.documentation: https://www.home-assistant.io/docs/
-  org.opencontainers.image.licenses: Apache License 2.0
+  io.hass.type: addon
+  org.opencontainers.image.title: "S0PCM Reader"
+  org.opencontainers.image.description: "S0PCM reader based on docker-s0pcm-reader"
+  org.opencontainers.image.source: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader"
+  org.opencontainers.image.authors: "darkrain-nl"
+  org.opencontainers.image.url: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader"
+  org.opencontainers.image.documentation: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/blob/main/DOCS.md"
+  org.opencontainers.image.licenses: "Apache-2.0"
