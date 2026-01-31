@@ -73,6 +73,7 @@ jobs:
 
       - name: Run tests in container
         run: |
+          docker run --rm \
             -v "$(pwd)/tests:/workspace/tests:ro" \
             s0pcm-reader-test
 
@@ -90,7 +91,7 @@ jobs:
         run: docker compose -f tests/standalone/docker-compose.yml up -d
 
       - name: Wait for startup
-        run: sleep 10
+        run: sleep 30
 
       - name: Check App Health
         run: |

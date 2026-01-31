@@ -45,7 +45,7 @@ else {
 
 Write-Host "Running Standalone Integration Tests..." -ForegroundColor Blue
 docker compose -f tests/standalone/docker-compose.yml up -d --build
-Start-Sleep -Seconds 10
+Start-Sleep -Seconds 20
 $appState = docker inspect -f '{{.State.Running}}' standalone-app-1
 
 if ($appState -eq "true") {

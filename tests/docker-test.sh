@@ -22,7 +22,7 @@ echo -e "${GREEN}Unit Tests completed!${NC}"
 
 echo -e "${BLUE}Running Standalone Integration Tests...${NC}"
 docker compose -f tests/standalone/docker-compose.yml up -d --build
-sleep 10
+sleep 20
 APP_STATE=$(docker inspect -f '{{.State.Running}}' standalone-app-1)
 
 if [ "$APP_STATE" == "true" ]; then
