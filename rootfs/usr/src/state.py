@@ -28,122 +28,12 @@ class MeterState(BaseModel):
     pulsecount: int = 0
     enabled: bool = True
 
-    def __getitem__(self, key: str) -> Any:
-        return getattr(self, key)
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        setattr(self, key, value)
-
-    def get(self, key: str, default: Any = None) -> Any:
-        return getattr(self, key, default)
-
-    def setdefault(self, key: str, default: Any) -> Any:
-        if not hasattr(self, key) or getattr(self, key) is None:
-            setattr(self, key, default)
-        return getattr(self, key)
-
-    def pop(self, key: str, default: Any = None) -> Any:
-        val = getattr(self, key, default)
-        if hasattr(self, key):
-            setattr(self, key, None)  # Or default value? Models usually don't "remove" fields
-        return val
-
-    def keys(self):
-        return self.model_fields.keys()
-
-    def items(self):
-        return self.model_dump().items()
-
-    def __iter__(self):
-        return iter(self.keys())
-
-    def __contains__(self, key: str) -> bool:
-        return hasattr(self, key) and getattr(self, key) is not None
-
 
 class AppState(BaseModel):
     """Complete application state (measurements and date)."""
 
     date: datetime.date = Field(default_factory=datetime.date.today)
     meters: dict[int, MeterState] = Field(default_factory=dict)
-
-    def __getitem__(self, key: Any) -> Any:
-        if key == "date":
-            return self.date
-        return self.meters[key]
-
-    def __setitem__(self, key: Any, value: Any) -> None:
-        if key == "date":
-            if isinstance(value, str):
-                try:
-                    self.date = datetime.date.fromisoformat(value)
-                except ValueError:
-                    # Fallback or log? For tests, we'll try to keep going
-                    pass
-            else:
-                self.date = value
-        else:
-            if isinstance(value, dict):
-                self.meters[key] = MeterState(**value)
-            else:
-                self.meters[key] = value
-
-    def __contains__(self, key: Any) -> bool:
-        if key == "date":
-            return True
-        return key in self.meters
-
-    def update(self, data: dict[Any, Any]) -> None:
-        if "date" in data:
-            self.date = data.pop("date")
-            if isinstance(self.date, str):
-                try:
-                    self.date = datetime.date.fromisoformat(self.date)
-                except ValueError:
-                    pass
-
-        for k, v in data.items():
-            try:
-                meter_id = int(k)
-                if isinstance(v, dict):
-                    if meter_id not in self.meters:
-                        self.meters[meter_id] = MeterState(**v)
-                    else:
-                        # Update existing model fields
-                        for field, val in v.items():
-                            if hasattr(self.meters[meter_id], field):
-                                setattr(self.meters[meter_id], field, val)
-                elif isinstance(v, MeterState):
-                    self.meters[meter_id] = v
-                else:
-                    # Possibly a legacy object or weird state
-                    pass
-            except (ValueError, TypeError):
-                continue
-
-    def get(self, key: Any, default: Any = None) -> Any:
-        if key == "date":
-            return self.date
-        return self.meters.get(key, default)
-
-    def keys(self):
-        return [*list(self.meters.keys()), "date"]
-
-    def values(self):
-        return [*list(self.meters.values()), self.date]
-
-    def items(self):
-        return [*list(self.meters.items()), ("date", self.date)]
-
-    def __iter__(self):
-        return iter(self.keys())
-
-    def pop(self, key: Any, default: Any = None) -> Any:
-        if key == "date":
-            val = self.date
-            self.date = datetime.date.today()
-            return val
-        return self.meters.pop(key, default)
 
     def reset_state(self) -> None:
         """Reset state to defaults."""

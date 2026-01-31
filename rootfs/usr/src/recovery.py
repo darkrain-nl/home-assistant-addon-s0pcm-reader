@@ -23,11 +23,11 @@ logger = logging.getLogger(__name__)
 class StateRecoverer:
     """Helper class to manage the startup state recovery phase."""
 
-    def __init__(self, mqttc: mqtt.Client):
+    def __init__(self, context: state_module.AppContext, mqttc: mqtt.Client):
         self.mqttc = mqttc
         self.recovered_data = {}  # {identifier: {'total': X}}
         self.recovered_names = {}  # {id: name}
-        self.context = state_module.get_context()
+        self.context = context
 
     def fetch_ha_state(self, entity_id: str) -> str | None:
         """Fetch the current state of an entity from Home Assistant."""
@@ -130,8 +130,8 @@ class StateRecoverer:
         for t in topics:
             self.mqttc.subscribe(t)
 
-        logger.info("Recovery: Waiting 7s for MQTT retained messages...")
-        time.sleep(7)
+        logger.info("Recovery: Waiting 3s for MQTT retained messages...")
+        time.sleep(3)
 
         # Cleanup subscriptions
         for t in topics:
@@ -140,21 +140,23 @@ class StateRecoverer:
 
         # Sync mapped data
         with self.context.lock:
-            # First pass: direct IDs
-            for i in range(1, 6):
-                id_str = str(i)
-                if id_str in self.recovered_data:
-                    data = self.recovered_data[id_str]
-                    # Only initialize if there is actually data beyond zeroes
-                    if any(data.get(k, 0) > 0 for k in ["total", "today", "pulsecount", "yesterday"]):
-                        if i not in self.context.state.meters:
-                            self.context.state.meters[i] = state_module.MeterState()
+            # First pass: discovered IDs from MQTT
+            for id_str, data in self.recovered_data.items():
+                try:
+                    meter_id = int(id_str)
+                except ValueError:
+                    continue
 
-                        meter = self.context.state.meters[i]
-                        meter.total = data.get("total", meter.total)
-                        meter.today = data.get("today", meter.today)
-                        meter.yesterday = data.get("yesterday", meter.yesterday)
-                        meter.pulsecount = data.get("pulsecount", meter.pulsecount)
+                # Only initialize if there is actually data beyond zeroes
+                if any(data.get(k, 0) > 0 for k in ["total", "today", "pulsecount", "yesterday"]):
+                    if meter_id not in self.context.state.meters:
+                        self.context.state.meters[meter_id] = state_module.MeterState()
+
+                    meter = self.context.state.meters[meter_id]
+                    meter.total = data.get("total", meter.total)
+                    meter.today = data.get("today", meter.today)
+                    meter.yesterday = data.get("yesterday", meter.yesterday)
+                    meter.pulsecount = data.get("pulsecount", meter.pulsecount)
 
             # Second pass: Names (only if ID was already found or if name is solid)
             for mid, name in self.recovered_names.items():

@@ -8,8 +8,6 @@ import pytest
 
 import state as state_module
 
-# --- From test_helpers.py ---
-
 
 def test_state_set_error_caching():
     """Test SetError behavior and shared state update."""
@@ -36,77 +34,10 @@ def test_state_set_error_caching():
     assert context.lasterror_share is None
 
 
-def test_meter_state_dict_interface():
-    """Test MeterState dict-like interface."""
-    meter = state_module.MeterState(name="Water", total=1000, today=50)
-
-    # Test __getitem__
-    assert meter["name"] == "Water"
-    assert meter["total"] == 1000
-
-    # Test __setitem__
-    meter["total"] = 1100
-    assert meter.total == 1100
-
-    # Test get
-    assert meter.get("today") == 50
-    assert meter.get("nonexistent", "default") == "default"
-
-    # Test setdefault
-    val = meter.setdefault("yesterday", 40)
-    assert val == 0
-    assert meter.yesterday == 0
-
-    # Test setdefault on None field
-    meter.name = None
-    val = meter.setdefault("name", "DefaultName")
-    assert val == "DefaultName"
-    assert meter.name == "DefaultName"
-
-    # Test keys, items, __contains__
-    assert "name" in meter.keys()
-    assert ("total", 1100) in meter.items()
-    assert "name" in meter
-
-
-def test_app_state_dict_interface():
-    """Test AppState dict-like interface."""
-    app_state = state_module.AppState()
-
-    # Test __setitem__ with dict
-    app_state[1] = {"total": 500, "today": 25}
-    assert 1 in app_state.meters
-    assert app_state.meters[1].total == 500
-
-    # Test __getitem__
-    assert app_state[1].total == 500
-    assert app_state["date"] == datetime.date.today()
-
-    # Test __contains__
-    assert 1 in app_state
-    assert "date" in app_state
-    assert 99 not in app_state
-
-    # Test update
-    app_state.update({2: {"total": 300, "today": 15}})
-    assert 2 in app_state.meters
-    assert app_state[2].total == 300
-
-    # Test keys, values, items
-    keys = list(app_state.keys())
-    assert 1 in keys
-    assert "date" in keys
-
-    # Test pop
-    meter = app_state.pop(1)
-    assert meter.total == 500
-    assert 1 not in app_state.meters
-
-
 def test_app_state_reset():
     """Test AppState reset_state method."""
     app_state = state_module.AppState()
-    app_state[1] = {"total": 1000}
+    app_state.meters[1] = state_module.MeterState(total=1000)
     app_state.date = datetime.date(2025, 1, 1)
 
     app_state.reset_state()
@@ -161,51 +92,19 @@ def test_app_context_deprecated_methods():
     context.read_measurement()
 
 
-def test_app_state_dict_extra():
-    """Test AppState dict extras."""
+def test_app_state_metadata():
+    """Test AppState metadata."""
+    context = state_module.AppContext()
+    assert context.startup_time is not None
+
+
+def test_app_state_iter():
+    """Test AppState iterator."""
     state = state_module.AppState()
-    state.meters[1] = state_module.MeterState(name="Test")
+    state.meters[1] = state_module.MeterState(total=100)
 
-    # Test get
-    assert state.get("date") == state.date
-    assert state.get(1).name == "Test"
-    assert state.get(999, "MISSING") == "MISSING"
-
-    # Test pop date (should return current and reset to today)
-    old_date = datetime.date(2020, 1, 1)
-    state.date = old_date
-    popped = state.pop("date")
-    assert popped == old_date
-    assert state.date == datetime.date.today()
-
-    # Test pop meter
-    popped_meter = state.pop(1)
-    assert popped_meter.name == "Test"
-    assert 1 not in state
-    assert state.pop(999, "NONE") == "NONE"
-
-
-def test_meter_state_pop():
-    """Test MeterState pop method."""
-    meter = state_module.MeterState(name="Water", total=100)
-
-    # Pop existing field (sets to None)
-    val = meter.pop("name")
-    assert val == "Water"
-    assert meter.name is None
-
-    # Pop nonexistent
-    assert meter.pop("nonexistent", "default") == "default"
-
-
-def test_app_state_values_items_iter():
-    """Test AppState values, items and iterator."""
-    state = state_module.AppState()
-    state[1] = {"total": 100}
-
-    assert len(list(state.values())) >= 1
-    assert len(list(state.items())) >= 1
-    assert "date" in [k for k in state]
+    assert 1 in state.meters
+    assert "date" in state.model_fields
 
 
 def test_meter_state_initial_values():
@@ -216,25 +115,19 @@ def test_meter_state_initial_values():
     assert m.yesterday == 0
 
 
-# --- From test_measurement_logic.py ---
-
-
-def test_state_update_id_conversion():
-    """Test that meter IDs are converted from strings to integers during update."""
-    context = state_module.get_context()
+def test_state_id_lookup():
+    """Test meter ID lookup in AppState."""
+    context = state_module.AppContext()
     context.state.reset_state()
-    sample_data = {"1": {"total": 100, "pulsecount": 10}}
-    context.state.update(sample_data)
+    context.state.meters[1] = state_module.MeterState(total=100, pulsecount=10)
     assert 1 in context.state.meters
-    assert "1" not in context.state.meters
     assert context.state.meters[1].total == 100
 
 
-def test_state_date_parsing():
-    """Test standard date parsing in AppState."""
+def test_state_date_update():
+    """Test date update in AppState."""
     state = state_module.AppState()
-    sample_data = {"date": "2026-01-20"}
-    state.update(sample_data)
+    state.date = datetime.date.fromisoformat("2026-01-20")
     assert isinstance(state.date, datetime.date)
     assert state.date.year == 2026
     assert state.date.day == 20
@@ -248,91 +141,51 @@ def test_state_default_initialization():
     assert len(state.meters) == 0
 
 
-def test_state_update_invalid_keys():
-    """Test behavior when update data contains non-integer keys."""
+def test_state_meter_assignment():
+    """Test behavior when assigning meters."""
     state = state_module.AppState()
-    sample_data = {"invalid": {"total": 100}, "2": {"total": 200}}
-    state.update(sample_data)
-    assert "invalid" not in state.meters
+    state.meters[2] = state_module.MeterState(total=200)
     assert 2 in state.meters
     assert state.meters[2].total == 200
 
 
-# --- From test_state_missing.py ---
-
-
-def test_meter_state_iter():
-    """Test iterating over MeterState (line 58)."""
+def test_meter_state_dump():
+    """Test dumping MeterState to dict."""
     m = state_module.MeterState(name="Test")
-    keys = list(m)
-    assert "name" in keys
-    assert "total" in keys
+    data = m.model_dump()
+    assert data["name"] == "Test"
+    assert "total" in data
 
 
-def test_app_state_setitem_date():
-    """Test __setitem__ for date (lines 76-84)."""
+def test_app_state_date_string():
+    """Test date string conversion."""
     app_state = state_module.AppState()
-
-    # 1. String valid
-    app_state["date"] = "2023-01-01"
-    assert app_state.date == datetime.date(2023, 1, 1)
-
-    # 2. String invalid (should pass/ignore)
-    app_state["date"] = "invalid-date"
-    # Should remain unchanged
-    assert app_state.date == datetime.date(2023, 1, 1)
-
-    # 3. Date object
-    today = datetime.date.today()
-    app_state["date"] = today
-    assert app_state.date == today
+    app_state.date = datetime.date.fromisoformat("2023-01-01")
+    assert str(app_state.date) == "2023-01-01"
 
 
-def test_app_state_update_date_exception():
-    """Test update with invalid date string (lines 102-103)."""
-    app_state = state_module.AppState()
-    app_state.update({"date": "bad-date"})
-    assert app_state.date == "bad-date"
-
-
-def test_app_state_update_existing_meter():
-    """Test update merging into existing meter (lines 113-115) and legacy (119-120)."""
+def test_app_state_meter_update():
+    """Test update merging into existing meter."""
     app_state = state_module.AppState()
     app_state.meters[1] = state_module.MeterState(total=10)
-
-    # Update existing
-    app_state.update({"1": {"total": 20, "name": "Updated"}})
+    app_state.meters[1].total = 20
+    app_state.meters[1].name = "Updated"
     assert app_state.meters[1].total == 20
     assert app_state.meters[1].name == "Updated"
 
-    # Update with non-dict legacy/weird
-    app_state.update({"2": "NotADictOrMeterState"})
-    # Should ignore (lines 118-120)
-    assert 2 not in app_state.meters
 
-
-def test_app_state_update_with_meter_state():
-    """Test update with MeterState object (line 117)."""
-    app_state = state_module.AppState()
-    meter = state_module.MeterState(name="DirectObject")
-
-    app_state.update({"3": meter})
-    assert 3 in app_state.meters
-    assert app_state.meters[3].name == "DirectObject"
-
-
-def test_app_state_setitem_direct_meter():
-    """Test AppState.__setitem__ with direct MeterState object (line 89)."""
+def test_app_state_direct_meter():
+    """Test AppState with direct MeterState object."""
     app_state = state_module.AppState()
     meter = state_module.MeterState(total=500, today=50)
-    app_state[1] = meter  # Direct assignment, not dict
+    app_state.meters[1] = meter
     assert app_state.meters[1] is meter
     assert app_state.meters[1].total == 500
 
 
 def test_deprecated_methods():
     """Test deprecated methods for coverage."""
-    context = state_module.get_context()
+    context = state_module.AppContext()
     context.save_measurement()
     context.read_measurement()
 

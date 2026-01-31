@@ -67,13 +67,11 @@ def main() -> None:
     logger.info("Starting s0pcm-reader...")
 
     # Start our SerialPort thread
-    # FUTURE: Pass context directly to tasks
-    t1 = TaskReadSerial(trigger, stopper)
+    t1 = TaskReadSerial(context, trigger, stopper)
     t1.start()
 
     # Start our MQTT thread
-    # FUTURE: Pass context directly to tasks
-    t2 = TaskDoMQTT(trigger, stopper)
+    t2 = TaskDoMQTT(context, trigger, stopper)
     t2.start()
 
     # Wait for threads to finish

@@ -40,7 +40,8 @@ def s0pcm_packets():
 
 class TestSerialPacketParsing:
     def test_handle_data_packet_updates_measurement(self, s0pcm_packets, mocker):
-        task = TaskReadSerial(threading.Event(), threading.Event())
+        context = state_module.get_context()
+        task = TaskReadSerial(context, threading.Event(), threading.Event())
         mocker.patch.object(task.app_context, "set_error")
 
         data_str = s0pcm_packets["s0pcm2_data"].decode("ascii").rstrip("\r\n")
@@ -51,7 +52,8 @@ class TestSerialPacketParsing:
         assert context.state.meters[1].total == 100
 
     def test_invalid_packet_sets_error(self, s0pcm_packets, mocker):
-        task = TaskReadSerial(threading.Event(), threading.Event())
+        context = state_module.get_context()
+        task = TaskReadSerial(context, threading.Event(), threading.Event())
         mock_set_error = mocker.patch.object(task.app_context, "set_error")
         task._handle_data_packet("ID:8237:I:10:M1:0:100")  # Too short
         assert mock_set_error.called
@@ -61,45 +63,45 @@ class TestPulseCountLogic:
     def test_pulse_increment(self):
         # Initialize meter properly using state_module models
         context = state_module.get_context()
-        context.state[1] = {"pulsecount": 100, "total": 1000, "today": 50}
-        task = TaskReadSerial(None, None)
+        context.state.meters[1] = state_module.MeterState(pulsecount=100, total=1000, today=50)
+        task = TaskReadSerial(context, None, None)
         task._update_meter(1, 110)
-        assert context.state[1].total == 1010
-        assert context.state[1].today == 60
+        assert context.state.meters[1].total == 1010
+        assert context.state.meters[1].today == 60
 
     def test_pulse_reset_detection(self):
         context = state_module.get_context()
-        context.state[1] = {"pulsecount": 100, "total": 1000, "today": 50}
-        task = TaskReadSerial(None, None)
+        context.state.meters[1] = state_module.MeterState(pulsecount=100, total=1000, today=50)
+        task = TaskReadSerial(context, None, None)
         task._update_meter(1, 10)  # Restarted (pulsecount reset to 10)
         # Total should increase by 10
-        assert context.state[1].total == 1010
+        assert context.state.meters[1].total == 1010
 
     def test_pulse_anomaly(self):
         """Test pulsecount anomaly (lower but not 0) (lines 162-165)."""
         context = state_module.get_context()
-        context.state[1] = {"pulsecount": 100, "total": 1000}
-        task = TaskReadSerial(None, None)
+        context.state.meters[1] = state_module.MeterState(pulsecount=100, total=1000)
+        task = TaskReadSerial(context, None, None)
         task._update_meter(1, 90)  # Lower than 100, not 0
         # Should record error
         assert context.lasterror_serial is not None
         assert "Pulsecount anomaly" in context.lasterror_serial
         # Should NOT increase total (delta is 90? No, delta is new pulsecount if < old?)
         # Logic: delta = pulsecount (line 167). Total += 90.
-        assert context.state[1].total == 1090
+        assert context.state.meters[1].total == 1090
 
     def test_update_meter_uninitialized(self):
-        context = state_module.get_context()
-        task = TaskReadSerial(None, None)
+        context = state_module.AppContext()
+        task = TaskReadSerial(context, None, None)
         task._update_meter(1, 5)
         assert 1 in context.state.meters
-        assert context.state[1].total == 5
+        assert context.state.meters[1].total == 5
 
 
 class TestSerialPacketAdvanced:
     def test_handle_header_parsing(self):
         context = state_module.get_context()
-        task = TaskReadSerial(None, None)
+        task = TaskReadSerial(context, None, None)
 
         # Verify context identity
         assert task.app_context is context
@@ -111,7 +113,8 @@ class TestSerialPacketAdvanced:
     def test_read_loop_decoding_error(self, mocker):
         mock_ser = MagicMock()
         mock_ser.readline.side_effect = [b"\xff\xfe\xfd", b""]
-        task = TaskReadSerial(None, threading.Event())
+        context = state_module.get_context()
+        task = TaskReadSerial(context, None, threading.Event())
         mock_set_error = mocker.patch.object(task.app_context, "set_error")
         task._read_loop(mock_ser)
         assert any("Failed to decode" in str(c) for c in mock_set_error.call_args_list)
@@ -130,7 +133,7 @@ class TestSerialConnection:
             "timeout": None,
             "connect_retry": 5,
         }
-        task = TaskReadSerial(None, threading.Event())
+        task = TaskReadSerial(context, None, threading.Event())
         mock_serial.return_value = MagicMock()
         assert task._connect() is not None
 
@@ -141,13 +144,13 @@ class TestDayChange:
         yesterday = datetime.date.today() - datetime.timedelta(days=1)
         # Set date in state
         context.state.date = yesterday
-        context.state[1] = {"pulsecount": 100, "total": 1000, "today": 50}
+        context.state.meters[1] = state_module.MeterState(pulsecount=100, total=1000, today=50)
 
-        task = TaskReadSerial(None, None)
+        task = TaskReadSerial(context, None, None)
         task._update_meter(1, 110)
 
-        assert context.state[1].yesterday == 50
-        assert context.state[1].today == 10
+        assert context.state.meters[1].yesterday == 50
+        assert context.state.meters[1].today == 10
         assert context.state.date == datetime.date.today()
 
 
@@ -175,7 +178,7 @@ def serial_task_missing():
     context.state.meters = {}
     context.lasterror_serial = None
 
-    return TaskReadSerial(trigger, stopper)
+    return TaskReadSerial(context, trigger, stopper)
 
 
 def test_connect_exception_retry(serial_task_missing, mocker):
@@ -307,7 +310,7 @@ def test_task_read_serial_loop_execution(mocker):
     context.config.update({"serial": {"connect_retry": 0.1}})
 
     stopper = threading.Event()
-    task = TaskReadSerial(threading.Event(), stopper)
+    task = TaskReadSerial(context, threading.Event(), stopper)
 
     # CRITICAL: Serial task waits for recovery event!
     context.recovery_event.set()

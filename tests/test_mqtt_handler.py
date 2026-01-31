@@ -59,7 +59,7 @@ def mqtt_task():
     context.lasterror_share = None
     context.state.reset_state()
 
-    return TaskDoMQTT(trigger, stopper)
+    return TaskDoMQTT(context, trigger, stopper)
 
 
 class TestTLSSetup:
@@ -206,7 +206,6 @@ class TestMessageHandling:
     def test_handle_set_command_by_id(self, mqtt_task):
         """Test handling set command using meter ID."""
         mqtt_task.app_context.state.meters[1] = state_module.MeterState(total=1000)
-        mqtt_task.app_context.state.meters[1] = state_module.MeterState(total=1000)
         # mqtt_task._trigger is already a MagicMock from fixture
 
         msg = MagicMock()
@@ -220,7 +219,6 @@ class TestMessageHandling:
 
     def test_handle_set_command_by_name(self, mqtt_task):
         """Test handling set command using meter name."""
-        mqtt_task.app_context.state.meters[1] = state_module.MeterState(name="Water", total=1000)
         mqtt_task.app_context.state.meters[1] = state_module.MeterState(name="Water", total=1000)
         # mqtt_task._trigger is already a MagicMock from fixture
 
@@ -426,8 +424,6 @@ class TestMainLoop:
         """Test that discovery is only sent once."""
         mqtt_task._connected = True
         mqtt_task._mqttc = MagicMock()
-        mqtt_task._connected = True
-        mqtt_task._mqttc = MagicMock()
         # Trigger and stopper are already MagicMocks from fixture
 
         mock_send_global = mocker.patch("mqtt_handler.discovery.send_global_discovery")
@@ -458,8 +454,6 @@ class TestMainLoop:
 
     def test_main_loop_error_publish_exception(self, mqtt_task):
         """Test exception handling in _main_loop when publishing errors."""
-        mqtt_task._connected = True
-        mqtt_task._mqttc = MagicMock()
         mqtt_task._connected = True
         mqtt_task._mqttc = MagicMock()
         # Stopper and trigger are already MagicMocks from fixture

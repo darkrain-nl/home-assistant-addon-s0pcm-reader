@@ -25,11 +25,12 @@ class TaskReadSerial(threading.Thread):
     and updates the application state.
     """
 
-    def __init__(self, trigger: threading.Event, stopper: threading.Event) -> None:
+    def __init__(self, context: state_module.AppContext, trigger: threading.Event, stopper: threading.Event) -> None:
         """
         Initialize the serial reader task.
 
         Args:
+            context: Application context.
             trigger: Event to signal when new data is available.
             stopper: Event to signal when the task should stop.
         """
@@ -37,7 +38,7 @@ class TaskReadSerial(threading.Thread):
         self._trigger = trigger
         self._stopper = stopper
         self._serialerror = 0
-        self.app_context = state_module.get_context()
+        self.app_context = context
 
     def _connect(self) -> serial.Serial | None:
         """

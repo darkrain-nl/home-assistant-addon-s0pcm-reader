@@ -28,11 +28,12 @@ class TaskDoMQTT(threading.Thread):
     subscribing to commands, and publishing meter data and diagnostics.
     """
 
-    def __init__(self, trigger: threading.Event, stopper: threading.Event) -> None:
+    def __init__(self, context: state_module.AppContext, trigger: threading.Event, stopper: threading.Event) -> None:
         """
         Initialize the MQTT task.
 
         Args:
+            context: Application context.
             trigger: Event to signal when work (publishing) is needed.
             stopper: Event to signal when the task should stop.
         """
@@ -47,17 +48,17 @@ class TaskDoMQTT(threading.Thread):
         self._last_diagnostics: dict[str, Any] = {}
         self._last_info_payload: str | None = None
         self._last_error_msg: str | None = None
-        self.app_context = state_module.get_context()
+        self.app_context = context
 
     def _recover_state(self) -> None:
         """Startup phase: Use StateRecoverer to restore totals."""
-        recoverer = StateRecoverer(self._mqttc)
+        recoverer = StateRecoverer(self.app_context, self._mqttc)
         recoverer.run()
         self._recovery_complete = True
         self.app_context.recovery_event.set()
 
     def on_connect(self, mqttc, obj, flags, reason_code, properties):
-        context = state_module.get_context()
+        context = self.app_context
         if reason_code == 0:
             self._connected = True
             logger.info("MQTT successfully connected to broker")
@@ -74,7 +75,7 @@ class TaskDoMQTT(threading.Thread):
             context.set_error(f"MQTT failed to connect to broker: {mqtt.connack_string(reason_code)}", category="mqtt")
 
     def on_disconnect(self, mqttc, obj, flags, reason_code, properties):
-        context = state_module.get_context()
+        context = self.app_context
         self._connected = False
         if reason_code != 0:
             context.set_error(
@@ -90,7 +91,7 @@ class TaskDoMQTT(threading.Thread):
             self._handle_name_set(msg)
 
     def _handle_set_command(self, msg):
-        context = state_module.get_context()
+        context = self.app_context
         try:
             parts = msg.topic.split("/")
             identifier = parts[-3]
@@ -130,7 +131,7 @@ class TaskDoMQTT(threading.Thread):
             context.set_error(f"Failed to process MQTT set command: {e}", category="mqtt")
 
     def _handle_name_set(self, msg):
-        context = state_module.get_context()
+        context = self.app_context
         try:
             parts = msg.topic.split("/")
             identifier = parts[-3]
@@ -173,7 +174,7 @@ class TaskDoMQTT(threading.Thread):
             context.set_error(f"Failed to process MQTT name/set command: {e}", category="mqtt")
 
     def _setup_mqtt_client(self, use_tls):
-        context = state_module.get_context()
+        context = self.app_context
         self._mqttc = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2,
             client_id=context.config["mqtt"]["client_id"],
@@ -216,7 +217,7 @@ class TaskDoMQTT(threading.Thread):
         return True
 
     def _connect_loop(self):
-        context = state_module.get_context()
+        context = self.app_context
         use_tls = context.config["mqtt"]["tls"]
         fallback_happened = False
 
@@ -256,7 +257,7 @@ class TaskDoMQTT(threading.Thread):
                     time.sleep(context.config["mqtt"]["connect_retry"])
 
     def _publish_diagnostics(self):
-        context = state_module.get_context()
+        context = self.app_context
         try:
             current_diagnostics = {
                 "version": context.s0pcm_reader_version,
@@ -285,7 +286,7 @@ class TaskDoMQTT(threading.Thread):
     def _publish_measurements(
         self, state_snapshot: state_module.AppState, previous_snapshot: state_module.AppState | None
     ):
-        context = state_module.get_context()
+        context = self.app_context
 
         # Date
         current_date_str = str(state_snapshot.date)
@@ -337,7 +338,7 @@ class TaskDoMQTT(threading.Thread):
                 logger.debug(f"MQTT Publish: topic='{topic}', value='{json.dumps(jsondata)}'")
 
     def _main_loop(self):
-        context = state_module.get_context()
+        context = self.app_context
         previous_snapshot = None
 
         while not self._stopper.is_set():
@@ -386,7 +387,7 @@ class TaskDoMQTT(threading.Thread):
             self._trigger.clear()
 
     def run(self):
-        context = state_module.get_context()
+        context = self.app_context
         try:
             while not self._stopper.is_set():
                 self._connect_loop()
