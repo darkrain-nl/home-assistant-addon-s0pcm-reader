@@ -125,4 +125,4 @@ If you encounter issues or have suggestions, please [open an issue](https://gith
 [installations-shield-stable]: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fanalytics.home-assistant.io%2Faddons.json&query=%24%5B%224a252ed0_s0pcm_reader%22%5D.total&label=Reported%20Installations&color=0382B9&style=flat-square
 [installations-link]: https://analytics.home-assistant.io/add-ons
 [my-ha-shield]: https://img.shields.io/badge/Add%20to-Home%20Assistant-41BDF5?style=flat-square&logo=home-assistant
-[my-ha]: https://my.home-assistant.io/redirect/supervisor_add_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fdarkrain-nl%2Fhome-assistant-addon-s0pcm-reader
+[my-ha]: https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fdarkrain-nl%2Fhome-assistant-addon-s0pcm-reader
