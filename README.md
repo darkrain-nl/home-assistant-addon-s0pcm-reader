@@ -1,8 +1,6 @@
 # S0PCM Reader for Home Assistant
 
-[![GitHub Release][releases-shield]][releases]
-[![Add to Home Assistant][my-ha-shield]][my-ha]
-![Reported Installations][installations-shield-stable]
+[![GitHub Release][releases-shield]][releases] [![Add to Home Assistant][my-ha-shield]][my-ha] [![Reported Installations][installations-shield-stable]][installations-link]
 
 An easy-to-use Home Assistant App that reads pulse counters from an **S0PCM-2** or **S0PCM-5** device and sends the data to Home Assistant via MQTT.
 
@@ -122,8 +120,9 @@ To run the full verification suite locally:
 
 If you encounter issues or have suggestions, please [open an issue](https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/issues) on GitHub.
 
-[releases-shield]: https://img.shields.io/github/v/release/darkrain-nl/home-assistant-addon-s0pcm-reader?include_prereleases
+[releases-shield]: https://img.shields.io/github/v/release/darkrain-nl/home-assistant-addon-s0pcm-reader?include_prereleases&style=flat-square
 [releases]: https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/releases
-[installations-shield-stable]: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fanalytics.home-assistant.io%2Faddons.json&query=%24%5B%224a252ed0_s0pcm_reader%22%5D.total&label=Reported%20Installations&link=https%3A%2F%2Fanalytics.home-assistant.io/add-ons
+[installations-shield-stable]: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fanalytics.home-assistant.io%2Faddons.json&query=%24%5B%224a252ed0_s0pcm_reader%22%5D.total&label=Reported%20Installations&color=0382B9&style=flat-square
+[installations-link]: https://analytics.home-assistant.io/add-ons
 [my-ha-shield]: https://my.home-assistant.io/badges/repository.svg
 [my-ha]: https://my.home-assistant.io/redirect/supervisor_add_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fdarkrain-nl%2Fhome-assistant-addon-s0pcm-reader
