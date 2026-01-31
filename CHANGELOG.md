@@ -6,32 +6,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   
 ## [3.0.0] - 2026-01-31
 ### Changed
-- **Modular Architecture overhaul**: Successfully refactored the monolithic `s0pcm_reader.py` (nearly 1500 lines) into a clean, modular structure. Core logic is now distributed across focused modules: `config`, `state`, `utils`, `protocol`, `serial_handler`, `mqtt_handler`, and `discovery`.
+- **Modular Architecture overhaul**: Successfully refactored the monolithic `s0pcm_reader.py` (nearly 1500 lines) into a clean, modular structure. Core logic is now distributed across focused modules: `config`, `state`, `utils`, `protocol`, `serial_handler`, `mqtt_handler`, and `recovery`.
+- **Dependency Injection**: Refactored task handlers (Serial, MQTT, Recovery) to use dependency injection, receiving `AppContext` directly during initialization instead of relying on global state.
+- **Clean State Models**: Streamlined `MeterState` and `AppState` by removing legacy dictionary-compatibility methods, enforcing idiomatic Pydantic attribute access.
+- **Optimized Recovery Phase**: Reduced startup recovery wait from 7s to 3s, significantly speeding up addon initialization while maintaining data integrity.
+- **Dynamic Meter Detection**: Refactored the recovery engine to automatically detect active meters from MQTT retained messages, eliminating hardcoded meter ranges (1-5).
 - **Type-Safe State Management**: Introduced **Pydantic v2** models for configuration and meter state, providing deep validation and clear data structures.
 - **Centralized Thread-Safe Context**: Implemented an explicit `AppContext` singleton pattern to manage shared state, locks, and events across threads, eliminating messy global variables.
-- **Improved Maintainability**: Threading logic, configuration loading, and protocol parsing are now isolated and properly encapsulated.
-- **Enhanced Logging Visibility**: Restored full DEBUG log availability by centralizing logger configuration at the root level and ensuring uniform propagation across all modular components. Standardized log format to `LEVEL: message` for better Home Assistant compatibility.
+- **Enhanced Logging Visibility**: Restored full DEBUG log availability by centralizing logger configuration at the root level and ensuring uniform propagation across all modular components.
 - **Modern Python Standards**: Added PEP 484 type hints across the entire codebase and standardized on Google-style docstrings.
 
 ### Added
 - **Standalone Docker Support**: Introduced `Dockerfile.standalone` for running the application in a standard Docker container outside of Home Assistant Supervisor.
-- **End-to-End Verification Suite**: Added a comprehensive `docker-compose`-based test suite in `tests/standalone/` that spins up the app, a simulated serial S0PCM device (`socket://`), and an MQTT broker to verify full system integration.
-- **CI/CD Integration**: Added a verification job to GitHub Actions that builds and runs the standalone stack on every push, ensuring end-to-end reliability.
-- **Simulation Support**: Updated `serial_handler.py` to support `socket://` URLs, allowing development and testing against simulated hardware over TCP.
-- **Startup Diagnostics**: Added Python version and Container OS details to the app startup logs for better troubleshooting.
+- **End-to-End Verification Suite**: Added a comprehensive `docker-compose`-based test suite in `tests/standalone/` that spins up the app, a simulated serial S0PCM device (`socket://`), and an MQTT broker.
+- **CI/CD Integration**: Added a verification job to GitHub Actions that builds and runs the standalone stack on every push.
+- **Simulation Support**: Updated `serial_handler.py` to support `socket://` URLs for development against simulated hardware.
 
 ### Fixed
-- **Code Quality**: Applied strict **Ruff** linting and formatting across the entire codebase, resolving all style violations and import sorting issues.
-- **Log Visibility**: Elevated MQTT connection success messages to `INFO` level to ensure connection status is visible in standard logs (and verifyable in CI).
-- **Test Robustness**: Increased startup wait times in CI pipelines to prevent race conditions on slower runners.
-- **Module Compatibility Layer**: Implemented a sophisticated `ModuleType` proxy in `state.py` to ensure that legacy tests and scripts assigning directly to module attributes (e.g., `state.measurement = ...`) remain fully functional while synchronizing with the new central context.
-- **State Recovery Logic**: Restored robust recovery logic that correctly rebuilds meter mappings from discovery messages and MQTT retained stats.
-- **Day Change Consistency**: Fixed a bug where "today" counters could fail to reset correctly under certain startup sequences by synchronizing shared state references.
-- **Python 3.14 Compatibility**: Resolved a critical naming collision with `threading.Thread._context` by renaming internal context references to `app_context`, preventing runtime crashes.
-- **Test Infrastructure**: Fully modularized the test suite, achieving a 100% pass rate (**150 tests**) with **98% code coverage** across all core components. Implemented comprehensive lazy import strategy to ensure accurate coverage tracking.
-- **Quality Tooling Integration**: Configured **Ruff** in `pyproject.toml` for high-performance linting and formatting, ensuring consistent code quality across all modules.
-- **Codebase Sanitization**: Completed a full purge of legacy "CamelCase" aliases and special module proxies. Standardized on strict `AppContext` usage for all state interactions.
-- **Legacy Cleanup**: Completely purged all remaining logic for the deprecated `measurement.json` local file storage, removing confusing startup warnings.
+- **Code Quality**: Applied strict **Ruff** linting and formatting across the entire codebase.
+- **Python 3.14 Compatibility**: Resolved a critical naming collision with `threading.Thread._context` by renaming internal context references to `app_context`.
+- **Test Infrastructure**: Fully modularized the test suite, achieving a 100% pass rate (**145 tests**) with **97% code coverage** across all core components.
+- **Legacy Cleanup**: Completely purged all remaining logic for the deprecated `measurement.json` local file storage and "CamelCase" aliases.
 
 ## [2.3.6] - 2026-01-24
 ### Fixed
