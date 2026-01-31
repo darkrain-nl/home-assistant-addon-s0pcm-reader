@@ -81,6 +81,33 @@ Tests run automatically via GitHub Actions on every push to `main` and `dev`. Re
 
 ---
 
+## 📡 Hardware Simulation & Integrated Testing
+
+### 1. Serial-over-TCP Simulation
+The S0PCM Reader supports `socket://<host>:<port>` URLs in the `device` configuration. This allows testing against simulated hardware over a network.
+
+- **Example**: Set `"device": "socket://127.0.0.1:2000"` in `options.json`.
+- **Packet Format**: The app expects standard S0PCM hex telegrams (e.g. `ID:0 ...`) followed by `\n`.
+
+### 2. Standalone Verification Suite
+For full end-to-end testing, we use a dedicated Docker Compose stack located in `tests/standalone/`. This stack includes:
+- **App**: The S0PCM Reader configured for standalone mode.
+- **Simulator**: A Python-based TCP server (`simulator.py`) that generates virtual S0PCM packets.
+- **MQTT**: A Mosquitto broker with a healthcheck configuration.
+
+To run the verification suite:
+```bash
+docker compose -f tests/standalone/docker-compose.yml up --build --exit-code-from app
+```
+
+### 3. Integrated Test Runners
+The `docker-test.ps1` (Windows) and `docker-test.sh` (Linux) scripts perform the following steps:
+1. Build and run the **Unit Test** container.
+2. Build and run the **Standalone Verification** stack.
+3. Verify that the app successfully connects to MQTT in the integrated environment.
+
+---
+
 ## 🔧 Troubleshooting
 
 ### Pytest Cache / Read-only Filesystems

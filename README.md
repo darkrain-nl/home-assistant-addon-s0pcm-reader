@@ -95,6 +95,16 @@ Detailed documentation, including configuration guides and advanced settings, ca
 ### [Full Documentation (GitHub)](https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/blob/main/DOCS.md)
 *Use this link if you are viewing the repository on GitHub.*
 
+## 🧪 Development & Testing
+
+This project maintains high reliability through multiple testing layers including Unit Tests, Hardware Simulation (`socket://`), and a Standalone Verification Suite.
+
+Detailed instructions for running tests and simulators can be found in [tests/README.md](tests/README.md).
+
+To run the full verification suite locally:
+- **Windows**: `PowerShell -File ./tests/docker-test.ps1`
+- **Linux/macOS**: `./tests/docker-test.sh`
+
 ## 🤝 Support
 
 If you encounter issues or have suggestions, please [open an issue](https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/issues) on GitHub.

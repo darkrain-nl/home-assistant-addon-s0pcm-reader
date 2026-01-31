@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
-## [3.0.0] - 2026-01-30
+## [3.0.0] - 2026-01-31
 ### Changed
 - **Modular Architecture overhaul**: Successfully refactored the monolithic `s0pcm_reader.py` (nearly 1500 lines) into a clean, modular structure. Core logic is now distributed across focused modules: `config`, `state`, `utils`, `protocol`, `serial_handler`, `mqtt_handler`, and `discovery`.
 - **Type-Safe State Management**: Introduced **Pydantic v2** models for configuration and meter state, providing deep validation and clear data structures.
@@ -14,9 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Modern Python Standards**: Added PEP 484 type hints across the entire codebase and standardized on Google-style docstrings.
 
 ### Added
+- **Standalone Docker Support**: Introduced `Dockerfile.standalone` for running the application in a standard Docker container outside of Home Assistant Supervisor.
+- **End-to-End Verification Suite**: Added a comprehensive `docker-compose`-based test suite in `tests/standalone/` that spins up the app, a simulated serial S0PCM device (`socket://`), and an MQTT broker to verify full system integration.
+- **CI/CD Integration**: Added a verification job to GitHub Actions that builds and runs the standalone stack on every push, ensuring end-to-end reliability.
+- **Simulation Support**: Updated `serial_handler.py` to support `socket://` URLs, allowing development and testing against simulated hardware over TCP.
 - **Startup Diagnostics**: Added Python version and Container OS details to the app startup logs for better troubleshooting.
 
 ### Fixed
+- **Code Quality**: Applied strict **Ruff** linting and formatting across the entire codebase, resolving all style violations and import sorting issues.
+- **Log Visibility**: Elevated MQTT connection success messages to `INFO` level to ensure connection status is visible in standard logs (and verifyable in CI).
+- **Test Robustness**: Increased startup wait times in CI pipelines to prevent race conditions on slower runners.
 - **Module Compatibility Layer**: Implemented a sophisticated `ModuleType` proxy in `state.py` to ensure that legacy tests and scripts assigning directly to module attributes (e.g., `state.measurement = ...`) remain fully functional while synchronizing with the new central context.
 - **State Recovery Logic**: Restored robust recovery logic that correctly rebuilds meter mappings from discovery messages and MQTT retained stats.
 - **Day Change Consistency**: Fixed a bug where "today" counters could fail to reset correctly under certain startup sequences by synchronizing shared state references.
