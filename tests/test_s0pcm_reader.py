@@ -14,6 +14,7 @@ import pytest
 def test_main_initialization(mocker):
     """Test that main() initializes config and starts tasks."""
     import s0pcm_reader
+
     # Mock dependencies to prevent real initialization or threads
     mocker.patch("config.read_config")
     mock_t1_class = mocker.patch("s0pcm_reader.TaskReadSerial")
@@ -24,7 +25,7 @@ def test_main_initialization(mocker):
     mock_t2 = MagicMock()
 
     # Make them 'not alive' immediately so main exits
-    mocker.patch("time.sleep") # Prevent sleep delays
+    mocker.patch("time.sleep")  # Prevent sleep delays
 
     # Needs to simulate being alive initially to enter loop, then dead to exit
     # OR, since main() waits for them to be alive, we can just make them dead immediately
@@ -65,6 +66,7 @@ def test_main_initialization(mocker):
 def test_signal_handler(mocker):
     """Test the internal signal handler sets stopper and trigger."""
     import s0pcm_reader
+
     mocker.patch("config.read_config")
     mocker.patch("s0pcm_reader.TaskReadSerial")
     mocker.patch("s0pcm_reader.TaskDoMQTT")
@@ -106,6 +108,7 @@ def test_signal_handler(mocker):
 def test_main_config_exception_exit(mocker):
     """Test main exit on config exception (lines 60-62)."""
     import s0pcm_reader
+
     # Defensive: Mock tasks to be dead on arrival, preventing infinite loop in main
     # if the exception is missed.
     mock_t1_cls = mocker.patch("s0pcm_reader.TaskReadSerial")
@@ -126,15 +129,18 @@ def test_main_config_exception_exit(mocker):
 
     assert excinfo.value.code == 1
 
+
 def test_init_args_coverage():
     """Test init_args function coverage (line 55)."""
     import s0pcm_reader
+
     # We can just call it to cover the function definition, even if not run in main
     # But init_args parses sys.argv. We should mock argparse.
     with patch("argparse.ArgumentParser.parse_args") as mock_parse:
         mock_parse.return_value.config = "/tmp/test"
         s0pcm_reader.init_args()
         assert s0pcm_reader.config_module.configdirectory.startswith("/tmp/test")
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

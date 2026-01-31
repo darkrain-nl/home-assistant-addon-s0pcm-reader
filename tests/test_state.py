@@ -1,6 +1,7 @@
 """
 Tests for state management (state.py).
 """
+
 import datetime
 
 import pytest
@@ -8,6 +9,7 @@ import pytest
 import state as state_module
 
 # --- From test_helpers.py ---
+
 
 def test_state_set_error_caching():
     """Test SetError behavior and shared state update."""
@@ -32,6 +34,7 @@ def test_state_set_error_caching():
     # Clear all
     context.set_error(None, category="mqtt")
     assert context.lasterror_share is None
+
 
 def test_meter_state_dict_interface():
     """Test MeterState dict-like interface."""
@@ -64,6 +67,7 @@ def test_meter_state_dict_interface():
     assert "name" in meter.keys()
     assert ("total", 1100) in meter.items()
     assert "name" in meter
+
 
 def test_app_state_dict_interface():
     """Test AppState dict-like interface."""
@@ -98,6 +102,7 @@ def test_app_state_dict_interface():
     assert meter.total == 500
     assert 1 not in app_state.meters
 
+
 def test_app_state_reset():
     """Test AppState reset_state method."""
     app_state = state_module.AppState()
@@ -108,6 +113,7 @@ def test_app_state_reset():
 
     assert len(app_state.meters) == 0
     assert app_state.date == datetime.date.today()
+
 
 def test_app_context_initialization():
     """Test AppContext initialization."""
@@ -121,6 +127,7 @@ def test_app_context_initialization():
     assert context.lasterror_mqtt is None
     assert context.s0pcm_firmware == "Unknown"
 
+
 def test_app_context_register_trigger():
     """Test AppContext register_trigger method."""
     import threading
@@ -131,6 +138,7 @@ def test_app_context_register_trigger():
     context.register_trigger(trigger)
 
     assert context.trigger_event is trigger
+
 
 def test_app_context_set_error_with_trigger():
     """Test AppContext set_error triggers event."""
@@ -145,11 +153,13 @@ def test_app_context_set_error_with_trigger():
     assert trigger.is_set()
     assert context.lasterror_serial == "Test Error"
 
+
 def test_app_context_deprecated_methods():
     """Test deprecated save/read measurement methods are no-ops."""
     context = state_module.AppContext()
     context.save_measurement()
     context.read_measurement()
+
 
 def test_app_state_dict_extra():
     """Test AppState dict extras."""
@@ -174,6 +184,7 @@ def test_app_state_dict_extra():
     assert 1 not in state
     assert state.pop(999, "NONE") == "NONE"
 
+
 def test_meter_state_pop():
     """Test MeterState pop method."""
     meter = state_module.MeterState(name="Water", total=100)
@@ -186,6 +197,7 @@ def test_meter_state_pop():
     # Pop nonexistent
     assert meter.pop("nonexistent", "default") == "default"
 
+
 def test_app_state_values_items_iter():
     """Test AppState values, items and iterator."""
     state = state_module.AppState()
@@ -195,6 +207,7 @@ def test_app_state_values_items_iter():
     assert len(list(state.items())) >= 1
     assert "date" in [k for k in state]
 
+
 def test_meter_state_initial_values():
     """Test initial values of MeterState."""
     m = state_module.MeterState()
@@ -202,7 +215,9 @@ def test_meter_state_initial_values():
     assert m.today == 0
     assert m.yesterday == 0
 
+
 # --- From test_measurement_logic.py ---
+
 
 def test_state_update_id_conversion():
     """Test that meter IDs are converted from strings to integers during update."""
@@ -214,6 +229,7 @@ def test_state_update_id_conversion():
     assert "1" not in context.state.meters
     assert context.state.meters[1].total == 100
 
+
 def test_state_date_parsing():
     """Test standard date parsing in AppState."""
     state = state_module.AppState()
@@ -223,12 +239,14 @@ def test_state_date_parsing():
     assert state.date.year == 2026
     assert state.date.day == 20
 
+
 def test_state_default_initialization():
     """Test default state initialization."""
     state = state_module.AppState()
     assert isinstance(state.date, datetime.date)
     assert state.date == datetime.date.today()
     assert len(state.meters) == 0
+
 
 def test_state_update_invalid_keys():
     """Test behavior when update data contains non-integer keys."""
@@ -239,7 +257,9 @@ def test_state_update_invalid_keys():
     assert 2 in state.meters
     assert state.meters[2].total == 200
 
+
 # --- From test_state_missing.py ---
+
 
 def test_meter_state_iter():
     """Test iterating over MeterState (line 58)."""
@@ -247,6 +267,7 @@ def test_meter_state_iter():
     keys = list(m)
     assert "name" in keys
     assert "total" in keys
+
 
 def test_app_state_setitem_date():
     """Test __setitem__ for date (lines 76-84)."""
@@ -266,11 +287,13 @@ def test_app_state_setitem_date():
     app_state["date"] = today
     assert app_state.date == today
 
+
 def test_app_state_update_date_exception():
     """Test update with invalid date string (lines 102-103)."""
     app_state = state_module.AppState()
     app_state.update({"date": "bad-date"})
     assert app_state.date == "bad-date"
+
 
 def test_app_state_update_existing_meter():
     """Test update merging into existing meter (lines 113-115) and legacy (119-120)."""
@@ -286,6 +309,7 @@ def test_app_state_update_existing_meter():
     app_state.update({"2": "NotADictOrMeterState"})
     # Should ignore (lines 118-120)
     assert 2 not in app_state.meters
+
 
 def test_app_state_update_with_meter_state():
     """Test update with MeterState object (line 117)."""

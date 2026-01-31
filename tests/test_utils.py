@@ -1,6 +1,7 @@
 """
 Tests for helper modules (utils.py).
 """
+
 import json
 import os
 from unittest.mock import MagicMock
@@ -15,11 +16,13 @@ def test_get_version_from_env(mocker):
     mocker.patch.dict(os.environ, {"S0PCM_READER_VERSION": "3.1.0"})
     assert utils.get_version() == "3.1.0"
 
+
 def test_get_version_fallback(mocker):
     """Test GetVersion fallback when env is missing."""
     mocker.patch.dict(os.environ, {}, clear=True)
     mocker.patch("os.path.exists", return_value=False)
     assert utils.get_version() == "dev"
+
 
 def test_get_version_config_yaml(mocker, temp_config_dir):
     """Test GetVersion reading from config.yaml."""
@@ -39,6 +42,7 @@ def test_get_version_config_yaml(mocker, temp_config_dir):
     version = utils.get_version()
     assert "3.0.0-test" in version
 
+
 def test_get_version_invalid_yaml(mocker, temp_config_dir):
     """Test get_version handles invalid YAML gracefully."""
     mocker.patch.dict(os.environ, {}, clear=True)
@@ -55,6 +59,7 @@ def test_get_version_invalid_yaml(mocker, temp_config_dir):
     # Should fall back to 'dev' because our file is invalid
     assert utils.get_version() == "dev"
 
+
 def test_get_version_yaml_no_version_key(mocker, temp_config_dir):
     """Test get_version when YAML exists but has no version key."""
     mocker.patch.dict(os.environ, {}, clear=True)
@@ -70,10 +75,12 @@ def test_get_version_yaml_no_version_key(mocker, temp_config_dir):
 
     assert utils.get_version() == "dev"
 
+
 def test_get_supervisor_config_no_token(mocker):
     """Test GetSupervisorConfig when token is missing."""
     mocker.patch.dict(os.environ, {}, clear=True)
     assert utils.get_supervisor_config("mqtt") == {}
+
 
 def test_get_supervisor_config_success(mocker):
     """Test successful Supervisor API config fetch."""
@@ -95,6 +102,7 @@ def test_get_supervisor_config_success(mocker):
     assert result["port"] == 1883
     assert result["username"] == "mqtt_user"
 
+
 def test_get_supervisor_config_api_error(mocker):
     """Test Supervisor API handles errors gracefully."""
     mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
@@ -103,6 +111,7 @@ def test_get_supervisor_config_api_error(mocker):
     result = utils.get_supervisor_config("mqtt")
 
     assert result == {}
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

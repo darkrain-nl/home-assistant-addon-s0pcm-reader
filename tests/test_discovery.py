@@ -12,6 +12,7 @@ import state as state_module
 def test_send_global_discovery(mocker):
     """Test global discovery message publishing."""
     import discovery
+
     mock_mqttc = MagicMock()
     context = state_module.get_context()
     context.config["mqtt"] = {
@@ -41,6 +42,7 @@ def test_send_global_discovery(mocker):
 def test_send_meter_discovery(mocker):
     """Test meter discovery message publishing."""
     import discovery
+
     mock_mqttc = MagicMock()
     context = state_module.get_context()
     context.config["mqtt"] = {
@@ -66,6 +68,7 @@ def test_send_meter_discovery(mocker):
 def test_discovery_disabled(mocker):
     """Test behavior when discovery is disabled."""
     import discovery
+
     mock_mqttc = MagicMock()
     context = state_module.get_context()
     context.config["mqtt"] = {"discovery": False}
@@ -81,6 +84,7 @@ def test_discovery_disabled(mocker):
 def test_send_global_discovery_with_units(mocker):
     """Test send_global_discovery with custom diagnostics including units (line 93)."""
     import discovery
+
     context = state_module.get_context()
     context.s0pcm_reader_version = "3.0.0"
     context.config = {
@@ -122,6 +126,7 @@ def test_send_global_discovery_with_units(mocker):
 def test_send_meter_discovery_split_topic():
     """Test meter discovery with split_topic enabled."""
     import discovery
+
     context = state_module.get_context()
     context.config = {
         "mqtt": {
@@ -142,18 +147,12 @@ def test_send_meter_discovery_split_topic():
     assert payload["state_topic"] == "s0pcm/test/total"
 
 
-
 def test_cleanup_meter_discovery_enabled():
     """Test cleanup_meter_discovery with discovery enabled (lines 199-217)."""
     import discovery
+
     context = state_module.get_context()
-    context.config = {
-        "mqtt": {
-            "discovery": True,
-            "base_topic": "s0pcmreader",
-            "discovery_prefix": "homeassistant"
-        }
-    }
+    context.config = {"mqtt": {"discovery": True, "base_topic": "s0pcmreader", "discovery_prefix": "homeassistant"}}
     mqttc = MagicMock()
 
     discovery.cleanup_meter_discovery(mqttc, 5)
@@ -170,6 +169,7 @@ def test_cleanup_meter_discovery_enabled():
 def test_cleanup_meter_discovery_disabled():
     """Test that cleanup does nothing if discovery is disabled."""
     import discovery
+
     context = state_module.get_context()
     context.config = {"mqtt": {"discovery": False}}
     mqttc = MagicMock()
@@ -181,6 +181,7 @@ def test_cleanup_meter_discovery_disabled():
 def test_send_meter_discovery_combined_topic(mocker):
     """Test discovery payload when split_topic is False."""
     import discovery
+
     context = state_module.get_context()
     context.config["mqtt"] = {
         "discovery": True,

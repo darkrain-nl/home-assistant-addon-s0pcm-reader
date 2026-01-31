@@ -41,6 +41,7 @@ class TestConfigLoading:
 class TestCLI:
     def test_init_args_custom(self, mocker):
         import s0pcm_reader
+
         # Use patch.object on sys.argv
         with patch.object(sys, "argv", ["s0pcm_reader", "--config", "/custom/path"]):
             s0pcm_reader.init_args()
@@ -97,25 +98,27 @@ class TestErrorHandling:
 class TestConfigCoverage:
     def test_read_config_options_exception(self):
         """Test exception handling during options.json load (lines 118-119)."""
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("pathlib.Path.read_text", side_effect=Exception("Read Error")), \
-             patch("config.logger.error") as mock_logger:
-
-             config_module.read_config()
-             assert mock_logger.called
-             assert "Failed to load" in mock_logger.call_args[0][0]
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("pathlib.Path.read_text", side_effect=Exception("Read Error")),
+            patch("config.logger.error") as mock_logger,
+        ):
+            config_module.read_config()
+            assert mock_logger.called
+            assert "Failed to load" in mock_logger.call_args[0][0]
 
     def test_read_config_mqtt_discovery_log(self, mocker):
         """Test logging when MQTT service discovery is used (line 126)."""
         # Mock get_supervisor_config to return data
-        with patch("config.get_supervisor_config", return_value={"host": "1.2.3.4"}), \
-             patch("config.logger.info") as mock_logger:
+        with (
+            patch("config.get_supervisor_config", return_value={"host": "1.2.3.4"}),
+            patch("config.logger.info") as mock_logger,
+        ):
+            config_module.read_config()
 
-             config_module.read_config()
-
-             # One of the calls should be the discovery message
-             found = any("Using MQTT service discovery" in str(c) for c in mock_logger.call_args_list)
-             assert found
+            # One of the calls should be the discovery message
+            found = any("Using MQTT service discovery" in str(c) for c in mock_logger.call_args_list)
+            assert found
 
     def test_read_config_compat_dict(self):
         """Test backwards compatibility dict population (lines 176-179)."""

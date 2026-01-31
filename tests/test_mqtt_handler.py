@@ -24,6 +24,7 @@ import state as state_module
 def mqtt_task():
     """Create a TaskDoMQTT instance for testing."""
     from mqtt_handler import TaskDoMQTT
+
     trigger = MagicMock()
     stopper = MagicMock()
     stopper.is_set.return_value = False
@@ -263,7 +264,7 @@ class TestMessageHandling:
         """Test exception handling in _handle_set_command."""
         context = state_module.get_context()
         msg = MagicMock()
-        msg.topic = None # Causes Exception on split
+        msg.topic = None  # Causes Exception on split
         mqtt_task._handle_set_command(msg)
         assert "Failed to process MQTT set command" in context.lasterror_share
 
@@ -414,7 +415,7 @@ class TestPublishingLogic:
         mqtt_task._publish_measurements(state_snapshot, None)
 
         published_topics = [str(call.args[0]) for call in mqtt_task._mqttc.publish.call_args_list]
-        assert any("/1/" in topic or "Water" in topic for topic in published_topics) # Check for ID or Name
+        assert any("/1/" in topic or "Water" in topic for topic in published_topics)  # Check for ID or Name
         assert not any("/2/" in topic for topic in published_topics)
 
 
@@ -492,8 +493,6 @@ class TestMainLoop:
             assert mock_logger.called
             assert "Fatal MQTT exception" in mock_logger.call_args[0][0]
             assert mqtt_task._stopper.set.called
-
-
 
 
 def test_handle_name_set_triggers_discovery(mqtt_task, mocker):

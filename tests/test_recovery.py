@@ -407,25 +407,29 @@ class TestRecoveryFlow:
         assert recoverer.context.state.meters[1].total == 5000
 
         meter = recoverer.context.state.meters[1]
-        assert meter.name is None # Name not recovered/set in this test
+        assert meter.name is None  # Name not recovered/set in this test
         # These fields are not updated by fetch_all_ha_states (only totals)
-        assert meter.today == 0 # Default
-        assert meter.yesterday == 0 # Default
-        assert meter.pulsecount == 0 # Default
+        assert meter.today == 0  # Default
+        assert meter.yesterday == 0  # Default
+        assert meter.pulsecount == 0  # Default
 
 
 class TestRecoveryExceptions:
     def test_fetch_ha_state_exception(self, recoverer):
         """Test fetch_ha_state exception handling (lines 48-49)."""
-        with patch("os.getenv", return_value="TOKEN"), \
-             patch("urllib.request.urlopen", side_effect=Exception("API Error")):
+        with (
+            patch("os.getenv", return_value="TOKEN"),
+            patch("urllib.request.urlopen", side_effect=Exception("API Error")),
+        ):
             res = recoverer.fetch_ha_state("sensor.test")
             assert res is None
 
     def test_fetch_all_ha_states_exception(self, recoverer):
         """Test fetch_all_ha_states exception handling (lines 65-67)."""
-        with patch("os.getenv", return_value="TOKEN"), \
-             patch("urllib.request.urlopen", side_effect=Exception("API Error")):
+        with (
+            patch("os.getenv", return_value="TOKEN"),
+            patch("urllib.request.urlopen", side_effect=Exception("API Error")),
+        ):
             res = recoverer.fetch_all_ha_states()
             assert res == []
 
@@ -471,8 +475,6 @@ class TestRecoveryExceptions:
         val = recoverer._find_total_in_ha(1, states)
         assert val is None
 
-
-
     def test_on_message_date_error(self, recoverer):
         """Test on_message date parsing error (lines 106-107)."""
         msg = MagicMock()
@@ -509,7 +511,6 @@ class TestRecoveryExceptions:
         assert val == 1000
 
 
-
 def test_run_name_data_merge(recoverer, mocker):
     """Test name-based data merging with max() logic (lines 169-172)."""
     mocker.patch("time.sleep")
@@ -518,7 +519,7 @@ def test_run_name_data_merge(recoverer, mocker):
     recoverer.recovered_names = {1: "WaterMeter"}
     recoverer.recovered_data = {
         "1": {"total": 100},
-        "WaterMeter": {"total": 150, "today": 15, "yesterday": 5, "pulsecount": 20}
+        "WaterMeter": {"total": 150, "today": 15, "yesterday": 5, "pulsecount": 20},
     }
 
     recoverer.run()

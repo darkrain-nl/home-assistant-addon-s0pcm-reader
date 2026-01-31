@@ -75,7 +75,6 @@ class TestPulseCountLogic:
         # Total should increase by 10
         assert context.state[1].total == 1010
 
-
     def test_pulse_anomaly(self):
         """Test pulsecount anomaly (lower but not 0) (lines 162-165)."""
         context = state_module.get_context()
@@ -151,7 +150,9 @@ class TestDayChange:
         assert context.state[1].today == 10
         assert context.state.date == datetime.date.today()
 
+
 # --- From test_serial_missing.py ---
+
 
 @pytest.fixture
 def serial_task_missing():
@@ -168,7 +169,7 @@ def serial_task_missing():
             "stopbits": 1,
             "bytesize": 8,
             "timeout": 1,
-            "connect_retry": 0.01
+            "connect_retry": 0.01,
         }
     }
     context.state.meters = {}
@@ -176,15 +177,17 @@ def serial_task_missing():
 
     return TaskReadSerial(trigger, stopper)
 
+
 def test_connect_exception_retry(serial_task_missing, mocker):
     """Test _connect exception handling and retry (lines 64-71)."""
     mock_serial = MagicMock()
 
     # First call raises Exception, second call returns mock_serial
     # This forces the loop to run once with an exception, covering lines 64-70
-    with patch("serial.serial_for_url", side_effect=[Exception("Connection Failed"), mock_serial]), \
-         patch("time.sleep") as mock_sleep:
-
+    with (
+        patch("serial.serial_for_url", side_effect=[Exception("Connection Failed"), mock_serial]),
+        patch("time.sleep") as mock_sleep,
+    ):
         ser = serial_task_missing._connect()
 
         assert ser == mock_serial
@@ -192,6 +195,7 @@ def test_connect_exception_retry(serial_task_missing, mocker):
         # Check that an error was logged/set
         assert serial_task_missing.app_context.lasterror_serial is not None
         assert "Connection Failed" in serial_task_missing.app_context.lasterror_serial
+
 
 def test_handle_header_fallback(serial_task_missing):
     """Test _handle_header fallback paths (lines 86-88)."""
@@ -202,9 +206,11 @@ def test_handle_header_fallback(serial_task_missing):
     # Test exception fallback (line 86-87)
     class BadString:
         def __contains__(self, item):
-            return True # trigger first branch
+            return True  # trigger first branch
+
         def split(self, *args, **kwargs):
             raise Exception("Split failed")
+
         def __str__(self):
             return "BadString"
 
@@ -212,6 +218,7 @@ def test_handle_header_fallback(serial_task_missing):
     serial_task_missing._handle_header(bad_str)
     # Should fall back to assigning the object itself
     assert serial_task_missing.app_context.s0pcm_firmware == bad_str
+
 
 def test_update_meter_reset_logging(serial_task_missing):
     """Test _update_meter reset logging (line 156)."""
@@ -225,6 +232,7 @@ def test_update_meter_reset_logging(serial_task_missing):
         assert context.lasterror_serial is not None
         assert "S0PCM Reset detected" in context.lasterror_serial
 
+
 def test_read_loop_errors(serial_task_missing):
     """Test _read_loop read error and junk packet (lines 182-184, 204)."""
     mock_serial = MagicMock()
@@ -237,13 +245,14 @@ def test_read_loop_errors(serial_task_missing):
 
     # Reset for next part
     serial_task_missing.app_context.lasterror_serial = None
-    serial_task_missing._stopper.is_set.side_effect = [False, True] # Run once
+    serial_task_missing._stopper.is_set.side_effect = [False, True]  # Run once
 
     # 2. Junk Packet (lines 204)
     mock_serial.readline.side_effect = [b"JUNK_DATA\r\n"]
 
     serial_task_missing._read_loop(mock_serial)
     assert "Invalid Packet: 'JUNK_DATA'" in serial_task_missing.app_context.lasterror_serial
+
 
 def test_run_fatal_exception(serial_task_missing, mocker):
     """Test run fatal exception (line 219-220)."""
@@ -265,12 +274,7 @@ def test_read_loop_header(serial_task_missing):
     # 2. ID Packet (hits 199-200)
     # 3. Empty string decoded (hits 201-202)
     # 4. Empty bytes (hits 186 -> break)
-    mock_serial.readline.side_effect = [
-        b"/HEADER:V1\r\n",
-        b"ID:123\r\n",
-        b"\r\n",
-        b""
-    ]
+    mock_serial.readline.side_effect = [b"/HEADER:V1\r\n", b"ID:123\r\n", b"\r\n", b""]
 
     with patch("serial_handler.logger") as mock_logger:
         serial_task_missing._read_loop(mock_serial)
@@ -290,11 +294,12 @@ def test_connect_stopper_set(serial_task_missing):
 
     # If stopper set after failure
     serial_task_missing._stopper.is_set.side_effect = [False, True]
-    with patch("serial.serial_for_url", side_effect=Exception("Connection Failed")), \
-         patch("time.sleep"):
+    with patch("serial.serial_for_url", side_effect=Exception("Connection Failed")), patch("time.sleep"):
         assert serial_task_missing._connect() is None
 
+
 # --- From test_loops.py ---
+
 
 def test_task_read_serial_loop_execution(mocker):
     """Integrate TaskReadSerial loop."""
@@ -316,7 +321,6 @@ def test_task_read_serial_loop_execution(mocker):
 
     task.run()
     assert stopper.is_set()
-
 
 
 if __name__ == "__main__":
