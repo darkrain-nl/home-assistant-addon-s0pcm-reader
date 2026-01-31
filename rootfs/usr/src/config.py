@@ -65,6 +65,7 @@ class MqttConfig(BaseModel):
     tls: bool = False
     tls_ca: str = ""
     tls_check_peer: bool = False
+    recovery_wait: int = 7
 
 
 class ConfigModel(BaseModel):
@@ -155,6 +156,7 @@ def read_config(config_dict: dict[str, Any] | None = None, version: str = "Unkno
             tls=ha_options.get("mqtt_tls", False),
             tls_ca=tls_ca,
             tls_check_peer=ha_options.get("mqtt_tls_check_peer", False),
+            recovery_wait=ha_options.get("mqtt_recovery_wait", 7),
         ),
     )
 

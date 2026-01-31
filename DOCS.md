@@ -58,6 +58,9 @@ You can configure the following options directly in the **Settings > Apps > S0PC
 
 #### General
 - **Log Level**: The detail of the logs (debug, info, warning, error, critical). Defaults to `info`. Logs are streamed directly to the Home Assistant app console.
+- **Recovery Wait Time**: Number of seconds to wait for MQTT messages on startup. Defaults to `7`. 
+  > [!CAUTION]
+  > Setting this value too low (e.g., `< 3s`) on slow hardware or busy networks can prevent the app from receiving all retained state data, potentially leading to **permanent data loss**. Default is **7s**.
 
 #### Connection Options
 - **MQTT Host**: Manual host for an external broker. If not set, it uses the internally discovered broker (typically `core-mosquitto`).
@@ -200,7 +203,10 @@ The app supports secure MQTT connections using TLS.
 This app implements a multi-layered state recovery mechanism to ensure your totals are never lost, even without a local data file.
 
 ### Layer 1: MQTT Retained Messages (Primary)
-The app publishes all internal states (totals, daily counts, and pulse counters) to MQTT with the `retain` flag. On startup, it listens for 5 seconds to rebuild its internal memory from these messages.
+The app publishes all internal states (totals, daily counts, and pulse counters) to MQTT with the `retain` flag. On startup, it waits for a set duration (**Recovery Wait Time**, default 7 seconds) to rebuild its internal memory from these messages.
+
+> [!CAUTION]
+> **Data Integrity Risk**: If you reduce the recovery wait time too much on slow hardware (like a Raspberry Pi 3), the app might start its main loop before the network has delivered all retained messages. This could result in the app incorrectly assuming a "zero" state for some meters, which would then be published to MQTT and override your previous totals. **Do not lower this value unless you are certain your network and hardware can handle near-instant delivery.**
 
 ### Layer 2: Home Assistant API (Secondary)
 If MQTT recovery fails (e.g., the broker's database was cleared), the app will automatically query the **Home Assistant State API**. It fetches the last known value of your sensors (e.g., `sensor.s0pcm_reader_1_total`) and uses them to resume counting.

@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Modular Architecture overhaul**: Successfully refactored the monolithic `s0pcm_reader.py` (nearly 1500 lines) into a clean, modular structure. Core logic is now distributed across focused modules: `config`, `state`, `utils`, `protocol`, `serial_handler`, `mqtt_handler`, and `recovery`.
 - **Dependency Injection**: Refactored task handlers (Serial, MQTT, Recovery) to use dependency injection, receiving `AppContext` directly during initialization instead of relying on global state.
 - **Clean State Models**: Streamlined `MeterState` and `AppState` by removing legacy dictionary-compatibility methods, enforcing idiomatic Pydantic attribute access.
-- **Optimized Recovery Phase**: Reduced startup recovery wait from 7s to 3s, significantly speeding up addon initialization while maintaining data integrity.
-- **Dynamic Meter Detection**: Refactored the recovery engine to automatically detect active meters from MQTT retained messages, eliminating hardcoded meter ranges (1-5).
+- **Optimized Recovery Phase**: Standardized the startup recovery wait to a safe 7 seconds, ensuring data integrity on all hardware including older Raspberry Pi models. Added a configurable `mqtt_recovery_wait` option for advanced users.
+- **Dynamic Meter Detection**: Refactored the recovery engine to automatically detect active meters from MQTT retained messages, eliminating hardcoded meter ranges (1-5). This allows the software to automatically support both the 2-meter and 5-meter hardware versions without configuration changes.
 - **Type-Safe State Management**: Introduced **Pydantic v2** models for configuration and meter state, providing deep validation and clear data structures.
 - **Centralized Thread-Safe Context**: Implemented an explicit `AppContext` singleton pattern to manage shared state, locks, and events across threads, eliminating messy global variables.
 - **Enhanced Logging Visibility**: Restored full DEBUG log availability by centralizing logger configuration at the root level and ensuring uniform propagation across all modular components.

@@ -51,6 +51,7 @@ def mqtt_task():
             "tls_ca": "",
             "tls_check_peer": False,
             "discovery": True,
+            "recovery_wait": 0,
         },
         "serial": {"port": "/dev/ttyACM0"},
     }

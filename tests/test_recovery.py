@@ -32,7 +32,13 @@ def mock_mqtt_client():
 def recoverer(mock_mqtt_client):
     """Create a StateRecoverer instance with mocked MQTT client."""
     context = state_module.get_context()
-    context.config = {"mqtt": {"base_topic": "s0pcmreader", "discovery_prefix": "homeassistant"}}
+    context.config = {
+        "mqtt": {
+            "base_topic": "s0pcmreader",
+            "discovery_prefix": "homeassistant",
+            "recovery_wait": 0,  # Speed up tests
+        }
+    }
     return StateRecoverer(context, mock_mqtt_client)
 
 

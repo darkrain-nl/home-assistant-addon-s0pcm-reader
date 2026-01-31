@@ -50,3 +50,6 @@ configuration:
   mqtt_tls_check_peer:
     name: "Verify TLS Certificate"
     description: "If true, strictly verify the broker's certificate and hostname (Default: false)."
+  mqtt_recovery_wait:
+    name: "Recovery Wait Time"
+    description: "Seconds to wait for MQTT messages on startup. Default: 7. WARNING: Values below 3s can cause data loss on slow hardware!"

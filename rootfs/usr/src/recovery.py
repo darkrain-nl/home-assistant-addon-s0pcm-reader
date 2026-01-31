@@ -130,8 +130,9 @@ class StateRecoverer:
         for t in topics:
             self.mqttc.subscribe(t)
 
-        logger.info("Recovery: Waiting 3s for MQTT retained messages...")
-        time.sleep(3)
+        wait_time = self.context.config["mqtt"]["recovery_wait"]
+        logger.info(f"Recovery: Waiting {wait_time}s for MQTT retained messages...")
+        time.sleep(wait_time)
 
         # Cleanup subscriptions
         for t in topics:

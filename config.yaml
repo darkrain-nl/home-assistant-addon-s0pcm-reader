@@ -15,6 +15,7 @@ options:
   log_level: info
   mqtt_tls: false
   mqtt_tls_check_peer: false
+  mqtt_recovery_wait: 7
 schema:
   device: device(subsystem=tty)
   log_level: list(critical|error|warning|info|debug)?
@@ -31,6 +32,7 @@ schema:
   mqtt_discovery_prefix: str?
   mqtt_retain: bool?
   mqtt_split_topic: bool?
+  mqtt_recovery_wait: int(1,60)?
   # Security Settings
   mqtt_tls: bool?
   mqtt_tls_port: port?
