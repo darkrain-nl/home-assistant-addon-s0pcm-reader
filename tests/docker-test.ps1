@@ -2,7 +2,7 @@
 # Usage: .\tests\docker-test.ps1 [pytest arguments]
 
 param(
-    [Parameter(ValueFromRemainingArguments=$true)]
+    [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$PytestArgs
 )
 
@@ -36,8 +36,25 @@ if ($PytestArgs) {
 & docker $dockerArgs
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "Tests completed successfully!" -ForegroundColor Green
-} else {
-    Write-Host "Tests failed!" -ForegroundColor Red
+    Write-Host "Unit Tests completed successfully!" -ForegroundColor Green
+}
+else {
+    Write-Host "Unit Tests failed!" -ForegroundColor Red
     exit $LASTEXITCODE
+}
+
+Write-Host "Running Standalone Integration Tests..." -ForegroundColor Blue
+docker compose -f tests/standalone/docker-compose.yml up -d --build
+Start-Sleep -Seconds 10
+$appState = docker inspect -f '{{.State.Running}}' standalone-app-1
+
+if ($appState -eq "true") {
+    Write-Host "Standalone Verification: App is RUNNING" -ForegroundColor Green
+    docker compose -f tests/standalone/docker-compose.yml down
+}
+else {
+    Write-Host "Standalone Verification: App FAILED too start" -ForegroundColor Red
+    docker compose -f tests/standalone/docker-compose.yml logs
+    docker compose -f tests/standalone/docker-compose.yml down
+    exit 1
 }

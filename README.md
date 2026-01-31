@@ -79,8 +79,7 @@ services:
   s0pcm-reader:
     build: 
       context: .
-      args:
-        - BUILD_FROM=python:3.14-alpine
+      dockerfile: Dockerfile.standalone
     container_name: s0pcm-reader
     restart: unless-stopped
     devices:

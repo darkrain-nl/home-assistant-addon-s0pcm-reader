@@ -49,14 +49,16 @@ class TaskReadSerial(threading.Thread):
         while not self._stopper.is_set():
             logger.debug(f"Opening serialport '{self.app_context.config['serial']['port']}'")
             try:
-                ser = serial.Serial(
+                ser = serial.serial_for_url(
                     self.app_context.config["serial"]["port"],
                     baudrate=self.app_context.config["serial"]["baudrate"],
                     parity=self.app_context.config["serial"]["parity"],
                     stopbits=self.app_context.config["serial"]["stopbits"],
                     bytesize=self.app_context.config["serial"]["bytesize"],
                     timeout=self.app_context.config["serial"]["timeout"],
+                    do_not_open=True,
                 )
+                ser.open()
                 self._serialerror = 0
                 return ser
             except Exception as e:

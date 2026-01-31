@@ -1,0 +1,29 @@
+services:
+  mqtt:
+    build:
+      context: ./mqtt
+    ports:
+      - "1883:1883"
+    healthcheck:
+      test: [ "CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  simulator:
+    build:
+      context: ./simulator
+    ports:
+      - "2000:2000"
+
+  app:
+    build:
+      context: ../../
+      dockerfile: tests/standalone/Dockerfile.test_app
+    environment:
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      mqtt:
+        condition: service_healthy
+      simulator:
+        condition: service_started

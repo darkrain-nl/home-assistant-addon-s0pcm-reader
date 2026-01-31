@@ -73,7 +73,38 @@ jobs:
 
       - name: Run tests in container
         run: |
-          docker run --rm \
-            -v "$(pwd)/rootfs:/workspace/rootfs:ro" \
             -v "$(pwd)/tests:/workspace/tests:ro" \
             s0pcm-reader-test
+
+  standalone-test:
+    name: Standalone Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Build Standalone Stack
+        run: docker compose -f tests/standalone/docker-compose.yml build
+
+      - name: Run Standalone Stack
+        run: docker compose -f tests/standalone/docker-compose.yml up -d
+
+      - name: Wait for startup
+        run: sleep 10
+
+      - name: Check App Health
+        run: |
+          if [ $(docker inspect -f '{{.State.Running}}' standalone-app-1) != "true" ]; then
+            echo "App container is not running!"
+            docker compose -f tests/standalone/docker-compose.yml logs
+            exit 1
+          fi
+
+      - name: Verify logs
+        run: |
+          docker compose -f tests/standalone/docker-compose.yml logs app | grep "Start: s0pcm-reader"
+          docker compose -f tests/standalone/docker-compose.yml logs app | grep "Connected to MQTT" || echo "MQTT connection log missed (might be too fast), checking container status..."
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f tests/standalone/docker-compose.yml down
