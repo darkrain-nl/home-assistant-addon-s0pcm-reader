@@ -2,7 +2,6 @@
 Targeted tests for remaining coverage gaps in mqtt_handler.py.
 """
 
-import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,7 +16,7 @@ def mqtt_task():
     stopper = MagicMock()
     # Default to not set
     stopper.is_set.return_value = False
-    
+
     context = state_module.get_context()
     context.config = {
         "mqtt": {
@@ -39,7 +38,7 @@ def mqtt_task():
             "discovery": True,
             "discovery_prefix": "homeassistant",
             "split_topic": False,
-            "lastwill": "offline"
+            "lastwill": "offline",
         }
     }
     context.lasterror_share = None
@@ -51,7 +50,7 @@ def test_handle_set_command_exception(mqtt_task):
     """Test exception handling in _handle_set_command (lines 129-130)."""
     context = state_module.get_context()
     msg = MagicMock()
-    msg.topic = None 
+    msg.topic = None
     mqtt_task._handle_set_command(msg)
     assert context.lasterror_share is not None
     assert "Failed to process MQTT set command" in context.lasterror_share
@@ -81,26 +80,27 @@ def test_main_loop_error_publish_exception(mqtt_task):
     """Test exception handling in _main_loop when publishing errors (lines 381-382)."""
     mqtt_task._connected = True
     mqtt_task._mqttc = MagicMock()
-    
+
     def side_effect(topic, *args, **kwargs):
         if "/error" in topic:
             raise Exception("Error topic failure")
         return MagicMock()
-    
+
     mqtt_task._mqttc.publish.side_effect = side_effect
     mqtt_task._global_discovery_sent = True
-    
+
     # Run loop once
     def is_set_side_effect():
         if is_set_side_effect.called:
             return True
         is_set_side_effect.called = True
         return False
+
     is_set_side_effect.called = False
     mqtt_task._stopper.is_set.side_effect = is_set_side_effect
-    
+
     mqtt_task.app_context.lasterror_share = "Some Error"
-    
+
     with patch("mqtt_handler.logger.error") as mock_logger:
         mqtt_task._main_loop()
         assert mock_logger.called
@@ -111,8 +111,8 @@ def test_run_fatal_exception(mqtt_task, mocker):
     """Test fatal exception handling in run() (lines 404-405)."""
     mocker.patch.object(mqtt_task, "_connect_loop", side_effect=Exception("Fatal Run Error"))
     # Ensure it exits loop after first call
-    mqtt_task._stopper.is_set.return_value = False # First check in run() loop
-    
+    mqtt_task._stopper.is_set.return_value = False
+
     with patch("mqtt_handler.logger.error") as mock_logger:
         mqtt_task.run()
         assert mock_logger.called
@@ -132,17 +132,18 @@ def test_setup_mqtt_client_tls_empty_ca(mqtt_task, mocker):
 
 def test_connect_loop_setup_failure(mqtt_task):
     """Test _connect_loop when _setup_mqtt_client fails (lines 225-226)."""
+
     # Exits loop safely
     def is_set_side_effect():
         if is_set_side_effect.called:
             return True
         is_set_side_effect.called = True
         return False
+
     is_set_side_effect.called = False
     mqtt_task._stopper.is_set.side_effect = is_set_side_effect
-    
-    with patch.object(mqtt_task, "_setup_mqtt_client", return_value=False), \
-         patch("time.sleep") as mock_sleep:
+
+    with patch.object(mqtt_task, "_setup_mqtt_client", return_value=False), patch("time.sleep") as mock_sleep:
         mqtt_task._connect_loop()
         assert mock_sleep.called
 
@@ -161,44 +162,33 @@ def test_publish_measurements_disabled_meter(mqtt_task):
 
 def test_run_loop_finally_reconnect(mqtt_task, mocker):
     """Test the cleanup and potentially the loop structure in run() (lines 389-408)."""
-    # Exits run() loop after one iteration
-    def is_set_side_effect():
-        is_set_side_effect.count += 1
-        if is_set_side_effect.count > 10: # Safety buffer
-            return True
-        return False
-    is_set_side_effect.count = 0
-    # Actually, better to just use a list of values since we know exactly how many calls
-    # run() (1) -> _connect_loop (1) -> _main_loop (1) -> run next iter (1)
     mqtt_task._stopper.is_set.side_effect = [False, True, True, True, True]
-    
+
     mocker.patch.object(mqtt_task, "_connect_loop")
     mocker.patch.object(mqtt_task, "_main_loop")
-    
+
     mock_mqttc = MagicMock()
     mqtt_task._mqttc = mock_mqttc
     mqtt_task._connected = True
-    
+
     mqtt_task.run()
-    
+
     assert mock_mqttc.publish.called
     assert mock_mqttc.loop_stop.called
     assert mock_mqttc.disconnect.called
     assert mqtt_task._mqttc is None
 
 
-def test_on_message_dispatch(mqtt_task, mocker):
+def test_on_message_dispatch(mqtt_task):
     """Test on_message dispatching to handlers (lines 86-90)."""
     mqtt_task._handle_set_command = MagicMock()
     mqtt_task._handle_name_set = MagicMock()
-    
-    # Test set command
+
     msg_set = MagicMock()
     msg_set.topic = "s0pcm/1/total/set"
     mqtt_task.on_message(None, None, msg_set)
     mqtt_task._handle_set_command.assert_called_once_with(msg_set)
-    
-    # Test name set command
+
     msg_name = MagicMock()
     msg_name.topic = "s0pcm/1/name/set"
     mqtt_task.on_message(None, None, msg_name)
@@ -208,14 +198,14 @@ def test_on_message_dispatch(mqtt_task, mocker):
 def test_handle_set_command_create_meter(mqtt_task):
     """Test _handle_set_command creating a meter if it doesn't exist (line 124)."""
     context = state_module.get_context()
-    context.state.meters = {} # Ensure empty
-    
+    context.state.meters = {}
+
     msg = MagicMock()
     msg.topic = "s0pcm/5/total/set"
     msg.payload = b"1000"
-    
+
     mqtt_task._handle_set_command(msg)
-    
+
     assert 5 in context.state.meters
     assert context.state.meters[5].total == 1000
 
@@ -224,16 +214,16 @@ def test_handle_name_set_by_name(mqtt_task, mocker):
     """Test _handle_name_set using name identifier (lines 141-145)."""
     context = state_module.get_context()
     context.state.meters[3] = state_module.MeterState(name="Gas")
-    
+
     mocker.patch("mqtt_handler.discovery.send_global_discovery")
     mocker.patch("mqtt_handler.discovery.send_meter_discovery")
-    
+
     msg = MagicMock()
     msg.topic = "s0pcm/Gas/name/set"
     msg.payload = b"NewGasName"
-    
+
     mqtt_task._handle_name_set(msg)
-    
+
     assert context.state.meters[3].name == "NewGasName"
 
 
@@ -241,13 +231,13 @@ def test_handle_name_set_unknown_identifier(mqtt_task):
     """Test _handle_name_set with unknown identifier (lines 148-149)."""
     context = state_module.get_context()
     context.lasterror_share = None
-    
+
     msg = MagicMock()
     msg.topic = "s0pcm/Unknown/name/set"
     msg.payload = b"ignored"
-    
+
     mqtt_task._handle_name_set(msg)
-    
+
     assert context.lasterror_share is not None
     assert "Ignored name/set command for unknown meter" in context.lasterror_share
 
@@ -256,48 +246,34 @@ def test_handle_name_set_create_meter(mqtt_task, mocker):
     """Test _handle_name_set creating a meter (line 159)."""
     context = state_module.get_context()
     context.state.meters = {}
-    
+
     mocker.patch("mqtt_handler.discovery.send_global_discovery")
     mocker.patch("mqtt_handler.discovery.send_meter_discovery")
-    
+
     msg = MagicMock()
     msg.topic = "s0pcm/2/name/set"
     msg.payload = b"NewMeter"
-    
+
     mqtt_task._handle_name_set(msg)
-    
+
     assert 2 in context.state.meters
     assert context.state.meters[2].name == "NewMeter"
 
 
 def test_connect_loop_wait_sleep(mqtt_task, mocker):
     """Test _connect_loop sleep during wait for connection (line 237)."""
-    context = state_module.get_context()
     mqtt_task._mqttc = MagicMock()
-    
-    # Simulate first time.time() called, then wait loop calling time.time()
-    # We want it to loop at least once then connect
     start_time = 1000.0
     mocker.patch("time.time", side_effect=[start_time, start_time + 1, start_time + 2])
-    
-    # Stopper side effect to exit after some checks
     mqtt_task._stopper.is_set.side_effect = [False, False, True]
-    
-    # mock_connected changes during sleep?
-    # Actually, we can just check if time.sleep was called
+
     with patch("time.sleep") as mock_sleep:
-        # We need _connected to be false initially, then true? 
-        # Or just let it timeout/loop
         mqtt_task._connected = False
-        
-        # We need to avoid infinite loop in _connect_loop while, but inner while needs to run
-        # Inner while: time.time() < timeout and not self._connected and not self._stopper.is_set()
-        
-        # Let's mock time.sleep to set _connected = True on second call to exit inner loop
+
         def sleep_side_effect(duration):
             mqtt_task._connected = True
-            
+
         mock_sleep.side_effect = sleep_side_effect
-        
+
         mqtt_task._connect_loop()
         assert mock_sleep.called
