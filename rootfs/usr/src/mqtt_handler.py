@@ -60,7 +60,7 @@ class TaskDoMQTT(threading.Thread):
         context = state_module.get_context()
         if reason_code == 0:
             self._connected = True
-            logger.debug("MQTT successfully connected to broker")
+            logger.info("MQTT successfully connected to broker")
             self._trigger.set()
             self._mqttc.publish(
                 context.config["mqtt"]["base_topic"] + "/status",

@@ -104,7 +104,7 @@ jobs:
       - name: Verify logs
         run: |
           docker compose -f tests/standalone/docker-compose.yml logs app | grep "Start: s0pcm-reader"
-          docker compose -f tests/standalone/docker-compose.yml logs app | grep "Connected to MQTT" || echo "MQTT connection log missed (might be too fast), checking container status..."
+          docker compose -f tests/standalone/docker-compose.yml logs app | grep "MQTT successfully connected to broker" || echo "MQTT connection log missed (might be too fast), checking container status..."
 
       - name: Cleanup
         if: always()
