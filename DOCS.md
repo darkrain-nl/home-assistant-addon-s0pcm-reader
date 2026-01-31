@@ -293,6 +293,22 @@ To use your meter data in the Home Assistant Energy Dashboard, you need to creat
      *(This ensures the sensor doesn't show "0" or "Unknown" when the app or MQTT is restarting)*
 4. Click **Submit**.
 
+### Calculating Real-time Usage (Power/Flow)
+
+Since the app only provides pulse counts, you can calculate the current usage (e.g. Watts for electricity or liters/min for water) using Home Assistant's **Derivative** or **Template** integrations.
+
+#### Option A: Using the Derivative Helper (Recommended)
+This is the easiest way to get a smooth usage value:
+1. Go to **Settings** > **Devices & Services** > **Helpers**.
+2. Click **+ Create Helper** and select **Derivative sensor**.
+3. Select your **Template Sensor** (e.g., `Water Usage Total`) as the **Input sensor**.
+4. Set **Precision** to `3`.
+5. Set **Time window** to `00:01:00` (1 minute) for better smoothing.
+6. Set **Unit prefix** to `None` and **Time unit** to `h` (hours) to get `m³/h`.
+
+#### Option B: Using a Template (Advanced)
+If you want to calculate the jump between individual pulses, you can use a template that compares the `last_changed` attribute, but the Derivative helper above is generally more robust for energy dashboard use cases.
+
 > [!TIP]
 > After creating the helper, you can immediately add it to your **Energy Dashboard** under **Settings** > **Dashboards** > **Energy**.
 

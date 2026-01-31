@@ -22,6 +22,18 @@ This app is based on the [docker-s0pcm-reader](https://github.com/ualex73/docker
 - **Industrial-Grade Tooling**: Integrated **Ruff** for high-speed linting and formatting, ensuring professional code quality standards and caught potential issues early.
 - **Flexible MQTT**: Supports external brokers, authentication, and custom base topics.
 
+## ⚠️ Migration to v3.0.0
+
+Version 3.0.0 is a major release with a completely rewritten modular architecture.
+
+> [!WARNING]
+> **Breaking Change**: The local `measurement.json` file has been removed. The app now relies exclusively on **MQTT retained messages** and the **Home Assistant API** for state persistence.
+>
+> **How to migrate**:
+> 1. Ensure your MQTT broker has persistence enabled (default in Mosquitto).
+> 2. Upon first startup of v3.0.0, the app will automatically recover your totals from Home Assistant.
+> 3. Verify your totals in the HA UI. If adjustments are needed, use the new **Total Correction** entity on the device page.
+
 ## 🛠️ Prerequisites
 
 - An **S0PCM reader** (S0PCM-2 or S0PCM-5) connected via USB.
