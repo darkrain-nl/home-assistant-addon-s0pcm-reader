@@ -11,10 +11,11 @@ import time
 
 import serial
 
-import state as state_module
 from protocol import parse_s0pcm_packet
+import state as state_module
 
 logger = logging.getLogger(__name__)
+
 
 class TaskReadSerial(threading.Thread):
     """
@@ -48,19 +49,23 @@ class TaskReadSerial(threading.Thread):
         while not self._stopper.is_set():
             logger.debug(f"Opening serialport '{self.app_context.config['serial']['port']}'")
             try:
-                ser = serial.Serial(self.app_context.config['serial']['port'],
-                                    baudrate=self.app_context.config['serial']['baudrate'],
-                                    parity=self.app_context.config['serial']['parity'],
-                                    stopbits=self.app_context.config['serial']['stopbits'],
-                                    bytesize=self.app_context.config['serial']['bytesize'],
-                                    timeout=self.app_context.config['serial']['timeout'])
+                ser = serial.Serial(
+                    self.app_context.config["serial"]["port"],
+                    baudrate=self.app_context.config["serial"]["baudrate"],
+                    parity=self.app_context.config["serial"]["parity"],
+                    stopbits=self.app_context.config["serial"]["stopbits"],
+                    bytesize=self.app_context.config["serial"]["bytesize"],
+                    timeout=self.app_context.config["serial"]["timeout"],
+                )
                 self._serialerror = 0
                 return ser
             except Exception as e:
                 self._serialerror += 1
-                self.app_context.set_error(f"Serialport connection failed: {type(e).__name__}: '{e}'", category='serial')
+                self.app_context.set_error(
+                    f"Serialport connection failed: {type(e).__name__}: '{e}'", category="serial"
+                )
                 logger.error(f"Retry in {self.app_context.config['serial']['connect_retry']} seconds")
-                time.sleep(self.app_context.config['serial']['connect_retry'])
+                time.sleep(self.app_context.config["serial"]["connect_retry"])
         return None
 
     def _handle_header(self, datastr: str) -> None:
@@ -72,8 +77,8 @@ class TaskReadSerial(threading.Thread):
         """
         logger.debug(f"Header Packet: '{datastr}'")
         try:
-            if ':' in datastr:
-                self.app_context.s0pcm_firmware = datastr.split(':', 1)[1].strip()
+            if ":" in datastr:
+                self.app_context.s0pcm_firmware = datastr.split(":", 1)[1].strip()
             else:
                 self.app_context.s0pcm_firmware = datastr[1:].strip()
         except Exception:
@@ -91,18 +96,18 @@ class TaskReadSerial(threading.Thread):
         try:
             parsed_data = parse_s0pcm_packet(datastr)
         except ValueError as e:
-            self.app_context.set_error(f"Invalid Packet: {e}. Packet: '{datastr}'", category='serial')
+            self.app_context.set_error(f"Invalid Packet: {e}. Packet: '{datastr}'", category="serial")
             return
 
         with self.app_context.lock:
             for meter_id, data in parsed_data.items():
-                self._update_meter(meter_id, data['pulsecount'])
+                self._update_meter(meter_id, data["pulsecount"])
 
             # Update shared state snapshot for MQTT
             self.app_context.state_share = self.app_context.state.model_copy(deep=True)
 
         # Clear serial error
-        self.app_context.set_error(None, category='serial')
+        self.app_context.set_error(None, category="serial")
 
         # Signal MQTT task that new data is available
         self._trigger.set()
@@ -126,12 +131,14 @@ class TaskReadSerial(threading.Thread):
         # Handle day-rollover
         today = datetime.date.today()
         if self.app_context.state.date != today:
-             logger.debug(f"Day changed from '{self.app_context.state.date}' to '{today}', rolling over counter '{meter_id}'.")
-             meter.yesterday = meter.today
-             meter.today = 0
-             # Note: context.state.date update should ideally happen once.
-             # We'll update it here so subsequent meters in the same packet also see the change.
-             self.app_context.state.date = today
+            logger.debug(
+                f"Day changed from '{self.app_context.state.date}' to '{today}', rolling over counter '{meter_id}'."
+            )
+            meter.yesterday = meter.today
+            meter.today = 0
+            # Note: context.state.date update should ideally happen once.
+            # We'll update it here so subsequent meters in the same packet also see the change.
+            self.app_context.state.date = today
 
         # Check delta and update
         if pulsecount > meter.pulsecount:
@@ -144,9 +151,16 @@ class TaskReadSerial(threading.Thread):
         elif pulsecount < meter.pulsecount:
             # Pulsecount reset (e.g. device restart)
             if pulsecount == 0:
-                self.app_context.set_error(f"S0PCM Reset detected for meter {meter_id}: Pulsecounters cleared. Restoring from total {meter.total}.", category='serial', level=logging.WARNING)
+                self.app_context.set_error(
+                    f"S0PCM Reset detected for meter {meter_id}: Pulsecounters cleared. Restoring from total {meter.total}.",
+                    category="serial",
+                    level=logging.WARNING,
+                )
             else:
-                self.app_context.set_error(f"Pulsecount anomaly detected for meter {meter_id}: Stored pulsecount '{meter.pulsecount}' is higher than read '{pulsecount}'.", category='serial')
+                self.app_context.set_error(
+                    f"Pulsecount anomaly detected for meter {meter_id}: Stored pulsecount '{meter.pulsecount}' is higher than read '{pulsecount}'.",
+                    category="serial",
+                )
 
             delta = pulsecount
             meter.pulsecount = pulsecount
@@ -164,28 +178,28 @@ class TaskReadSerial(threading.Thread):
             try:
                 datain = ser.readline()
             except Exception as e:
-                self.app_context.set_error(f"Serialport read error: {type(e).__name__}: '{e}'", category='serial')
-                break # Break to reconnect
+                self.app_context.set_error(f"Serialport read error: {type(e).__name__}: '{e}'", category="serial")
+                break  # Break to reconnect
 
             if len(datain) == 0:
                 # Timeout
-                self.app_context.set_error("Serialport read timeout: Failed to read any data", category='serial')
+                self.app_context.set_error("Serialport read timeout: Failed to read any data", category="serial")
                 break
 
             try:
-                datastr = datain.decode('ascii').rstrip('\r\n')
+                datastr = datain.decode("ascii").rstrip("\r\n")
             except UnicodeDecodeError:
-                self.app_context.set_error(f"Failed to decode serial data: '{datain}'", category='serial')
+                self.app_context.set_error(f"Failed to decode serial data: '{datain}'", category="serial")
                 continue
 
-            if datastr.startswith('/'):
+            if datastr.startswith("/"):
                 self._handle_header(datastr)
-            elif datastr.startswith('ID:'):
+            elif datastr.startswith("ID:"):
                 self._handle_data_packet(datastr)
-            elif datastr == '':
-                logger.warning('Empty Packet received, this can happen during start-up')
+            elif datastr == "":
+                logger.warning("Empty Packet received, this can happen during start-up")
             else:
-                self.app_context.set_error(f"Invalid Packet: '{datastr}'", category='serial')
+                self.app_context.set_error(f"Invalid Packet: '{datastr}'", category="serial")
 
     def run(self) -> None:
         """Main thread execution."""
@@ -201,6 +215,6 @@ class TaskReadSerial(threading.Thread):
                     self._read_loop(ser)
                     ser.close()
         except Exception:
-            logger.error('Fatal exception in Serial Task', exc_info=True)
+            logger.error("Fatal exception in Serial Task", exc_info=True)
         finally:
             self._stopper.set()

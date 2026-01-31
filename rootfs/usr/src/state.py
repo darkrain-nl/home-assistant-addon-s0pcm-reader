@@ -6,7 +6,6 @@ Managed global state, threading locks, errors, and measurement data.
 
 import datetime
 import logging
-import sys
 import threading
 from typing import Any
 
@@ -18,8 +17,10 @@ logger = logging.getLogger(__name__)
 # Models
 # ------------------------------------------------------------------------------------
 
+
 class MeterState(BaseModel):
     """Current state of a single meter."""
+
     name: str | None = None
     total: int = 0
     today: int = 0
@@ -44,7 +45,7 @@ class MeterState(BaseModel):
     def pop(self, key: str, default: Any = None) -> Any:
         val = getattr(self, key, default)
         if hasattr(self, key):
-            setattr(self, key, None) # Or default value? Models usually don't "remove" fields
+            setattr(self, key, None)  # Or default value? Models usually don't "remove" fields
         return val
 
     def keys(self):
@@ -62,16 +63,17 @@ class MeterState(BaseModel):
 
 class AppState(BaseModel):
     """Complete application state (measurements and date)."""
+
     date: datetime.date = Field(default_factory=datetime.date.today)
     meters: dict[int, MeterState] = Field(default_factory=dict)
 
     def __getitem__(self, key: Any) -> Any:
-        if key == 'date':
+        if key == "date":
             return self.date
         return self.meters[key]
 
     def __setitem__(self, key: Any, value: Any) -> None:
-        if key == 'date':
+        if key == "date":
             if isinstance(value, str):
                 try:
                     self.date = datetime.date.fromisoformat(value)
@@ -87,18 +89,18 @@ class AppState(BaseModel):
                 self.meters[key] = value
 
     def __contains__(self, key: Any) -> bool:
-        if key == 'date':
+        if key == "date":
             return True
         return key in self.meters
 
     def update(self, data: dict[Any, Any]) -> None:
-        if 'date' in data:
-            self.date = data.pop('date')
+        if "date" in data:
+            self.date = data.pop("date")
             if isinstance(self.date, str):
-                 try:
-                     self.date = datetime.date.fromisoformat(self.date)
-                 except ValueError:
-                     pass
+                try:
+                    self.date = datetime.date.fromisoformat(self.date)
+                except ValueError:
+                    pass
 
         for k, v in data.items():
             try:
@@ -120,24 +122,24 @@ class AppState(BaseModel):
                 continue
 
     def get(self, key: Any, default: Any = None) -> Any:
-        if key == 'date':
+        if key == "date":
             return self.date
         return self.meters.get(key, default)
 
     def keys(self):
-        return list(self.meters.keys()) + ['date']
+        return [*list(self.meters.keys()), "date"]
 
     def values(self):
-        return list(self.meters.values()) + [self.date]
+        return [*list(self.meters.values()), self.date]
 
     def items(self):
-        return list(self.meters.items()) + [('date', self.date)]
+        return [*list(self.meters.items()), ("date", self.date)]
 
     def __iter__(self):
         return iter(self.keys())
 
     def pop(self, key: Any, default: Any = None) -> Any:
-        if key == 'date':
+        if key == "date":
             val = self.date
             self.date = datetime.date.today()
             return val
@@ -155,6 +157,7 @@ class AppContext:
 
     This class is intended to be passed to components, reducing reliance on global state.
     """
+
     def __init__(self):
         # Threading & Events
         self.lock = threading.RLock()
@@ -163,7 +166,7 @@ class AppContext:
 
         # Application State
         self.state = AppState()
-        self.state_share = AppState() # Snapshot for MQTT
+        self.state_share = AppState()  # Snapshot for MQTT
 
         # Configuration (To be populated as ConfigModel)
         self.config: dict[str, Any] = {}
@@ -174,7 +177,7 @@ class AppContext:
         self.lasterror_share: str | None = None
 
         # Metadata
-        self.startup_time: str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        self.startup_time: str = datetime.datetime.now(datetime.UTC).isoformat()
         self.s0pcm_firmware: str = "Unknown"
         self.s0pcm_reader_version: str = "Unknown"
 
@@ -182,10 +185,12 @@ class AppContext:
         """Register the main trigger event for MQTT publishing."""
         self.trigger_event = event
 
-    def set_error(self, message: str | None, category: str = 'serial', trigger_event: bool = True, level: int | None = None):
+    def set_error(
+        self, message: str | None, category: str = "serial", trigger_event: bool = True, level: int | None = None
+    ):
         """Set or clear an error state."""
         changed = False
-        if category == 'serial':
+        if category == "serial":
             if message != self.lasterror_serial:
                 self.lasterror_serial = message
                 changed = True
@@ -226,6 +231,7 @@ class AppContext:
 # Global Instance (for backwards compatibility during transition)
 # ------------------------------------------------------------------------------------
 _context = AppContext()
+
 
 # For direct access to context if needed
 def get_context() -> AppContext:

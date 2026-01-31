@@ -20,9 +20,6 @@ from utils import get_version
 logger = logging.getLogger(__name__)
 
 
-
-
-
 def init_args() -> None:
     """Initialize command-line arguments and configuration paths."""
     config_module.init_args()
@@ -36,7 +33,7 @@ stopper = threading.Event()
 
 
 def main() -> None:
-    """ Main application entry point. """
+    """Main application entry point."""
     global trigger, stopper
 
     # Initialize Context
@@ -49,7 +46,7 @@ def main() -> None:
     def signal_handler(signum: int, frame: Any) -> None:
         logger.info(f"Signal {signum} received, stopping...")
         stopper.set()
-        trigger.set() # Wake up threads waiting on trigger
+        trigger.set()  # Wake up threads waiting on trigger
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
@@ -61,13 +58,13 @@ def main() -> None:
         # Load Configuration into context
         context.config = config_module.read_config(version=context.s0pcm_reader_version).model_dump()
     except Exception:
-        logger.error('Fatal exception during startup', exc_info=True)
+        logger.error("Fatal exception during startup", exc_info=True)
         sys.exit(1)
 
     # Register trigger with context
     context.register_trigger(trigger)
 
-    logger.info('Starting s0pcm-reader...')
+    logger.info("Starting s0pcm-reader...")
 
     # Start our SerialPort thread
     # FUTURE: Pass context directly to tasks
@@ -84,7 +81,7 @@ def main() -> None:
         t1.join(1)
         t2.join(1)
 
-    logger.info('Stop: s0pcm-reader')
+    logger.info("Stop: s0pcm-reader")
 
 
 if __name__ == "__main__":

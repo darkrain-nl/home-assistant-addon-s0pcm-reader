@@ -8,13 +8,14 @@ Tests cover:
 - Publishing loop edge cases
 - Error state management
 """
-import pytest
+
+# ruff: noqa: I001
 import threading
-import json
-from unittest.mock import MagicMock, patch, call
-import state as state_module
-import mqtt_handler
+from unittest.mock import MagicMock
+
 from mqtt_handler import TaskDoMQTT
+import pytest
+import state as state_module
 
 
 @pytest.fixture
@@ -25,32 +26,30 @@ def mqtt_task():
 
     context = state_module.get_context()
     context.config = {
-        'mqtt': {
-            'base_topic': 's0pcmreader',
-            'discovery_prefix': 'homeassistant',
-            'host': 'core-mosquitto',
-            'port': 1883,
-            'tls_port': 8883,
-            'username': 'test_user',
-            'password': 'test_pass',
-            'client_id': None,
-            'version': 5,
-            'retain': True,
-            'split_topic': True,
-            'connect_retry': 1,
-            'online': 'online',
-            'offline': 'offline',
-            'lastwill': 'offline',
-            'tls': False,
-            'tls_ca': '',
-            'tls_check_peer': False
+        "mqtt": {
+            "base_topic": "s0pcmreader",
+            "discovery_prefix": "homeassistant",
+            "host": "core-mosquitto",
+            "port": 1883,
+            "tls_port": 8883,
+            "username": "test_user",
+            "password": "test_pass",
+            "client_id": None,
+            "version": 5,
+            "retain": True,
+            "split_topic": True,
+            "connect_retry": 1,
+            "online": "online",
+            "offline": "offline",
+            "lastwill": "offline",
+            "tls": False,
+            "tls_ca": "",
+            "tls_check_peer": False,
         },
-        'serial': {
-            'port': '/dev/ttyACM0'
-        }
+        "serial": {"port": "/dev/ttyACM0"},
     }
-    context.s0pcm_reader_version = '3.0.0'
-    context.s0pcm_firmware = 'V0.7'
+    context.s0pcm_reader_version = "3.0.0"
+    context.s0pcm_firmware = "V0.7"
 
     return TaskDoMQTT(trigger, stopper)
 
@@ -60,11 +59,11 @@ class TestTLSSetup:
 
     def test_setup_mqtt_client_with_tls_no_ca(self, mqtt_task, mocker):
         """Test TLS setup without CA certificate."""
-        mqtt_task.app_context.config['mqtt']['tls'] = True
-        mqtt_task.app_context.config['mqtt']['tls_ca'] = ''
+        mqtt_task.app_context.config["mqtt"]["tls"] = True
+        mqtt_task.app_context.config["mqtt"]["tls_ca"] = ""
 
         mock_ssl_context = MagicMock()
-        mocker.patch('ssl.SSLContext', return_value=mock_ssl_context)
+        mocker.patch("ssl.SSLContext", return_value=mock_ssl_context)
 
         result = mqtt_task._setup_mqtt_client(use_tls=True)
 
@@ -74,26 +73,26 @@ class TestTLSSetup:
 
     def test_setup_mqtt_client_with_tls_and_ca(self, mqtt_task, mocker):
         """Test TLS setup with CA certificate."""
-        mqtt_task.app_context.config['mqtt']['tls'] = True
-        mqtt_task.app_context.config['mqtt']['tls_ca'] = '/path/to/ca.crt'
-        mqtt_task.app_context.config['mqtt']['tls_check_peer'] = True
+        mqtt_task.app_context.config["mqtt"]["tls"] = True
+        mqtt_task.app_context.config["mqtt"]["tls_ca"] = "/path/to/ca.crt"
+        mqtt_task.app_context.config["mqtt"]["tls_check_peer"] = True
 
         mock_ssl_context = MagicMock()
-        mocker.patch('ssl.SSLContext', return_value=mock_ssl_context)
+        mocker.patch("ssl.SSLContext", return_value=mock_ssl_context)
 
         result = mqtt_task._setup_mqtt_client(use_tls=True)
 
         assert result is True
-        mock_ssl_context.load_verify_locations.assert_called_once_with(cafile='/path/to/ca.crt')
+        mock_ssl_context.load_verify_locations.assert_called_once_with(cafile="/path/to/ca.crt")
 
     def test_setup_mqtt_client_tls_ca_load_error(self, mqtt_task, mocker):
         """Test TLS setup handles CA load errors."""
-        mqtt_task.app_context.config['mqtt']['tls'] = True
-        mqtt_task.app_context.config['mqtt']['tls_ca'] = '/invalid/path/ca.crt'
+        mqtt_task.app_context.config["mqtt"]["tls"] = True
+        mqtt_task.app_context.config["mqtt"]["tls_ca"] = "/invalid/path/ca.crt"
 
         mock_ssl_context = MagicMock()
         mock_ssl_context.load_verify_locations.side_effect = Exception("File not found")
-        mocker.patch('ssl.SSLContext', return_value=mock_ssl_context)
+        mocker.patch("ssl.SSLContext", return_value=mock_ssl_context)
 
         result = mqtt_task._setup_mqtt_client(use_tls=True)
 
@@ -123,7 +122,7 @@ class TestConnectionHandling:
     def test_on_connect_failure(self, mqtt_task, mocker):
         """Test connection failure callback."""
         mqtt_task._mqttc = MagicMock()
-        mock_set_error = mocker.patch.object(mqtt_task.app_context, 'set_error')
+        mock_set_error = mocker.patch.object(mqtt_task.app_context, "set_error")
 
         mqtt_task.on_connect(mqtt_task._mqttc, None, None, 5, None)  # 5 = auth error
 
@@ -133,7 +132,7 @@ class TestConnectionHandling:
     def test_on_disconnect_unexpected(self, mqtt_task, mocker):
         """Test unexpected disconnection."""
         mqtt_task._mqttc = MagicMock()
-        mock_set_error = mocker.patch.object(mqtt_task.app_context, 'set_error')
+        mock_set_error = mocker.patch.object(mqtt_task.app_context, "set_error")
 
         mqtt_task.on_disconnect(mqtt_task._mqttc, None, None, 1, None)  # Non-zero = unexpected
 
@@ -158,8 +157,8 @@ class TestMessageHandling:
         mqtt_task._trigger = threading.Event()
 
         msg = MagicMock()
-        msg.topic = 's0pcmreader/1/total/set'
-        msg.payload = b'2000'
+        msg.topic = "s0pcmreader/1/total/set"
+        msg.payload = b"2000"
 
         mqtt_task._handle_set_command(msg)
 
@@ -168,12 +167,12 @@ class TestMessageHandling:
 
     def test_handle_set_command_by_name(self, mqtt_task):
         """Test handling set command using meter name."""
-        mqtt_task.app_context.state.meters[1] = state_module.MeterState(name='Water', total=1000)
+        mqtt_task.app_context.state.meters[1] = state_module.MeterState(name="Water", total=1000)
         mqtt_task._trigger = threading.Event()
 
         msg = MagicMock()
-        msg.topic = 's0pcmreader/Water/total/set'
-        msg.payload = b'2000'
+        msg.topic = "s0pcmreader/Water/total/set"
+        msg.payload = b"2000"
 
         mqtt_task._handle_set_command(msg)
 
@@ -181,11 +180,11 @@ class TestMessageHandling:
 
     def test_handle_set_command_unknown_meter(self, mqtt_task, mocker):
         """Test handling set command for unknown meter."""
-        mock_set_error = mocker.patch.object(mqtt_task.app_context, 'set_error')
+        mock_set_error = mocker.patch.object(mqtt_task.app_context, "set_error")
 
         msg = MagicMock()
-        msg.topic = 's0pcmreader/UnknownMeter/total/set'
-        msg.payload = b'2000'
+        msg.topic = "s0pcmreader/UnknownMeter/total/set"
+        msg.payload = b"2000"
 
         mqtt_task._handle_set_command(msg)
 
@@ -195,11 +194,11 @@ class TestMessageHandling:
     def test_handle_set_command_invalid_payload(self, mqtt_task, mocker):
         """Test handling set command with invalid payload."""
         mqtt_task.app_context.state.meters[1] = state_module.MeterState(total=1000)
-        mock_set_error = mocker.patch.object(mqtt_task.app_context, 'set_error')
+        mock_set_error = mocker.patch.object(mqtt_task.app_context, "set_error")
 
         msg = MagicMock()
-        msg.topic = 's0pcmreader/1/total/set'
-        msg.payload = b'not_a_number'
+        msg.topic = "s0pcmreader/1/total/set"
+        msg.payload = b"not_a_number"
 
         mqtt_task._handle_set_command(msg)
 
@@ -212,30 +211,30 @@ class TestMessageHandling:
         mqtt_task._mqttc = MagicMock()
         mqtt_task._trigger = threading.Event()
 
-        mocker.patch('mqtt_handler.discovery.send_global_discovery')
-        mocker.patch('mqtt_handler.discovery.send_meter_discovery', return_value='NewName')
+        mocker.patch("mqtt_handler.discovery.send_global_discovery")
+        mocker.patch("mqtt_handler.discovery.send_meter_discovery", return_value="NewName")
 
         msg = MagicMock()
-        msg.topic = 's0pcmreader/1/name/set'
-        msg.payload = b'NewName'
+        msg.topic = "s0pcmreader/1/name/set"
+        msg.payload = b"NewName"
 
         mqtt_task._handle_name_set(msg)
 
-        assert mqtt_task.app_context.state.meters[1].name == 'NewName'
+        assert mqtt_task.app_context.state.meters[1].name == "NewName"
         assert mqtt_task._trigger.is_set()
 
     def test_handle_name_set_empty(self, mqtt_task, mocker):
         """Test handling name set with empty payload (clear name)."""
-        mqtt_task.app_context.state.meters[1] = state_module.MeterState(name='OldName')
+        mqtt_task.app_context.state.meters[1] = state_module.MeterState(name="OldName")
         mqtt_task._mqttc = MagicMock()
         mqtt_task._trigger = threading.Event()
 
-        mocker.patch('mqtt_handler.discovery.send_global_discovery')
-        mocker.patch('mqtt_handler.discovery.send_meter_discovery')
+        mocker.patch("mqtt_handler.discovery.send_global_discovery")
+        mocker.patch("mqtt_handler.discovery.send_meter_discovery")
 
         msg = MagicMock()
-        msg.topic = 's0pcmreader/1/name/set'
-        msg.payload = b''
+        msg.topic = "s0pcmreader/1/name/set"
+        msg.payload = b""
 
         mqtt_task._handle_name_set(msg)
 
@@ -248,8 +247,8 @@ class TestPublishingLogic:
     def test_publish_diagnostics_change_detection(self, mqtt_task):
         """Test diagnostics only publish on change."""
         mqtt_task._mqttc = MagicMock()
-        mqtt_task.app_context.s0pcm_reader_version = '3.0.0'
-        mqtt_task.app_context.s0pcm_firmware = 'V0.7'
+        mqtt_task.app_context.s0pcm_reader_version = "3.0.0"
+        mqtt_task.app_context.s0pcm_firmware = "V0.7"
 
         # First publish
         mqtt_task._publish_diagnostics()
@@ -267,6 +266,7 @@ class TestPublishingLogic:
         mqtt_task._mqttc = MagicMock()
 
         import datetime
+
         state_snapshot = state_module.AppState()
         state_snapshot.date = datetime.date(2026, 1, 25)
 
@@ -276,37 +276,38 @@ class TestPublishingLogic:
         mqtt_task._publish_measurements(state_snapshot, previous_snapshot)
 
         # Verify date was published
-        date_calls = [c for c in mqtt_task._mqttc.publish.call_args_list if '/date' in str(c)]
+        date_calls = [c for c in mqtt_task._mqttc.publish.call_args_list if "/date" in str(c)]
         assert len(date_calls) > 0
 
     def test_publish_measurements_split_topic_mode(self, mqtt_task):
         """Test publishing in split_topic mode."""
         mqtt_task._mqttc = MagicMock()
-        mqtt_task.app_context.config['mqtt']['split_topic'] = True
+        mqtt_task.app_context.config["mqtt"]["split_topic"] = True
 
         state_snapshot = state_module.AppState()
-        state_snapshot.meters[1] = state_module.MeterState(name='Water', total=1000, today=50)
+        state_snapshot.meters[1] = state_module.MeterState(name="Water", total=1000, today=50)
 
         mqtt_task._publish_measurements(state_snapshot, None)
 
         # Verify split topics were published
         topics = [str(c[0][0]) for c in mqtt_task._mqttc.publish.call_args_list]
-        assert any('Water/total' in t for t in topics)
-        assert any('Water/today' in t for t in topics)
+        assert any("Water/total" in t for t in topics)
+        assert any("Water/today" in t for t in topics)
 
     def test_publish_measurements_json_mode(self, mqtt_task):
         """Test publishing in JSON mode (split_topic=False)."""
         mqtt_task._mqttc = MagicMock()
-        mqtt_task.app_context.config['mqtt']['split_topic'] = False
+        mqtt_task.app_context.config["mqtt"]["split_topic"] = False
 
         state_snapshot = state_module.AppState()
-        state_snapshot.meters[1] = state_module.MeterState(name='Water', total=1000, today=50)
+        state_snapshot.meters[1] = state_module.MeterState(name="Water", total=1000, today=50)
 
         mqtt_task._publish_measurements(state_snapshot, None)
 
         # Verify JSON payload was published
-        json_calls = [c for c in mqtt_task._mqttc.publish.call_args_list
-                      if 'Water' in str(c[0][0]) and '{' in str(c[0][1])]
+        json_calls = [
+            c for c in mqtt_task._mqttc.publish.call_args_list if "Water" in str(c[0][0]) and "{" in str(c[0][1])
+        ]
         assert len(json_calls) > 0
 
 
@@ -320,8 +321,8 @@ class TestMainLoop:
         mqtt_task._trigger = threading.Event()
         mqtt_task._stopper = threading.Event()
 
-        mock_send_global = mocker.patch('mqtt_handler.discovery.send_global_discovery')
-        mock_cleanup = mocker.patch('mqtt_handler.discovery.cleanup_meter_discovery')
+        mock_send_global = mocker.patch("mqtt_handler.discovery.send_global_discovery")
+        mock_cleanup = mocker.patch("mqtt_handler.discovery.cleanup_meter_discovery")
 
         # Trigger one iteration then stop
         def stop_after_first(*args):
@@ -347,5 +348,5 @@ class TestMainLoop:
         assert mqtt_task._mqttc.publish.call_count == 0
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

@@ -1,69 +1,77 @@
 """
 Tests for configuration loading and validation.
 """
-import pytest
+
 import json
 import os
+from pathlib import Path
 import sys
 import threading
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-import s0pcm_reader
+from unittest.mock import patch
+
+import pytest
+
 import config as config_module
+import s0pcm_reader
 import state as state_module
+
 
 @pytest.fixture(autouse=True)
 def setup_config_test_env():
     # Context and state are reset by conftest.py
-    config_module.configdirectory = './'
+    config_module.configdirectory = "./"
+
 
 class TestConfigLoading:
     def test_load_default_config(self, mocker):
         # Mock Path.exists and Path.read_text for safer modern python testing
-        mocker.patch.object(Path, 'exists', return_value=False)
+        mocker.patch.object(Path, "exists", return_value=False)
         context = state_module.get_context()
         context.config = config_module.read_config().model_dump()
-        assert 'mqtt' in context.config
-        assert context.config['mqtt']['host'] == '127.0.0.1'
+        assert "mqtt" in context.config
+        assert context.config["mqtt"]["host"] == "127.0.0.1"
 
     def test_load_config_from_options(self, sample_options, mocker):
-        mocker.patch.object(Path, 'exists', return_value=True)
-        mocker.patch.object(Path, 'read_text', return_value=json.dumps(sample_options))
+        mocker.patch.object(Path, "exists", return_value=True)
+        mocker.patch.object(Path, "read_text", return_value=json.dumps(sample_options))
         context = state_module.get_context()
         context.config = config_module.read_config().model_dump()
-        assert context.config['mqtt']['host'] == sample_options['mqtt_host']
+        assert context.config["mqtt"]["host"] == sample_options["mqtt_host"]
+
 
 class TestCLI:
     def test_init_args_custom(self, mocker):
         # Use patch.object on sys.argv
-        with patch.object(sys, 'argv', ['s0pcm_reader', '--config', '/custom/path']):
+        with patch.object(sys, "argv", ["s0pcm_reader", "--config", "/custom/path"]):
             s0pcm_reader.init_args()
-            assert '/custom/path/' in config_module.configdirectory
+            assert "/custom/path/" in config_module.configdirectory
+
 
 class TestConfigEdgeCases:
     def test_tls_path_join(self, mocker):
-        mocker.patch.object(Path, 'exists', return_value=True)
-        mocker.patch.object(Path, 'read_text', return_value=json.dumps({"mqtt_tls": True, "mqtt_tls_ca": "ca.crt"}))
+        mocker.patch.object(Path, "exists", return_value=True)
+        mocker.patch.object(Path, "read_text", return_value=json.dumps({"mqtt_tls": True, "mqtt_tls_ca": "ca.crt"}))
         config_module.configdirectory = "/data/"
         context = state_module.get_context()
         context.config = config_module.read_config().model_dump()
         expected_path = os.path.normpath("data/ca.crt")
-        actual_path = os.path.normpath(context.config['mqtt']['tls_ca'])
+        actual_path = os.path.normpath(context.config["mqtt"]["tls_ca"])
         assert expected_path in actual_path
 
     def test_password_redaction(self, mocker):
-        mocker.patch.object(Path, 'exists', return_value=True)
-        mocker.patch.object(Path, 'read_text', return_value=json.dumps({"mqtt_password": "secret"}))
-        with patch('logging.Logger.debug') as mock_debug:
+        mocker.patch.object(Path, "exists", return_value=True)
+        mocker.patch.object(Path, "read_text", return_value=json.dumps({"mqtt_password": "secret"}))
+        with patch("logging.Logger.debug") as mock_debug:
             config_module.read_config()
             # The redacted version should be in THE LOGS
             found = False
             for call in mock_debug.call_args_list:
-                if '********' in str(call):
+                if "********" in str(call):
                     found = True
                     break
             assert found
-            assert not any('secret' in str(c) for c in mock_debug.call_args_list)
+            assert not any("secret" in str(c) for c in mock_debug.call_args_list)
+
 
 class TestErrorHandling:
     def test_set_error_behavior(self, mocker):
@@ -72,7 +80,7 @@ class TestErrorHandling:
         context = state_module.get_context()
         context.register_trigger(trigger)
         context.lasterror_share = None
-        context.lasterror_serial = None # Reset internal state too
+        context.lasterror_serial = None  # Reset internal state too
         context.lasterror_mqtt = None
 
         # 1. Set error
@@ -86,5 +94,6 @@ class TestErrorHandling:
         assert context.lasterror_share is None
         assert trigger.is_set()
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

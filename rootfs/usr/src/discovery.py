@@ -14,6 +14,7 @@ import state as state_module
 
 logger = logging.getLogger(__name__)
 
+
 def send_global_discovery(mqttc: mqtt.Client) -> None:
     """
     Send discovery for global entities (Status, Error, Version, etc.)
@@ -22,18 +23,18 @@ def send_global_discovery(mqttc: mqtt.Client) -> None:
         mqttc: The connected MQTT client.
     """
     context = state_module.get_context()
-    if not context.config['mqtt']['discovery']:
+    if not context.config["mqtt"]["discovery"]:
         return
 
-    base_topic = context.config['mqtt']['base_topic']
-    discovery_prefix = context.config['mqtt']['discovery_prefix']
+    base_topic = context.config["mqtt"]["base_topic"]
+    discovery_prefix = context.config["mqtt"]["discovery_prefix"]
 
     device_info = {
         "identifiers": [base_topic],
         "name": "S0PCM Reader",
         "model": "S0PCM",
         "manufacturer": "SmartMeterDashboard",
-        "sw_version": context.s0pcm_reader_version
+        "sw_version": context.s0pcm_reader_version,
     }
 
     # Status Binary Sensor
@@ -45,9 +46,9 @@ def send_global_discovery(mqttc: mqtt.Client) -> None:
         "device": device_info,
         "device_class": "connectivity",
         "entity_category": "diagnostic",
-        "state_topic": base_topic + '/status',
-        "payload_on": context.config['mqtt']['online'],
-        "payload_off": context.config['mqtt']['offline']
+        "state_topic": base_topic + "/status",
+        "payload_on": context.config["mqtt"]["online"],
+        "payload_off": context.config["mqtt"]["offline"],
     }
     mqttc.publish(status_topic, json.dumps(status_payload), retain=True)
 
@@ -63,8 +64,8 @@ def send_global_discovery(mqttc: mqtt.Client) -> None:
         "unique_id": error_unique_id,
         "device": device_info,
         "entity_category": "diagnostic",
-        "state_topic": base_topic + '/error',
-        "icon": "mdi:alert-circle"
+        "state_topic": base_topic + "/error",
+        "icon": "mdi:alert-circle",
     }
     mqttc.publish(error_topic, json.dumps(error_payload), retain=True)
 
@@ -73,7 +74,7 @@ def send_global_discovery(mqttc: mqtt.Client) -> None:
         {"id": "version", "name": "App Version", "icon": "mdi:information-outline"},
         {"id": "firmware", "name": "S0PCM Firmware", "icon": "mdi:chip"},
         {"id": "startup_time", "name": "Startup Time", "icon": "mdi:clock-outline", "class": "timestamp"},
-        {"id": "port", "name": "Serial Port", "icon": "mdi:serial-port"}
+        {"id": "port", "name": "Serial Port", "icon": "mdi:serial-port"},
     ]
     for diag in diagnostics:
         diag_unique_id = f"s0pcm_{base_topic}_{diag['id']}"
@@ -83,16 +84,19 @@ def send_global_discovery(mqttc: mqtt.Client) -> None:
             "unique_id": diag_unique_id,
             "device": device_info,
             "entity_category": "diagnostic",
-            "state_topic": base_topic + '/' + diag['id'],
+            "state_topic": base_topic + "/" + diag["id"],
             "value_template": "{{ value }}",
             "force_update": True,
-            "icon": diag['icon']
+            "icon": diag["icon"],
         }
-        if "unit" in diag: diag_payload["unit_of_measurement"] = diag["unit"]
-        if "class" in diag: diag_payload["device_class"] = diag["class"]
+        if "unit" in diag:
+            diag_payload["unit_of_measurement"] = diag["unit"]
+        if "class" in diag:
+            diag_payload["device_class"] = diag["class"]
         mqttc.publish(diag_topic, json.dumps(diag_payload), retain=True)
 
-    logger.info('Sent global MQTT discovery messages')
+    logger.info("Sent global MQTT discovery messages")
+
 
 def send_meter_discovery(mqttc: mqtt.Client, meter_id: int, meter_data: dict[str, Any]) -> str | None:
     """
@@ -107,44 +111,40 @@ def send_meter_discovery(mqttc: mqtt.Client, meter_id: int, meter_data: dict[str
         str | None: The instance name (for tracking), or None if discovery is disabled.
     """
     context = state_module.get_context()
-    if not context.config['mqtt']['discovery']:
+    if not context.config["mqtt"]["discovery"]:
         return None
 
-    base_topic = context.config['mqtt']['base_topic']
-    discovery_prefix = context.config['mqtt']['discovery_prefix']
+    base_topic = context.config["mqtt"]["base_topic"]
+    discovery_prefix = context.config["mqtt"]["discovery_prefix"]
 
-    device_info = {"identifiers": [base_topic]} # Link to global device
-    raw_name = meter_data.get('name')
-    instancename = str(meter_id) if not raw_name or str(raw_name).lower() == 'none' else str(raw_name)
+    device_info = {"identifiers": [base_topic]}  # Link to global device
+    raw_name = meter_data.get("name")
+    instancename = str(meter_id) if not raw_name or str(raw_name).lower() == "none" else str(raw_name)
 
-    for subkey in ['total', 'today', 'yesterday']:
+    for subkey in ["total", "today", "yesterday"]:
         unique_id = f"s0pcm_{base_topic}_{meter_id}_{subkey}"
         topic = f"{discovery_prefix}/sensor/{base_topic}/{unique_id}/config"
 
-        payload = {
-            "name": f"{instancename} {subkey.capitalize()}",
-            "unique_id": unique_id,
-            "device": device_info
-        }
+        payload = {"name": f"{instancename} {subkey.capitalize()}", "unique_id": unique_id, "device": device_info}
 
-        if subkey == 'total':
-            payload['state_class'] = 'total_increasing'
-        elif subkey == 'today':
-            payload['state_class'] = 'total_increasing'
+        if subkey == "total":
+            payload["state_class"] = "total_increasing"
+        elif subkey == "today":
+            payload["state_class"] = "total_increasing"
         else:
-            payload['state_class'] = 'measurement'
+            payload["state_class"] = "measurement"
 
-        if context.config['mqtt']['split_topic']:
-            payload['state_topic'] = f"{base_topic}/{instancename}/{subkey}"
+        if context.config["mqtt"]["split_topic"]:
+            payload["state_topic"] = f"{base_topic}/{instancename}/{subkey}"
         else:
-            payload['state_topic'] = f"{base_topic}/{instancename}"
-            payload['value_template'] = f"{{{{ value_json.{subkey} }}}}"
+            payload["state_topic"] = f"{base_topic}/{instancename}"
+            payload["value_template"] = f"{{{{ value_json.{subkey} }}}}"
 
         # Force refresh
         mqttc.publish(topic, "", retain=True)
         mqttc.publish(topic, json.dumps(payload), retain=True)
 
-        if subkey == 'total':
+        if subkey == "total":
             # Text Entity (Name)
             text_uid = f"s0pcm_{base_topic}_{meter_id}_name_config"
             text_topic = f"{discovery_prefix}/text/{base_topic}/{text_uid}/config"
@@ -155,7 +155,7 @@ def send_meter_discovery(mqttc: mqtt.Client, meter_id: int, meter_data: dict[str
                 "entity_category": "config",
                 "command_topic": f"{base_topic}/{meter_id}/name/set",
                 "state_topic": f"{base_topic}/{meter_id}/name",
-                "icon": "mdi:tag-text-outline"
+                "icon": "mdi:tag-text-outline",
             }
             mqttc.publish(text_topic, "", retain=True)
             mqttc.publish(text_topic, json.dumps(text_payload), retain=True)
@@ -170,7 +170,11 @@ def send_meter_discovery(mqttc: mqtt.Client, meter_id: int, meter_data: dict[str
                 "entity_category": "config",
                 "command_topic": f"{base_topic}/{meter_id}/total/set",
                 "state_topic": f"{base_topic}/{meter_id}/total",
-                "min": 0, "max": 2147483647, "step": 1, "mode": "box", "icon": "mdi:counter"
+                "min": 0,
+                "max": 2147483647,
+                "step": 1,
+                "mode": "box",
+                "icon": "mdi:counter",
             }
             mqttc.publish(num_topic, "", retain=True)
             mqttc.publish(num_topic, json.dumps(num_payload), retain=True)
@@ -188,14 +192,14 @@ def cleanup_meter_discovery(mqttc: mqtt.Client, meter_id: int) -> None:
         meter_id: The ID of the meter to clear.
     """
     context = state_module.get_context()
-    if not context.config['mqtt']['discovery']:
+    if not context.config["mqtt"]["discovery"]:
         return
 
-    base_topic = context.config['mqtt']['base_topic']
-    discovery_prefix = context.config['mqtt']['discovery_prefix']
+    base_topic = context.config["mqtt"]["base_topic"]
+    discovery_prefix = context.config["mqtt"]["discovery_prefix"]
 
     # Clear individual sensors
-    for subkey in ['total', 'today', 'yesterday']:
+    for subkey in ["total", "today", "yesterday"]:
         unique_id = f"s0pcm_{base_topic}_{meter_id}_{subkey}"
         topic = f"{discovery_prefix}/sensor/{base_topic}/{unique_id}/config"
         mqttc.publish(topic, "", retain=True)

@@ -2,8 +2,11 @@
 Tests for the refactored packet parsing logic.
 This test files targets the standalone 'parse_s0pcm_packet' function.
 """
+
 import pytest
+
 from protocol import parse_s0pcm_packet
+
 
 class TestPacketParsing:
     """Test S0PCM packet parsing logic."""
@@ -21,8 +24,8 @@ class TestPacketParsing:
         assert 2 in result
 
         # Verify pulse counts
-        assert result[1]['pulsecount'] == 100
-        assert result[2]['pulsecount'] == 50
+        assert result[1]["pulsecount"] == 100
+        assert result[2]["pulsecount"] == 50
 
     def test_parse_s0pcm5_packet(self):
         """Test parsing valid S0PCM-5 data packet."""
@@ -37,9 +40,9 @@ class TestPacketParsing:
             assert i in result
 
         # Verify specific values
-        assert result[1]['pulsecount'] == 100
-        assert result[3]['pulsecount'] == 25
-        assert result[5]['pulsecount'] == 10
+        assert result[1]["pulsecount"] == 100
+        assert result[3]["pulsecount"] == 25
+        assert result[5]["pulsecount"] == 10
 
     def test_invalid_length(self):
         """Test handling of packets with invalid number of parts."""
@@ -62,5 +65,6 @@ class TestPacketParsing:
         with pytest.raises(ValueError, match="Cannot convert pulsecount"):
             parse_s0pcm_packet("ID:8237:I:10:M1:0:ABC:M2:0:50")
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

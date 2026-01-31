@@ -13,8 +13,8 @@ from pathlib import Path
 from typing import Any
 
 import paho.mqtt.client as mqtt
-import serial
 from pydantic import BaseModel, Field
+import serial
 
 from utils import get_supervisor_config
 
@@ -24,13 +24,16 @@ logger = logging.getLogger(__name__)
 # Configuration Models
 # ------------------------------------------------------------------------------------
 
+
 class LogConfig(BaseModel):
     """Logging configuration."""
+
     level: str = "INFO"
 
 
 class SerialConfig(BaseModel):
     """Serial port configuration."""
+
     port: str = "/dev/ttyACM0"
     baudrate: int = 9600
     parity: str = serial.PARITY_EVEN
@@ -42,6 +45,7 @@ class SerialConfig(BaseModel):
 
 class MqttConfig(BaseModel):
     """MQTT connection and publishing configuration."""
+
     host: str = "127.0.0.1"
     port: int = 1883
     tls_port: int = 8883
@@ -65,6 +69,7 @@ class MqttConfig(BaseModel):
 
 class ConfigModel(BaseModel):
     """Root configuration model."""
+
     log: LogConfig = Field(default_factory=LogConfig)
     serial: SerialConfig = Field(default_factory=SerialConfig)
     mqtt: MqttConfig = Field(default_factory=MqttConfig)
@@ -73,32 +78,24 @@ class ConfigModel(BaseModel):
 # ------------------------------------------------------------------------------------
 # Configuration Paths
 # ------------------------------------------------------------------------------------
-configdirectory = './'
+configdirectory = "./"
 
 
 def init_args():
     """Initialize arguments and global configuration paths."""
     global configdirectory
 
-    parser = argparse.ArgumentParser(
-        prog='s0pcm-reader',
-        description='S0 Pulse Counter Module'
-    )
+    parser = argparse.ArgumentParser(prog="s0pcm-reader", description="S0 Pulse Counter Module")
     # Determine default config directory: /data for HA, ./ for local dev
-    default_config = '/data' if os.path.exists('/data') else './'
+    default_config = "/data" if os.path.exists("/data") else "./"
     parser.add_argument(
-        '-c', '--config',
-        help='Directory where the configuration resides',
-        type=str,
-        default=default_config
+        "-c", "--config", help="Directory where the configuration resides", type=str, default=default_config
     )
     args = parser.parse_args()
 
     configdirectory = args.config
-    if not configdirectory.endswith('/'):
-        configdirectory += '/'
-
-
+    if not configdirectory.endswith("/"):
+        configdirectory += "/"
 
 
 def read_config(config_dict: dict[str, Any] | None = None, version: str = "Unknown") -> ConfigModel:
@@ -113,7 +110,7 @@ def read_config(config_dict: dict[str, Any] | None = None, version: str = "Unkno
         ConfigModel: The populated configuration object
     """
     # 1. Load Home Assistant Options
-    options_path = Path('/data/options.json')
+    options_path = Path("/data/options.json")
     ha_options = {}
     if options_path.exists():
         try:
@@ -123,50 +120,48 @@ def read_config(config_dict: dict[str, Any] | None = None, version: str = "Unkno
 
     # 2. MQTT Service Discovery
     mqtt_service = {}
-    if not ha_options.get('mqtt_host'):
-        mqtt_service = get_supervisor_config('mqtt')
+    if not ha_options.get("mqtt_host"):
+        mqtt_service = get_supervisor_config("mqtt")
         if mqtt_service:
             logger.info("Using MQTT service discovery for connection settings.")
 
     # 3. Build Config Model
-    mqtt_version_str = str(ha_options.get('mqtt_protocol', '5.0'))
-    version_map = {'3.1': mqtt.MQTTv31, '3.1.1': mqtt.MQTTv311, '5.0': mqtt.MQTTv5}
+    mqtt_version_str = str(ha_options.get("mqtt_protocol", "5.0"))
+    version_map = {"3.1": mqtt.MQTTv31, "3.1.1": mqtt.MQTTv311, "5.0": mqtt.MQTTv5}
     mqtt_version = version_map.get(mqtt_version_str, mqtt.MQTTv5)
 
-    tls_ca = ha_options.get('mqtt_tls_ca', '')
-    if tls_ca and not tls_ca.startswith('/'):
+    tls_ca = ha_options.get("mqtt_tls_ca", "")
+    if tls_ca and not tls_ca.startswith("/"):
         tls_ca = str(Path(configdirectory) / tls_ca)
 
     model = ConfigModel(
-        log=LogConfig(
-            level=(ha_options.get('log_level') or 'INFO').upper()
-        ),
-        serial=SerialConfig(
-            port=ha_options.get('device', '/dev/ttyACM0')
-        ),
+        log=LogConfig(level=(ha_options.get("log_level") or "INFO").upper()),
+        serial=SerialConfig(port=ha_options.get("device", "/dev/ttyACM0")),
         mqtt=MqttConfig(
-            host=ha_options.get('mqtt_host') or mqtt_service.get('host', '127.0.0.1'),
-            port=ha_options.get('mqtt_port') or mqtt_service.get('port', 1883),
-            tls_port=ha_options.get('mqtt_tls_port', 8883),
-            username=ha_options.get('mqtt_username') or mqtt_service.get('username'),
-            password=ha_options.get('mqtt_password') or mqtt_service.get('password'),
-            base_topic=ha_options.get('mqtt_base_topic', 's0pcmreader'),
-            client_id=ha_options.get('mqtt_client_id') if ha_options.get('mqtt_client_id') not in [None, "", "None"] else None,
+            host=ha_options.get("mqtt_host") or mqtt_service.get("host", "127.0.0.1"),
+            port=ha_options.get("mqtt_port") or mqtt_service.get("port", 1883),
+            tls_port=ha_options.get("mqtt_tls_port", 8883),
+            username=ha_options.get("mqtt_username") or mqtt_service.get("username"),
+            password=ha_options.get("mqtt_password") or mqtt_service.get("password"),
+            base_topic=ha_options.get("mqtt_base_topic", "s0pcmreader"),
+            client_id=ha_options.get("mqtt_client_id")
+            if ha_options.get("mqtt_client_id") not in [None, "", "None"]
+            else None,
             version=mqtt_version,
-            retain=ha_options.get('mqtt_retain', True),
-            split_topic=ha_options.get('mqtt_split_topic', True),
-            discovery=ha_options.get('mqtt_discovery', True),
-            discovery_prefix=ha_options.get('mqtt_discovery_prefix', 'homeassistant'),
-            tls=ha_options.get('mqtt_tls', False),
+            retain=ha_options.get("mqtt_retain", True),
+            split_topic=ha_options.get("mqtt_split_topic", True),
+            discovery=ha_options.get("mqtt_discovery", True),
+            discovery_prefix=ha_options.get("mqtt_discovery_prefix", "homeassistant"),
+            tls=ha_options.get("mqtt_tls", False),
             tls_ca=tls_ca,
-            tls_check_peer=ha_options.get('mqtt_tls_check_peer', False)
-        )
+            tls_check_peer=ha_options.get("mqtt_tls_check_peer", False),
+        ),
     )
 
     # 4. Global Logging Setup
     root_logger = logging.getLogger()
     root_logger.setLevel(model.log.level)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
+    formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
 
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
@@ -181,16 +176,14 @@ def read_config(config_dict: dict[str, Any] | None = None, version: str = "Unkno
         config_dict.clear()
         config_dict.update(model.model_dump())
         # Restore version object (pydantic will have dumped it as int/str potentially)
-        config_dict['mqtt']['version'] = model.mqtt.version
+        config_dict["mqtt"]["version"] = model.mqtt.version
 
-    logger.info(f'Start: s0pcm-reader - version: {version}')
+    logger.info(f"Start: s0pcm-reader - version: {version}")
 
     # Debug logging with redacted password
     config_log = model.model_dump()
-    if config_log['mqtt'].get('password'):
-        config_log['mqtt']['password'] = '********'
-    logger.debug(f'Config: {str(config_log)}')
+    if config_log["mqtt"].get("password"):
+        config_log["mqtt"]["password"] = "********"
+    logger.debug(f"Config: {config_log!s}")
 
     return model
-
-

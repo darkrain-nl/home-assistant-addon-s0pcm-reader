@@ -16,8 +16,6 @@ Where:
 """
 
 
-
-
 def parse_s0pcm_packet(datastr: str) -> dict[int, dict[str, int]]:
     """
     Parse a raw S0PCM data packet string.
@@ -34,7 +32,7 @@ def parse_s0pcm_packet(datastr: str) -> dict[int, dict[str, int]]:
         ValueError: If the packet format is invalid or values cannot be parsed.
     """
     # Split data into an array
-    s0arr = datastr.split(':')
+    s0arr = datastr.split(":")
     size = 0
 
     # s0pcm-5 (19 parts) or s0pcm-2 (10 parts)
@@ -52,15 +50,17 @@ def parse_s0pcm_packet(datastr: str) -> dict[int, dict[str, int]]:
         offset = 4 + ((count - 1) * 3)
 
         # expected format: M1:x:x
-        expected_marker = 'M' + str(count)
+        expected_marker = "M" + str(count)
         if s0arr[offset] != expected_marker:
             raise ValueError(f"Expecting '{expected_marker}', received '{s0arr[offset]}'")
 
         try:
             pulsecount = int(s0arr[offset + 2])
         except ValueError:
-            raise ValueError(f"Cannot convert pulsecount '{s0arr[offset + 2]}' into integer for meter {count}")
+            raise ValueError(
+                f"Cannot convert pulsecount '{s0arr[offset + 2]}' into integer for meter {count}"
+            ) from None
 
-        result[count] = {'pulsecount': pulsecount}
+        result[count] = {"pulsecount": pulsecount}
 
     return result
