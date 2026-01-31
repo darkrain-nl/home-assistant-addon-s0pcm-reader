@@ -20,14 +20,14 @@ def get_version() -> str:
     Get the S0PCM Reader version.
 
     Priority:
-    1. S0PCM_READER_VERSION environment variable (set by HA addon)
+    1. S0PCM_READER_VERSION environment variable (set by HA app)
     2. config.yaml in common locations (for local development)
     3. 'dev' as fallback
 
     Returns:
         str: The version string.
     """
-    # 1. Try environment variable (provided by HA addon startup)
+    # 1. Try environment variable (provided by HA app startup)
     version = os.getenv("S0PCM_READER_VERSION")
     if version:
         return version
