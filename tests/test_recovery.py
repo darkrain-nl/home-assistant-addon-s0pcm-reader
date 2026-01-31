@@ -286,8 +286,8 @@ class TestRobustStateCleaning:
 
         result = recoverer._find_total_in_ha(1, ha_states)
 
-        # European format with mixed separators: all separators removed -> 123456
-        assert result == 123456
+        # European format with mixed separators: comma treated as decimal -> 1234
+        assert result == 1234
 
     def test_clean_state_plain_number(self, recoverer):
         """Test cleaning plain numeric state."""

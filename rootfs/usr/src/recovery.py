@@ -199,7 +199,8 @@ class StateRecoverer:
     def _find_total_in_ha(self, mid: int, ha_states: list[dict[str, Any]]) -> int | None:
         """Surgically find the total for a meter in a list of HA states."""
         base_topic = self.context.config["mqtt"]["base_topic"]
-        name = self.context.state.meters[mid].name
+        meter = self.context.state.meters.get(mid)
+        name = meter.name if meter else None
 
         # Patterns to check
         patterns = [f"sensor.{base_topic}_{mid}_total", f"sensor.s0pcm_reader_{mid}_total", f"sensor.{mid}_total"]
@@ -228,7 +229,24 @@ class StateRecoverer:
                         or clean_state.count(",") > 1
                         or (clean_state.count(".") == 1 and clean_state.count(",") == 1)
                     ):
-                        clean_state = clean_state.replace(".", "").replace(",", "")
+                        # Smart multi-separator detection
+                        if clean_state.count(",") > clean_state.count("."):
+                            # Likely 1,000,000.00 (or 1,000.50)
+                            clean_state = clean_state.replace(",", "")
+                        elif clean_state.count(".") > clean_state.count(","):
+                            # Likely 1.000.000,00 (or 1.000,50)
+                            clean_state = clean_state.replace(".", "").replace(",", ".")
+                        elif clean_state.count(".") == 1 and clean_state.count(",") == 1:
+                            # Exactly one of each: 1,000.50 vs 1.000,50
+                            if clean_state.find(".") < clean_state.find(","):
+                                # Dot first -> 1.000,50 (EU)
+                                clean_state = clean_state.replace(".", "").replace(",", ".")
+                            else:
+                                # Comma first -> 1,000.50 (US)
+                                clean_state = clean_state.replace(",", "")
+                        else:
+                            # Chaos (e.g. 1.1.1,1,1), strip all
+                            clean_state = clean_state.replace(".", "").replace(",", "")
                     elif clean_state.count(",") == 1 and "." not in clean_state:
                         clean_state = clean_state.replace(",", ".")
 
