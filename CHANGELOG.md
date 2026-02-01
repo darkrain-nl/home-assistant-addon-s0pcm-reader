@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Code Quality**: Applied strict **Ruff** linting and formatting across the entire codebase.
 - **Python 3.14 Compatibility**: Resolved a critical naming collision with `threading.Thread._context` by renaming internal context references to `app_context`.
-- **Test Infrastructure**: Fully modularized the test suite, achieving a 100% pass rate (**153 tests**) with **97% code coverage** across all core components.
+- **Test Infrastructure**: Fully modularized the test suite, achieving a 100% pass rate (**158 tests**) with **99% code coverage** across all core components.
 - **Legacy Cleanup**: Completely purged all remaining logic for the deprecated `measurement.json` local file storage and "CamelCase" aliases.
 
 ## [2.3.6] - 2026-01-24
