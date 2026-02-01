@@ -119,6 +119,18 @@ class TestSerialPacketAdvanced:
         task._read_loop(mock_ser)
         assert any("Failed to decode" in str(c) for c in mock_set_error.call_args_list)
 
+    def test_read_loop_bounded_read(self):
+        """Test that readline is called with a size limit (DoS prevention)."""
+        mock_ser = MagicMock()
+        mock_ser.readline.side_effect = [b""]  # Return empty to exit loop immediately (timeout path)
+        context = state_module.get_context()
+        task = TaskReadSerial(context, None, threading.Event())
+
+        task._read_loop(mock_ser)
+
+        # Verify readline was called with an integer argument (size limit)
+        mock_ser.readline.assert_called_with(512)
+
 
 class TestSerialConnection:
     def test_serial_connect_success(self, mock_serial):

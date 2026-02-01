@@ -188,7 +188,7 @@ class TaskReadSerial(threading.Thread):
         """
         while not self._stopper.is_set():
             try:
-                datain = ser.readline()
+                datain = ser.readline(512)
             except Exception as e:
                 self.app_context.set_error(f"Serialport read error: {type(e).__name__}: '{e}'", category="serial")
                 break  # Break to reconnect
