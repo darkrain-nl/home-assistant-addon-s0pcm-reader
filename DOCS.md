@@ -209,7 +209,7 @@ The app publishes all internal states (totals, daily counts, and pulse counters)
 > **Data Integrity Risk**: If you reduce the recovery wait time too much on slow hardware (like a Raspberry Pi 3), the app might start its main loop before the network has delivered all retained messages. This could result in the app incorrectly assuming a "zero" state for some meters, which would then be published to MQTT and override your previous totals. **Do not lower this value unless you are certain your network and hardware can handle near-instant delivery.**
 
 ### Layer 2: Home Assistant API (Secondary)
-If MQTT recovery fails (e.g., the broker's database was cleared), the app will automatically query the **Home Assistant State API**. It fetches the last known value of your sensors (e.g., `sensor.s0pcm_reader_1_total`) and uses them to resume counting.
+If MQTT recovery fails (e.g., the broker's database was cleared), the app will automatically query the **Home Assistant State API**. It fetches the last known value of your sensors (e.g., `sensor.s0pcm_s0pcmreader_1_total` with the default base topic) and uses them to resume counting.
 
 > [!TIP]
 > This dual-recovery system ensures that as long as either your MQTT broker or your Home Assistant instance has the data, the app will resume correctly.
@@ -286,15 +286,15 @@ To use your meter data in the Home Assistant Energy Dashboard, you need to creat
    - **Name**: e.g., `Water Usage Total`
    - **State Template**:
      ```jinja
-     {{ (states('sensor.s0pcm_reader_1_total') | float(0) / 1000) | round(3) }}
+     {{ (states('sensor.s0pcm_s0pcmreader_1_total') | float(0) / 1000) | round(3) }}
      ```
-     *(Replace `sensor.s0pcm_reader_1_total` with your actual entity ID. Home Assistant typically prefixes the ID with the device name, resulting in `sensor.s0pcm_reader_<ID>_total` by default)*
+     *(Replace `sensor.s0pcm_s0pcmreader_1_total` with your actual entity ID. The entity ID format is `sensor.s0pcm_<base_topic>_<meter_id>_total`, so with the default base topic `s0pcmreader`, meter 1's total is `sensor.s0pcm_s0pcmreader_1_total`)*
    - **Unit of Measurement**: `m³` (for water) or `kWh` (for energy)
    - **Device Class**: `Water` or `Energy`
    - **State Class**: `Total increasing`
    - **Availability Template**:
      ```jinja
-     {{ states('sensor.s0pcm_reader_1_total') | is_number }}
+     {{ states('sensor.s0pcm_s0pcmreader_1_total') | is_number }}
      ```
      *(This ensures the sensor doesn't show "0" or "Unknown" when the app or MQTT is restarting)*
 4. Click **Submit**.

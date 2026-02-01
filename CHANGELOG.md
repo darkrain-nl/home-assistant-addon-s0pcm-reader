@@ -6,30 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   
 ## [3.0.0] - 2026-02-01
 ### Changed
-- **Modular Architecture overhaul**: Successfully refactored the monolithic `s0pcm_reader.py` (nearly 1500 lines) into a clean, modular structure. Core logic is now distributed across focused modules: `config`, `state`, `utils`, `protocol`, `serial_handler`, `mqtt_handler`, and `recovery`.
-- **Dependency Injection**: Refactored task handlers (Serial, MQTT, Recovery) to use dependency injection, receiving `AppContext` directly during initialization instead of relying on global state.
-- **Clean State Models**: Streamlined `MeterState` and `AppState` by removing legacy dictionary-compatibility methods, enforcing idiomatic Pydantic attribute access.
-- **Optimized Recovery Phase**: Standardized the startup recovery wait to a safe 7 seconds, ensuring data integrity on all hardware including older Raspberry Pi models. Added a configurable `mqtt_recovery_wait` option for advanced users.
-- **Dynamic Meter Detection**: Refactored the recovery engine to automatically detect active meters from MQTT retained messages, eliminating hardcoded meter ranges (1-5). This allows the software to automatically support both the 2-meter and 5-meter hardware versions without configuration changes.
-- **Type-Safe State Management**: Introduced **Pydantic v2** models for configuration and meter state, providing deep validation and clear data structures.
-- **Centralized Thread-Safe Context**: Implemented an explicit `AppContext` singleton pattern to manage shared state, locks, and events across threads, eliminating messy global variables.
-- **Enhanced Logging Visibility**: Restored full DEBUG log availability by centralizing logger configuration at the root level and ensuring uniform propagation across all modular components.
-- **Modern Python Standards**: Added PEP 484 type hints across the entire codebase and standardized on Google-style docstrings.
+- **Complete Architecture Redesign**: Rebuilt the entire application with a modern, modular structure for better reliability and maintainability. The previous 1500-line monolithic script has been reorganized into focused, specialized components.
+- **Improved Startup Reliability**: Optimized the startup recovery phase with a safe 7-second default wait time, ensuring your meter data is fully recovered before counting new pulses. This prevents data loss on all hardware, including older Raspberry Pi models. Advanced users can adjust this via the new `mqtt_recovery_wait` configuration option.
+- **Automatic Hardware Detection**: The app now automatically detects which meters are active by reading MQTT retained messages. It seamlessly supports both S0PCM-2 and S0PCM-5 hardware without any configuration changes.
+- **Enhanced Logging**: Improved logging system provides clearer diagnostic information at all log levels, making it easier to troubleshoot issues when they occur.
 
 ### Added
-- **Standalone Docker Support**: Introduced `Dockerfile.standalone` for running the application in a standard Docker container outside of Home Assistant Supervisor.
-- **End-to-End Verification Suite**: Added a comprehensive `docker-compose`-based test suite in `tests/standalone/` that spins up the app, a simulated serial S0PCM device (`socket://`), and an MQTT broker.
-- **CI/CD Integration**: Added a verification job to GitHub Actions that builds and runs the standalone stack on every push.
-- **Simulation Support**: Updated `serial_handler.py` to support `socket://` URLs for development against simulated hardware.
-- **Internal Engine Hardening**: improved stability and reliability through extensive code modernization and stricter internal validation.
-- **Global Architecture Improvements**: Enhanced thread safety and isolation across the application core.
-- **Enhanced Error Handling**: Improved failure reporting with more specific error messages for faster troubleshooting.
+- **Standalone Docker Mode**: You can now run the app in a standard Docker container outside of Home Assistant Supervisor, perfect for advanced users with custom setups or Home Assistant Container installations. See README for details.
+- **Hardware Simulation Support**: Added `socket://` connection support for testing and development with simulated S0PCM hardware.
+- **Comprehensive Testing**: Implemented extensive automated testing with unit tests, integration tests, and end-to-end verification to ensure rock-solid reliability and catch issues before they reach users.
+- **Better Error Messages**: Error reporting has been significantly improved with more specific, actionable messages to help you quickly identify and resolve issues.
 
 ### Fixed
-- **Code Quality**: Applied strict **Ruff** linting and formatting across the entire codebase.
-- **Python 3.14 Compatibility**: Resolved a critical naming collision with `threading.Thread._context` by renaming internal context references to `app_context`.
-- **Test Infrastructure**: Fully modularized the test suite, achieving a 100% pass rate (**158 tests**) with **99% code coverage** across all core components.
-- **Legacy Cleanup**: Completely purged all remaining logic for the deprecated `measurement.json` local file storage and "CamelCase" aliases.
+- **Code Quality**: Applied professional-grade code quality standards using modern Python tooling, ensuring a maintainable and reliable codebase.
+- **Python 3.14 Compatibility**: Resolved compatibility issues with Python 3.14, future-proofing the app for upcoming Home Assistant releases.
+- **Legacy Code Removal**: Completely removed all remnants of the deprecated `measurement.json` local storage system and outdated naming conventions.
 
 ## [2.3.6] - 2026-01-24
 ### Fixed
