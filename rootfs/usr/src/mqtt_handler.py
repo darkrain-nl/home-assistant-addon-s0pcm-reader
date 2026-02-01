@@ -333,11 +333,11 @@ class TaskDoMQTT(threading.Thread):
 
                 if val != old_val or (prev_mstate and mstate.name != prev_mstate.name):
                     if context.config["mqtt"]["split_topic"]:
-                        topic = f"{context.config['mqtt']['base_topic']}/{instancename}/{field}"
+                        topic = f"{context.config['mqtt']['base_topic']}/{instancename}/{topic_field}"
                         self._state.mqttc.publish(topic, val, retain=context.config["mqtt"]["retain"])
                         logger.debug(f"MQTT Publish: topic='{topic}', value='{val}'")
                     else:
-                        jsondata[field] = val
+                        jsondata[topic_field] = val
 
             # Name state
             if not prev_mstate or mstate.name != prev_mstate.name:

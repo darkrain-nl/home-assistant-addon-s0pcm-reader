@@ -387,6 +387,18 @@ class TestPublishingLogic:
         assert mqtt_task._state.mqttc.publish.called
         assert mqtt_task._state.mqttc.publish.call_count >= 3  # At least total, today, pulsecount
 
+        # Regression check: Ensure topics do NOT contain function/object string representations
+        published_topics = [str(call.args[0]) for call in mqtt_task._state.mqttc.publish.call_args_list]
+        for topic in published_topics:
+            assert "<function" not in topic
+            assert "field at" not in topic
+            assert "object at" not in topic
+        
+        # Ensure correct suffixes are present
+        assert any(t.endswith("/total") for t in published_topics)
+        assert any(t.endswith("/today") for t in published_topics)
+        assert any(t.endswith("/pulsecount") for t in published_topics)
+
     def test_publish_measurements_disabled_meter(self, mqtt_task):
         """Test _publish_measurements skip disabled meter."""
         mqtt_task._state.mqttc = MagicMock()
