@@ -50,6 +50,9 @@ You can configure the following options directly in the **Settings > Apps > S0PC
 
 ### Required Settings
 - **Device**: The serial port device (e.g., `/dev/ttyACM0`).
+- **Recovery Wait Time**: Number of seconds to wait for MQTT messages on startup. Defaults to `7`. 
+  > [!CAUTION]
+  > Setting this value too low (e.g., `< 3s`) on slow hardware or busy networks can prevent the app from receiving all retained state data, potentially leading to **permanent data loss**. Do not change this unless you understand the implications.
 
 ### Optional Settings
 
@@ -58,9 +61,6 @@ You can configure the following options directly in the **Settings > Apps > S0PC
 
 #### General
 - **Log Level**: The detail of the logs (debug, info, warning, error, critical). Defaults to `info`. Logs are streamed directly to the Home Assistant app console.
-- **Recovery Wait Time**: Number of seconds to wait for MQTT messages on startup. Defaults to `7`. 
-  > [!CAUTION]
-  > Setting this value too low (e.g., `< 3s`) on slow hardware or busy networks can prevent the app from receiving all retained state data, potentially leading to **permanent data loss**. Default is **7s**.
 
 #### Connection Options
 - **MQTT Host**: Manual host for an external broker. If not set, it uses the internally discovered broker (typically `core-mosquitto`).

@@ -6,6 +6,7 @@ WORKDIR /
 COPY rootfs /
 
 # Install Python dependencies
+# Install Python dependencies
 RUN pip install --no-cache-dir -r /usr/src/requirements.txt
 
 # Run the application directly

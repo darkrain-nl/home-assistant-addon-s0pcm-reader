@@ -15,11 +15,14 @@ profile s0pcm_reader flags=(attach_disconnected,mediate_deleted) {
   /run/{s6,s6-rc*,service}/** ix,
   /package/** ix,
   /command/** ix,
-  /etc/services.d/** rwix,
-  /etc/cont-init.d/** rwix,
+  /etc/services.d/** ix,
+  /etc/cont-init.d/** ix,
   /etc/cont-finish.d/** rwix,
   /run/{,**} rwk,
   /dev/tty rw,
+  /dev/tty* rw,
+  /dev/serial/by-id/** rw,
+  /dev/serial/by-path/** rw,
 
   # Bashio
   /usr/lib/bashio/** ix,
@@ -27,14 +30,4 @@ profile s0pcm_reader flags=(attach_disconnected,mediate_deleted) {
 
   # Access to options.json and other files within your app
   /data/** rw,
-  
-  # Start new profile for service
-  /usr/src/s0pcm_reader.py cx,
-  
-  profile /usr/src/s0pcm_reader.py flags=(attach_disconnected,mediate_deleted) {
-    #include <abstractions/base>
-    
-    # Receive signals from S6-Overlay
-    signal receive,
-  }
 }
