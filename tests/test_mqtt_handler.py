@@ -393,7 +393,7 @@ class TestPublishingLogic:
             assert "<function" not in topic
             assert "field at" not in topic
             assert "object at" not in topic
-        
+
         # Ensure correct suffixes are present
         assert any(t.endswith("/total") for t in published_topics)
         assert any(t.endswith("/today") for t in published_topics)
