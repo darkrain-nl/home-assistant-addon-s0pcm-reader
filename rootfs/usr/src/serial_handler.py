@@ -4,6 +4,7 @@ Serial Handler Module
 Contains the TaskReadSerial class for reading and parsing S0PCM data from serial port.
 """
 
+from dataclasses import dataclass
 import datetime
 import logging
 import threading
@@ -11,10 +12,18 @@ import time
 
 import serial
 
+from constants import SerialPacketType
 from protocol import parse_s0pcm_packet
 import state as state_module
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SerialTaskState:
+    """Internal state for Serial task."""
+
+    serialerror: int = 0
 
 
 class TaskReadSerial(threading.Thread):
@@ -37,7 +46,7 @@ class TaskReadSerial(threading.Thread):
         super().__init__()
         self._trigger = trigger
         self._stopper = stopper
-        self._serialerror = 0
+        self._state = SerialTaskState()
         self.app_context = context
 
     def _connect(self) -> serial.Serial | None:
@@ -60,10 +69,10 @@ class TaskReadSerial(threading.Thread):
                     do_not_open=True,
                 )
                 ser.open()
-                self._serialerror = 0
+                self._state.serialerror = 0
                 return ser
             except Exception as e:
-                self._serialerror += 1
+                self._state.serialerror += 1
                 self.app_context.set_error(
                     f"Serialport connection failed: {type(e).__name__}: '{e}'", category="serial"
                 )
@@ -84,7 +93,7 @@ class TaskReadSerial(threading.Thread):
                 self.app_context.s0pcm_firmware = datastr.split(":", 1)[1].strip()
             else:
                 self.app_context.s0pcm_firmware = datastr[1:].strip()
-        except Exception:
+        except IndexError:
             self.app_context.s0pcm_firmware = datastr
 
     def _handle_data_packet(self, datastr: str) -> None:
@@ -195,14 +204,15 @@ class TaskReadSerial(threading.Thread):
                 self.app_context.set_error(f"Failed to decode serial data: '{datain}'", category="serial")
                 continue
 
-            if datastr.startswith("/"):
-                self._handle_header(datastr)
-            elif datastr.startswith("ID:"):
-                self._handle_data_packet(datastr)
-            elif datastr == "":
-                logger.warning("Empty Packet received, this can happen during start-up")
-            else:
-                self.app_context.set_error(f"Invalid Packet: '{datastr}'", category="serial")
+            match datastr:
+                case str(s) if s.startswith(SerialPacketType.HEADER):
+                    self._handle_header(datastr)
+                case str(s) if s.startswith(SerialPacketType.DATA):
+                    self._handle_data_packet(datastr)
+                case "":
+                    logger.warning("Empty Packet received, this can happen during start-up")
+                case _:
+                    self.app_context.set_error(f"Invalid Packet: '{datastr}'", category="serial")
 
     def run(self) -> None:
         """Main thread execution."""

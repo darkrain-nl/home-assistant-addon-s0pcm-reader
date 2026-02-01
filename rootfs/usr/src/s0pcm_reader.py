@@ -9,8 +9,12 @@ import logging
 import signal
 import sys
 import threading
+from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
+# ruff: noqa: I001
 import config as config_module
 from mqtt_handler import TaskDoMQTT
 from serial_handler import TaskReadSerial
@@ -20,9 +24,9 @@ from utils import get_version
 logger = logging.getLogger(__name__)
 
 
-def init_args() -> None:
+def init_args() -> Path:
     """Initialize command-line arguments and configuration paths."""
-    config_module.init_args()
+    return config_module.init_args()
 
 
 # ------------------------------------------------------------------------------------
@@ -51,13 +55,16 @@ def main() -> None:
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
+    config_path = Path(config_module.DEFAULT_CONFIG_DIR)
     if __name__ == "__main__":
-        init_args()  # pragma: no cover
+        config_path = init_args()  # pragma: no cover
 
     try:
         # Load Configuration into context
-        context.config = config_module.read_config(version=context.s0pcm_reader_version).model_dump()
-    except Exception:
+        context.config = config_module.read_config(
+            version=context.s0pcm_reader_version, config_dir=config_path
+        ).model_dump()
+    except (ValidationError, Exception):
         logger.error("Fatal exception during startup", exc_info=True)
         sys.exit(1)
 

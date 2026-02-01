@@ -138,8 +138,8 @@ def test_init_args_coverage():
     # But init_args parses sys.argv. We should mock argparse.
     with patch("argparse.ArgumentParser.parse_args") as mock_parse:
         mock_parse.return_value.config = "/tmp/test"
-        s0pcm_reader.init_args()
-        assert s0pcm_reader.config_module.configdirectory.startswith("/tmp/test")
+        result_path = s0pcm_reader.init_args()
+        assert str(result_path) == "/tmp/test"
 
 
 if __name__ == "__main__":

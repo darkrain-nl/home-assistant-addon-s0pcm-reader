@@ -20,6 +20,8 @@ pytest tests/ --cov=rootfs/usr/src --cov-report=term-missing
 This method ensures environment parity with CI/CD without needing Python installed locally.
 ```powershell
 # Windows (PowerShell)
+# Note: You may need to bypass execution policy:
+# Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\tests\docker-test.ps1
 
 # Linux / Mac (Bash)
@@ -40,6 +42,7 @@ tests/
 ├── docker-test.sh            # Linux/Mac Dockerized test runner
 ├── Dockerfile.test           # Test container definition
 ├── test_config.py            # Config loading & validation tests
+├── test_constants.py         # Constants validation tests
 ├── test_discovery.py         # MQTT discovery message tests
 ├── test_mqtt_handler.py      # MQTT publishing & TLS logic tests
 ├── test_protocol.py          # S0PCM telegram parsing tests

@@ -6,7 +6,7 @@ Handles MQTT discovery payload generation for Home Assistant.
 
 import json
 import logging
-from typing import Any
+from typing import Any, Final
 
 import paho.mqtt.client as mqtt
 
@@ -14,7 +14,10 @@ import state as state_module
 
 logger = logging.getLogger(__name__)
 
-GLOBAL_DIAGNOSTICS = [
+# Type Aliases
+type MeterData = dict[str, Any]
+
+GLOBAL_DIAGNOSTICS: Final = [
     {"id": "version", "name": "App Version", "icon": "mdi:information-outline"},
     {"id": "firmware", "name": "S0PCM Firmware", "icon": "mdi:chip"},
     {"id": "startup_time", "name": "Startup Time", "icon": "mdi:clock-outline", "class": "timestamp"},
@@ -99,7 +102,7 @@ def send_global_discovery(mqttc: mqtt.Client) -> None:
     logger.info("Sent global MQTT discovery messages")
 
 
-def send_meter_discovery(mqttc: mqtt.Client, meter_id: int, meter_data: dict[str, Any]) -> str | None:
+def send_meter_discovery(mqttc: mqtt.Client, meter_id: int, meter_data: MeterData) -> str | None:
     """
     Send discovery for a specific meter.
 

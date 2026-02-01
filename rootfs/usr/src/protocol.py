@@ -15,8 +15,18 @@ Where:
 - d/f/h/j/l = Total pulses since startup for meter 1/2/3/4/5
 """
 
+from typing import TypeGuard
 
-def parse_s0pcm_packet(datastr: str) -> dict[int, dict[str, int]]:
+# Type Aliases
+type MeterResult = dict[int, dict[str, int]]
+
+
+def is_valid_packet_length(arr: list[str]) -> TypeGuard[list[str]]:
+    """Validate packet length (10 or 19 parts)."""
+    return len(arr) in (10, 19)
+
+
+def parse_s0pcm_packet(datastr: str) -> MeterResult:
     """
     Parse a raw S0PCM data packet string.
 
@@ -24,7 +34,7 @@ def parse_s0pcm_packet(datastr: str) -> dict[int, dict[str, int]]:
         datastr: The raw data string from the serial port (e.g. "ID:8237:I:10:M1:0:100...")
 
     Returns:
-        dict[int, dict[str, int]]: A dictionary of parsed meter data where keys are meter IDs (1-5) and values
+        MeterResult: A dictionary of parsed meter data where keys are meter IDs (1-5) and values
               are dictionaries containing 'pulsecount'.
               Example: {1: {'pulsecount': 100}, 2: {'pulsecount': 50}}
 
@@ -35,13 +45,14 @@ def parse_s0pcm_packet(datastr: str) -> dict[int, dict[str, int]]:
     s0arr = datastr.split(":")
     size = 0
 
+    if not is_valid_packet_length(s0arr):
+        raise ValueError(f"Packet has invalid length: Expected 10 or 19 parts, got {len(s0arr)}")
+
     # s0pcm-5 (19 parts) or s0pcm-2 (10 parts)
     if len(s0arr) == 19:
         size = 5
     elif len(s0arr) == 10:
         size = 2
-    else:
-        raise ValueError(f"Packet has invalid length: Expected 10 or 19 parts, got {len(s0arr)}")
 
     result = {}
 

@@ -17,8 +17,8 @@ import state as state_module
 
 @pytest.fixture(autouse=True)
 def setup_config_test_env():
-    # Context and state are reset by conftest.py
-    config_module.configdirectory = "./"
+    # No global configdirectory to reset anymore
+    pass
 
 
 class TestConfigLoading:
@@ -44,17 +44,17 @@ class TestCLI:
 
         # Use patch.object on sys.argv
         with patch.object(sys, "argv", ["s0pcm_reader", "--config", "/custom/path"]):
-            s0pcm_reader.init_args()
-            assert "/custom/path/" in config_module.configdirectory
+            path = s0pcm_reader.init_args()
+            assert path == Path("/custom/path")
 
 
 class TestConfigEdgeCases:
     def test_tls_path_join(self, mocker):
         mocker.patch.object(Path, "exists", return_value=True)
         mocker.patch.object(Path, "read_text", return_value=json.dumps({"mqtt_tls": True, "mqtt_tls_ca": "ca.crt"}))
-        config_module.configdirectory = "/data/"
+        mocker.patch.object(Path, "read_text", return_value=json.dumps({"mqtt_tls": True, "mqtt_tls_ca": "ca.crt"}))
         context = state_module.get_context()
-        context.config = config_module.read_config().model_dump()
+        context.config = config_module.read_config(config_dir=Path("/data/")).model_dump()
         expected_path = os.path.normpath("data/ca.crt")
         actual_path = os.path.normpath(context.config["mqtt"]["tls_ca"])
         assert expected_path in actual_path

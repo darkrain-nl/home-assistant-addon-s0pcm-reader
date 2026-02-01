@@ -212,7 +212,7 @@ def test_handle_header_fallback(serial_task_missing):
             return True  # trigger first branch
 
         def split(self, *args, **kwargs):
-            raise Exception("Split failed")
+            raise IndexError("Split failed")
 
         def __str__(self):
             return "BadString"

@@ -19,6 +19,9 @@ import state as state_module
 
 logger = logging.getLogger(__name__)
 
+# Type Aliases
+type EntityStateList = list[dict[str, Any]]
+
 
 class StateRecoverer:
     """Helper class to manage the startup state recovery phase."""
@@ -39,7 +42,7 @@ class StateRecoverer:
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         try:
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=5) as response:
                 if response.status == 200:
                     data = json.loads(response.read().decode())
                     state = data.get("state")
@@ -49,7 +52,7 @@ class StateRecoverer:
             logger.debug(f"HA API state fetch for {entity_id} failed: {e}")
         return None
 
-    def fetch_all_ha_states(self) -> list[dict[str, Any]]:
+    def fetch_all_ha_states(self) -> EntityStateList:
         """Fetch all entity states from Home Assistant."""
         token = os.getenv("SUPERVISOR_TOKEN")
         if not token:
@@ -59,7 +62,7 @@ class StateRecoverer:
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         try:
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=5) as response:
                 if response.status == 200:
                     return json.loads(response.read().decode())
         except Exception as e:
@@ -199,7 +202,7 @@ class StateRecoverer:
 
         logger.info("State Recovery complete.")
 
-    def _find_total_in_ha(self, mid: int, ha_states: list[dict[str, Any]]) -> int | None:
+    def _find_total_in_ha(self, mid: int, ha_states: EntityStateList) -> int | None:
         """Surgically find the total for a meter in a list of HA states."""
         base_topic = self.context.config["mqtt"]["base_topic"]
         meter = self.context.state.meters.get(mid)

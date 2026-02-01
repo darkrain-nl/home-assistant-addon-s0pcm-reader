@@ -5,6 +5,7 @@ Tests for helper modules (utils.py).
 import json
 import os
 from unittest.mock import MagicMock
+import urllib.error
 
 import pytest
 
@@ -17,61 +18,49 @@ def test_get_version_from_env(mocker):
     assert utils.get_version() == "3.1.0"
 
 
-def test_get_version_fallback(mocker):
-    """Test GetVersion fallback when env is missing."""
+def test_get_version_fallback(mocker, tmp_path):
+    """Test GetVersion fallback when env is missing and no config file."""
     mocker.patch.dict(os.environ, {}, clear=True)
-    mocker.patch("os.path.exists", return_value=False)
+    # Mock __file__ to point to our tmp_path
+    mocker.patch("utils.__file__", str(tmp_path / "utils.py"))
     assert utils.get_version() == "dev"
 
 
-def test_get_version_config_yaml(mocker, temp_config_dir):
+def test_get_version_config_yaml(mocker, tmp_path):
     """Test GetVersion reading from config.yaml."""
     mocker.patch.dict(os.environ, {}, clear=True)
 
-    config_path = os.path.join(temp_config_dir, "config.yaml")
-    with open(config_path, "w") as f:
-        f.write("version: '3.0.0-test'\n")
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("version: '3.0.0-test'\n", encoding="utf-8")
 
-    # Surgical mock: only our temp file exists
-    mocker.patch("utils.os.path.exists", side_effect=lambda p: p == config_path)
-    # Ensure search_paths includes our temp file by mocking the first join
-    mocker.patch(
-        "utils.os.path.join", side_effect=lambda *args: config_path if "config.yaml" in args[-1] else "/".join(args)
-    )
+    # Mock __file__ so utils looks in tmp_path
+    mocker.patch("utils.__file__", str(tmp_path / "utils.py"))
 
     version = utils.get_version()
     assert "3.0.0-test" in version
 
 
-def test_get_version_invalid_yaml(mocker, temp_config_dir):
+def test_get_version_invalid_yaml(mocker, tmp_path):
     """Test get_version handles invalid YAML gracefully."""
     mocker.patch.dict(os.environ, {}, clear=True)
 
-    config_path = os.path.join(temp_config_dir, "config.yaml")
-    with open(config_path, "w") as f:
-        f.write("{invalid yaml: [}")
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("{invalid yaml: [}", encoding="utf-8")
 
-    mocker.patch("utils.os.path.exists", side_effect=lambda p: p == config_path)
-    mocker.patch(
-        "utils.os.path.join", side_effect=lambda *args: config_path if "config.yaml" in args[-1] else "/".join(args)
-    )
+    mocker.patch("utils.__file__", str(tmp_path / "utils.py"))
 
     # Should fall back to 'dev' because our file is invalid
     assert utils.get_version() == "dev"
 
 
-def test_get_version_yaml_no_version_key(mocker, temp_config_dir):
+def test_get_version_yaml_no_version_key(mocker, tmp_path):
     """Test get_version when YAML exists but has no version key."""
     mocker.patch.dict(os.environ, {}, clear=True)
 
-    config_path = os.path.join(temp_config_dir, "config.yaml")
-    with open(config_path, "w") as f:
-        f.write("name: 'S0PCM Reader'\n")
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("name: 'S0PCM Reader'\n", encoding="utf-8")
 
-    mocker.patch("utils.os.path.exists", side_effect=lambda p: p == config_path)
-    mocker.patch(
-        "utils.os.path.join", side_effect=lambda *args: config_path if "config.yaml" in args[-1] else "/".join(args)
-    )
+    mocker.patch("utils.__file__", str(tmp_path / "utils.py"))
 
     assert utils.get_version() == "dev"
 
@@ -106,7 +95,8 @@ def test_get_supervisor_config_success(mocker):
 def test_get_supervisor_config_api_error(mocker):
     """Test Supervisor API handles errors gracefully."""
     mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
-    mocker.patch("urllib.request.urlopen", side_effect=Exception("API Error"))
+    # Raise URLError which is one of the caught exceptions
+    mocker.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("API Error"))
 
     result = utils.get_supervisor_config("mqtt")
 

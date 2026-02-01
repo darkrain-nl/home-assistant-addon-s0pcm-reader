@@ -8,14 +8,14 @@ Home Assistant options.json and Supervisor API.
 import argparse
 import json
 import logging
-import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 import paho.mqtt.client as mqtt
 from pydantic import BaseModel, Field
 import serial
 
+from constants import ConnectionStatus
 from utils import get_supervisor_config
 
 logger = logging.getLogger(__name__)
@@ -57,9 +57,9 @@ class MqttConfig(BaseModel):
     retain: bool = True
     split_topic: bool = True
     connect_retry: int = 5
-    online: str = "online"
-    offline: str = "offline"
-    lastwill: str = "offline"
+    online: str = ConnectionStatus.ONLINE
+    offline: str = ConnectionStatus.OFFLINE
+    lastwill: str = ConnectionStatus.OFFLINE
     discovery: bool = True
     discovery_prefix: str = "homeassistant"
     tls: bool = False
@@ -79,27 +79,29 @@ class ConfigModel(BaseModel):
 # ------------------------------------------------------------------------------------
 # Configuration Paths
 # ------------------------------------------------------------------------------------
-configdirectory = "./"
+
+DEFAULT_CONFIG_DIR: Final = "./"
 
 
-def init_args():
+def init_args() -> Path:
     """Initialize arguments and global configuration paths."""
-    global configdirectory
-
     parser = argparse.ArgumentParser(prog="s0pcm-reader", description="S0 Pulse Counter Module")
     # Determine default config directory: /data for HA, ./ for local dev
-    default_config = "/data" if os.path.exists("/data") else "./"
+    default_config = "/data" if Path("/data").exists() else DEFAULT_CONFIG_DIR
     parser.add_argument(
         "-c", "--config", help="Directory where the configuration resides", type=str, default=default_config
     )
     args = parser.parse_args()
 
-    configdirectory = args.config
-    if not configdirectory.endswith("/"):
-        configdirectory += "/"
+    config_path = Path(args.config)
+    return config_path
 
 
-def read_config(config_dict: dict[str, Any] | None = None, version: str = "Unknown") -> ConfigModel:
+def read_config(
+    config_dict: dict[str, Any] | None = None,
+    version: str = "Unknown",
+    config_dir: Path = Path(DEFAULT_CONFIG_DIR),
+) -> ConfigModel:
     """
     Read and populate the configuration.
 
@@ -132,8 +134,10 @@ def read_config(config_dict: dict[str, Any] | None = None, version: str = "Unkno
     mqtt_version = version_map.get(mqtt_version_str, mqtt.MQTTv5)
 
     tls_ca = ha_options.get("mqtt_tls_ca", "")
-    if tls_ca and not tls_ca.startswith("/"):
-        tls_ca = str(Path(configdirectory) / tls_ca)
+    if tls_ca:
+        tls_ca_path = Path(tls_ca)
+        if not tls_ca_path.is_absolute():
+            tls_ca = str(config_dir / tls_ca)
 
     model = ConfigModel(
         log=LogConfig(level=(ha_options.get("log_level") or "INFO").upper()),

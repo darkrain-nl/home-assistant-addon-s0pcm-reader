@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
-## [3.0.0] - 2026-01-31
+## [3.0.0] - 2026-02-01
 ### Changed
 - **Modular Architecture overhaul**: Successfully refactored the monolithic `s0pcm_reader.py` (nearly 1500 lines) into a clean, modular structure. Core logic is now distributed across focused modules: `config`, `state`, `utils`, `protocol`, `serial_handler`, `mqtt_handler`, and `recovery`.
 - **Dependency Injection**: Refactored task handlers (Serial, MQTT, Recovery) to use dependency injection, receiving `AppContext` directly during initialization instead of relying on global state.
@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **End-to-End Verification Suite**: Added a comprehensive `docker-compose`-based test suite in `tests/standalone/` that spins up the app, a simulated serial S0PCM device (`socket://`), and an MQTT broker.
 - **CI/CD Integration**: Added a verification job to GitHub Actions that builds and runs the standalone stack on every push.
 - **Simulation Support**: Updated `serial_handler.py` to support `socket://` URLs for development against simulated hardware.
+- **Internal Engine Hardening**: improved stability and reliability through extensive code modernization and stricter internal validation.
+- **Global Architecture Improvements**: Enhanced thread safety and isolation across the application core.
+- **Enhanced Error Handling**: Improved failure reporting with more specific error messages for faster troubleshooting.
 
 ### Fixed
 - **Code Quality**: Applied strict **Ruff** linting and formatting across the entire codebase.
