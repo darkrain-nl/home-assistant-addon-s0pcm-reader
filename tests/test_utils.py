@@ -18,16 +18,18 @@ def test_get_version_from_env(mocker):
     assert utils.get_version() == "3.1.0"
 
 
-def test_get_version_fallback(mocker, tmp_path):
+def test_get_version_fallback(mocker, tmp_path, monkeypatch):
     """Test GetVersion fallback when env is missing and no config file."""
+    monkeypatch.chdir(tmp_path)
     mocker.patch.dict(os.environ, {}, clear=True)
     # Mock __file__ to point to our tmp_path
     mocker.patch("utils.__file__", str(tmp_path / "utils.py"))
     assert utils.get_version() == "dev"
 
 
-def test_get_version_config_yaml(mocker, tmp_path):
+def test_get_version_config_yaml(mocker, tmp_path, monkeypatch):
     """Test GetVersion reading from config.yaml."""
+    monkeypatch.chdir(tmp_path)
     mocker.patch.dict(os.environ, {}, clear=True)
 
     config_file = tmp_path / "config.yaml"
@@ -40,8 +42,9 @@ def test_get_version_config_yaml(mocker, tmp_path):
     assert "3.0.0-test" in version
 
 
-def test_get_version_invalid_yaml(mocker, tmp_path):
+def test_get_version_invalid_yaml(mocker, tmp_path, monkeypatch):
     """Test get_version handles invalid YAML gracefully."""
+    monkeypatch.chdir(tmp_path)
     mocker.patch.dict(os.environ, {}, clear=True)
 
     config_file = tmp_path / "config.yaml"
@@ -53,8 +56,9 @@ def test_get_version_invalid_yaml(mocker, tmp_path):
     assert utils.get_version() == "dev"
 
 
-def test_get_version_yaml_no_version_key(mocker, tmp_path):
+def test_get_version_yaml_no_version_key(mocker, tmp_path, monkeypatch):
     """Test get_version when YAML exists but has no version key."""
+    monkeypatch.chdir(tmp_path)
     mocker.patch.dict(os.environ, {}, clear=True)
 
     config_file = tmp_path / "config.yaml"
