@@ -21,8 +21,8 @@ try {
 
     Write-Host "Copying patched files back to host..." -ForegroundColor Green
     # We only copy the directories we care about to avoid overwriting unrelated things
-    docker cp "${id}:/app/rootfs" .
-    docker cp "${id}:/app/tests" .
+    docker cp "${id}:/workspace/rootfs" .
+    docker cp "${id}:/workspace/tests" .
     
     Write-Host "Done! Files updated." -ForegroundColor Green
 }

@@ -605,5 +605,112 @@ def test_handle_name_set_creates_new_meter(mqtt_task, mocker):
     assert context.state.meters[7].name == "NewMeter"
 
 
+class TestMQTTAdditionalCoverage:
+    """Additional tests to reach near-100% coverage."""
+
+    def test_publish_measurements_combined_topic_mode(self, mqtt_task):
+        """Test publishing when split_topic is False (JSON mode) (lines 340, 351-353)."""
+        mqtt_task._state.mqttc = MagicMock()
+        mqtt_task.app_context.config["mqtt"]["split_topic"] = False
+
+        state_snapshot = state_module.AppState()
+        state_snapshot.meters[1] = state_module.MeterState(name="Water", total=1000, today=50)
+
+        mqtt_task._publish_measurements(state_snapshot, None)
+
+        # Verify JSON was published (look for the call where the second arg is a JSON string containing total)
+        json_calls = [c for c in mqtt_task._state.mqttc.publish.call_args_list if '"total": 1000' in str(c.args[1])]
+        assert len(json_calls) > 0
+        payload = json_calls[0].args[1]
+        assert '"today": 50' in payload
+
+    def test_main_loop_meter_discovery(self, mqtt_task, mocker):
+        """Test that _main_loop sends discovery for new meters (lines 375-379)."""
+        mqtt_task._state.connected = True
+        mqtt_task._state.mqttc = MagicMock()
+        mqtt_task._state.global_discovery_sent = True  # Skip global discovery
+
+        # Add a meter that hasn't been discovered yet
+        mqtt_task.app_context.state.meters[1] = state_module.MeterState(name="TestMeter")
+        # CRITICAL: _main_loop reads from state_share
+        mqtt_task.app_context.state_share = mqtt_task.app_context.state.model_copy(deep=True)
+
+        mock_send = mocker.patch("mqtt_handler.discovery.send_meter_discovery", return_value="TestMeter")
+
+        # Trigger one iteration then stop
+        def stop_after_first(*args):
+            mqtt_task._stopper.is_set.return_value = True
+
+        mqtt_task._trigger.wait.side_effect = stop_after_first
+        mqtt_task._main_loop()
+
+        assert mock_send.call_count == 1
+        assert mqtt_task._state.discovered_meters[1] == "TestMeter"
+
+    def test_run_cleanup_logic(self, mqtt_task, mocker):
+        """Test cleanup logic in run() when main_loop returns (lines 409-419)."""
+        # Mock _connect_loop to do nothing
+        mocker.patch.object(mqtt_task, "_connect_loop")
+        # Mock _main_loop to return immediately
+        mocker.patch.object(mqtt_task, "_main_loop")
+
+        # Setup state
+        mock_mqttc = MagicMock()
+        mqtt_task._state.mqttc = mock_mqttc
+        mqtt_task._state.connected = True
+        mqtt_task._stopper.is_set.side_effect = [False, True]  # Run once
+
+        mqtt_task.run()
+
+        # Should have published offline status
+        assert mock_mqttc.publish.called
+        # Should have stopped loop and disconnected
+        assert mock_mqttc.loop_stop.called
+        assert mock_mqttc.disconnect.called
+        assert mqtt_task._state.mqttc is None
+
+    @patch("time.sleep")
+    @patch("time.time")
+    def test_connect_loop_timeout(self, mock_time, mock_sleep, mqtt_task, mocker):
+        """Test _connect_loop times out waiting for connection (lines 248, 254)."""
+        # Run loop once
+        mqtt_task._stopper.is_set.side_effect = [False, False, False, True, True, True]
+        mqtt_task._state.mqttc = MagicMock()
+        mqtt_task._state.connected = False
+
+        # Mock _setup_mqtt_client to prevent it from creating a real client in 2nd loop
+        mocker.patch.object(mqtt_task, "_setup_mqtt_client", return_value=True)
+
+        # Simulate time passing:
+        # 1. 100 (start time) -> timeout = 110
+        # 2. 105 (loop check 1 - True)
+        # 3. 115 (loop check 2 - False)
+        # 4. 116 (logging/error time)
+        mock_time.side_effect = [100, 105, 115, 116, 117, 118, 119, 120, 121, 122]
+
+        with patch.object(mqtt_task.app_context, "set_error") as mock_set_error:
+            mqtt_task._connect_loop()
+
+            assert mock_set_error.called
+            # Check if ANY of the calls contain the timeout message
+            all_errors = " ".join(str(call) for call in mock_set_error.call_args_list).lower()
+            assert "timeout waiting for mqtt connack" in all_errors
+
+    @patch("time.sleep")
+    def test_connect_loop_general_failure(self, mock_sleep, mqtt_task):
+        """Test _connect_loop handled general exception (lines 265-267)."""
+        # Run loop once
+        mqtt_task._stopper.is_set.side_effect = [False, True]
+
+        mock_client = MagicMock()
+        mock_client.connect.side_effect = Exception("Socket Error")
+
+        with patch("mqtt_handler.mqtt.Client", return_value=mock_client):
+            mqtt_task._connect_loop()
+
+            assert "MQTT connection failed: Socket Error" in mqtt_task.app_context.lasterror_share
+            assert mock_sleep.called
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

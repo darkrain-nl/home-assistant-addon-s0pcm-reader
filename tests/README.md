@@ -24,6 +24,18 @@ This method ensures environment parity with CI/CD without needing Python install
 # Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\tests\docker-test.ps1
 
+# Run coverage in Docker
+docker run --rm s0pcm-reader-test pytest tests/ --cov=rootfs/usr/src --cov-report=term-missing
+
+# Save coverage to file
+docker run --rm s0pcm-reader-test pytest tests/ --cov=rootfs/usr/src --cov-report=term-missing | Out-File -FilePath coverage.txt -Encoding utf8
+
+**Reading the report:**
+- **Stmts**: Total code lines.
+- **Miss**: Lines not tested.
+- **Cover**: % covered.
+- **Missing**: Specific lines to target for better coverage.
+
 # Linux / Mac (Bash)
 ./tests/docker-test.sh
 ```
