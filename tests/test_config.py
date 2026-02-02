@@ -61,17 +61,21 @@ class TestConfigEdgeCases:
 
     def test_password_redaction(self, mocker):
         mocker.patch.object(Path, "exists", return_value=True)
+        # Test 1: Password set
         mocker.patch.object(Path, "read_text", return_value=json.dumps({"mqtt_password": "secret"}))
         with patch("logging.Logger.debug") as mock_debug:
             config_module.read_config()
-            # The redacted version should be in THE LOGS
-            found = False
-            for call in mock_debug.call_args_list:
-                if "********" in str(call):
-                    found = True
-                    break
-            assert found
-            assert not any("secret" in str(c) for c in mock_debug.call_args_list)
+            assert "********" in str(mock_debug.call_args[0][0])
+            assert "secret" not in str(mock_debug.call_args[0][0])
+
+        # Test 2: Password None (should still be redacted to hide enabled state)
+        mocker.patch.object(Path, "read_text", return_value=json.dumps({}))
+        with patch("logging.Logger.debug") as mock_debug:
+            config_module.read_config()
+            log_str = str(mock_debug.call_args[0][0])
+            # Check for explicit redaction of both fields
+            assert "'password': '********'" in log_str
+            assert "'username': '********'" in log_str
 
 
 class TestErrorHandling:

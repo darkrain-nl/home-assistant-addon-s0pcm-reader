@@ -186,10 +186,10 @@ def read_config(
 
     logger.info(f"Start: s0pcm-reader - version: {version}")
 
-    # Debug logging with redacted password
+    # Debug logging with redacted sensitive info
     config_log = model.model_dump()
-    if config_log["mqtt"].get("password"):
-        config_log["mqtt"]["password"] = "********"
+    config_log["mqtt"]["password"] = "********"
+    config_log["mqtt"]["username"] = "********"
     logger.debug(f"Config: {config_log!s}")
 
     return model
