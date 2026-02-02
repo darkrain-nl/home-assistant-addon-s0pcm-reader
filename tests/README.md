@@ -52,6 +52,7 @@ tests/
 ├── requirements-test.txt     # Test dependencies
 ├── docker-test.ps1           # Windows Dockerized test runner
 ├── docker-test.sh            # Linux/Mac Dockerized test runner
+├── fix-lint.ps1              # Auto-fix linting runner
 ├── Dockerfile.test           # Test container definition
 ├── test_config.py            # Config loading & validation tests
 ├── test_constants.py         # Constants validation tests

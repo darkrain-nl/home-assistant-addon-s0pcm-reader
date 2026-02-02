@@ -107,5 +107,63 @@ def test_get_supervisor_config_api_error(mocker):
     assert result == {}
 
 
+# ------------------------------------------------------------------------------------
+# Parse Localized Number Tests
+# ------------------------------------------------------------------------------------
+
+
+def test_parse_localized_number_simple():
+    """Test standard number parsing."""
+    assert utils.parse_localized_number("1000") == 1000.0
+    assert utils.parse_localized_number("1000.5") == 1000.5
+    assert utils.parse_localized_number("-50") == -50.0
+
+
+def test_parse_localized_number_units():
+    """Test parsing numbers with units."""
+    assert utils.parse_localized_number("1000 kWh") == 1000.0
+    assert utils.parse_localized_number("500.5 m³") == 500.5
+    assert utils.parse_localized_number("12 l/min") == 12.0
+
+
+def test_parse_localized_number_us_format():
+    """Test parsing US formatted numbers (dots for decimal, commas for thousands)."""
+    assert utils.parse_localized_number("1,000.50") == 1000.5
+    assert utils.parse_localized_number("1,000,000.00") == 1000000.0
+    # Ambiguous single comma: Code defaults to treating single comma as decimal (EU preference/Safety)
+    # So 1,500 -> 1.5
+    assert utils.parse_localized_number("1,500") == 1.5
+
+
+def test_parse_localized_number_eu_format():
+    """Test parsing EU formatted numbers (commas for decimal, dots for thousands)."""
+    assert utils.parse_localized_number("1.000,50") == 1000.5
+    assert utils.parse_localized_number("1.000.000,00") == 1000000.0
+    # Ambiguous single dot: Code defaults to treating single dot as decimal (US preference/Standard float)
+    # So 1.500 -> 1.5
+    assert utils.parse_localized_number("1.500") == 1.5
+
+
+def test_parse_localized_number_ambiguous():
+    """Test ambiguous cases."""
+    # Single comma, no dot -> usually decimal in EU if not obviously thousands
+    # But our logic prefers decimal if single comma and no dot
+    assert utils.parse_localized_number("1000,5") == 1000.5
+    assert utils.parse_localized_number("0,5") == 0.5
+
+    # Mixed or chaotic
+    assert utils.parse_localized_number("1.000.000") == 1000000.0  # Assumes thousands
+    # 1.1.1,1,1 -> should strip separators and parse
+    assert utils.parse_localized_number("1.1.1,1,1") == 11111.0
+
+
+def test_parse_localized_number_invalid():
+    """Test invalid inputs."""
+    assert utils.parse_localized_number(None) is None
+    assert utils.parse_localized_number("") is None
+    assert utils.parse_localized_number("abc") is None
+    assert utils.parse_localized_number("unknown") is None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

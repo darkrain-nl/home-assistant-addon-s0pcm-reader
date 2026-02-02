@@ -152,14 +152,6 @@ class AppContext:
             if trigger_event and self.trigger_event:
                 self.trigger_event.set()
 
-    def save_measurement(self):
-        """Deprecated: No-op. Persistence is handled via MQTT retained messages."""
-        pass
-
-    def read_measurement(self, measurement_file: str | None = None):
-        """Deprecated: Startup recovery is now handled by recovery.py."""
-        pass
-
 
 # ------------------------------------------------------------------------------------
 # Global Instance (for backwards compatibility during transition)

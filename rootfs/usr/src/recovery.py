@@ -16,6 +16,7 @@ import urllib.request
 import paho.mqtt.client as mqtt
 
 import state as state_module
+import utils
 
 logger = logging.getLogger(__name__)
 
@@ -222,46 +223,9 @@ class StateRecoverer:
                     if state_str in [None, "unknown", "unavailable", ""]:
                         continue
 
-                    # Robust cleaning (mirrors old logic)
-                    clean_state = state_str
-                    for unit in ["m³", "m3", "kwh", "l/min", "l"]:
-                        if unit in clean_state:
-                            clean_state = clean_state.replace(unit, "")
+                    # Use the robust parser from utils
+                    parsed_val = utils.parse_localized_number(state_str)
+                    if parsed_val is not None:
+                        return int(parsed_val)
 
-                    clean_state = "".join(c for c in clean_state if c.isdigit() or c in ".,-")
-
-                    if (
-                        clean_state.count(".") > 1
-                        or clean_state.count(",") > 1
-                        or (clean_state.count(".") == 1 and clean_state.count(",") == 1)
-                    ):
-                        # Smart multi-separator detection
-                        if clean_state.count(",") > clean_state.count("."):
-                            # Likely 1,000,000.00 (or 1,000.50)
-                            clean_state = clean_state.replace(",", "")
-                        elif clean_state.count(".") > clean_state.count(","):
-                            # Likely 1.000.000,00 (or 1.000,50)
-                            clean_state = clean_state.replace(".", "").replace(",", ".")
-                        elif clean_state.count(".") == 1 and clean_state.count(",") == 1:
-                            # Exactly one of each: 1,000.50 vs 1.000,50
-                            if clean_state.find(".") < clean_state.find(","):
-                                # Dot first -> 1.000,50 (EU)
-                                clean_state = clean_state.replace(".", "").replace(",", ".")
-                            else:
-                                # Comma first -> 1,000.50 (US)
-                                clean_state = clean_state.replace(",", "")
-                        else:
-                            # Chaos (e.g. 1.1.1,1,1), strip all
-                            clean_state = clean_state.replace(".", "").replace(",", "")
-                    elif clean_state.count(",") == 1 and "." not in clean_state:
-                        clean_state = clean_state.replace(",", ".")
-
-                    clean_state = clean_state.strip()
-
-                    try:
-                        if not clean_state:
-                            continue
-                        return int(float(clean_state))
-                    except (ValueError, TypeError):
-                        pass
         return None

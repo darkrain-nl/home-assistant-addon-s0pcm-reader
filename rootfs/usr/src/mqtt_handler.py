@@ -66,7 +66,9 @@ class TaskDoMQTT(threading.Thread):
         self._state.recovery_complete = True
         self.app_context.recovery_event.set()
 
-    def on_connect(self, mqttc, obj, flags, reason_code, properties):
+    def on_connect(
+        self, mqttc: mqtt.Client, obj: Any, flags: Any, reason_code: mqtt.ReasonCodes, properties: Any | None
+    ) -> None:
         context = self.app_context
         if reason_code == 0:
             self._state.connected = True
@@ -83,7 +85,9 @@ class TaskDoMQTT(threading.Thread):
             self._state.connected = False
             context.set_error(f"MQTT failed to connect to broker: {mqtt.connack_string(reason_code)}", category="mqtt")
 
-    def on_disconnect(self, mqttc, obj, flags, reason_code, properties):
+    def on_disconnect(
+        self, mqttc: mqtt.Client, obj: Any, flags: Any, reason_code: mqtt.ReasonCodes, properties: Any | None
+    ) -> None:
         context = self.app_context
         self._state.connected = False
         if reason_code != 0:
@@ -92,7 +96,17 @@ class TaskDoMQTT(threading.Thread):
             )
             logger.error(f"MQTT disconnected unexpectedly. Reason: {reason_code}")
 
-    def on_message(self, mqttc, obj, msg):
+    def _resolve_meter_id(self, identifier: str) -> int | None:
+        """Resolve a meter identifier (ID or Name) to a numeric Meter ID."""
+        try:
+            return int(identifier)
+        except ValueError:
+            for mid, mstate in self.app_context.state.meters.items():
+                if mstate.name and mstate.name.lower() == identifier.lower():
+                    return mid
+        return None
+
+    def on_message(self, mqttc: mqtt.Client, obj: Any, msg: mqtt.MQTTMessage) -> None:
         logger.debug("MQTT on_message: " + msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
         match msg.topic:
             case str(topic) if topic.endswith("/total/set"):
@@ -100,20 +114,12 @@ class TaskDoMQTT(threading.Thread):
             case str(topic) if topic.endswith("/name/set"):
                 self._handle_name_set(msg)
 
-    def _handle_set_command(self, msg):
+    def _handle_set_command(self, msg: mqtt.MQTTMessage) -> None:
         context = self.app_context
         try:
             parts = msg.topic.split("/")
             identifier = parts[-3]
-            meter_id = None
-
-            try:
-                meter_id = int(identifier)
-            except ValueError:
-                for mid, mstate in context.state.meters.items():
-                    if mstate.name and mstate.name.lower() == identifier.lower():
-                        meter_id = mid
-                        break
+            meter_id = self._resolve_meter_id(identifier)
 
             if meter_id is None:
                 context.set_error(f"Ignored set command for unknown meter: {identifier}", category="mqtt")
@@ -140,20 +146,12 @@ class TaskDoMQTT(threading.Thread):
         except Exception as e:
             context.set_error(f"Failed to process MQTT set command: {e}", category="mqtt")
 
-    def _handle_name_set(self, msg):
+    def _handle_name_set(self, msg: mqtt.MQTTMessage) -> None:
         context = self.app_context
         try:
             parts = msg.topic.split("/")
             identifier = parts[-3]
-            meter_id = None
-
-            try:
-                meter_id = int(identifier)
-            except ValueError:
-                for mid, mstate in context.state.meters.items():
-                    if mstate.name and mstate.name.lower() == identifier.lower():
-                        meter_id = mid
-                        break
+            meter_id = self._resolve_meter_id(identifier)
 
             if meter_id is None:
                 context.set_error(f"Ignored name/set command for unknown meter: {identifier}", category="mqtt")

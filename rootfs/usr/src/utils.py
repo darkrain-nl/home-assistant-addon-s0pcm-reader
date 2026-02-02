@@ -85,3 +85,67 @@ def get_supervisor_config(service: str) -> JsonDict:
     except (urllib.error.URLError, json.JSONDecodeError, OSError) as e:
         logger.debug(f"Supervisor API discovery for {service} failed: {e}")
     return {}
+
+
+def parse_localized_number(value_str: str) -> float | None:
+    """
+    Parse a number string that might contain localized separators (US vs EU).
+
+    Handles:
+    - 1,000.50 (US/UK) -> 1000.5
+    - 1.000,50 (EU/DE) -> 1000.5
+    - 1000,5   (Mixed) -> 1000.5
+    - 1000     (Int)   -> 1000.0
+
+    Args:
+        value_str: The string to parse.
+
+    Returns:
+        float | None: The parsed float, or None if parsing failed.
+    """
+    if not value_str:
+        return None
+
+    # Robust cleaning
+    clean_state = value_str
+    for unit in ["m³", "m3", "kwh", "l/min", "l"]:
+        if unit in clean_state:
+            clean_state = clean_state.replace(unit, "")
+
+    clean_state = "".join(c for c in clean_state if c.isdigit() or c in ".,-")
+
+    # Detect format based on separators
+    dot_count = clean_state.count(".")
+    comma_count = clean_state.count(",")
+
+    if dot_count > 1 or comma_count > 1 or (dot_count == 1 and comma_count == 1):
+        # Multiple separators or mixed separators
+        if comma_count > dot_count:
+            # Likely 1,000,000.00 (or 1,000.50)
+            clean_state = clean_state.replace(",", "")
+        elif dot_count > comma_count:
+            # Likely 1.000.000,00
+            clean_state = clean_state.replace(".", "").replace(",", ".")
+        elif dot_count == 1 and comma_count == 1:
+            # Ambiguous single separators: 1,000.50 vs 1.000,50
+            if clean_state.find(".") < clean_state.find(","):
+                # Dot first -> 1.000,50 (EU)
+                clean_state = clean_state.replace(".", "").replace(",", ".")
+            else:
+                # Comma first -> 1,000.50 (US)
+                clean_state = clean_state.replace(",", "")
+        else:
+            # Chaos (e.g. 1.1.1,1,1), strip all non-digits aggressively?
+            # For now, just strip dots and commas to be safeish (likely integer)
+            clean_state = clean_state.replace(".", "").replace(",", "")
+
+    elif comma_count == 1 and "." not in clean_state:
+        # Single comma, no dot -> 1,5 or 1000,5 -> treat as decimal separator
+        clean_state = clean_state.replace(",", ".")
+
+    try:
+        if not clean_state.strip():
+            return None
+        return float(clean_state)
+    except (ValueError, TypeError):
+        return None

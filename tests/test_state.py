@@ -85,13 +85,6 @@ def test_app_context_set_error_with_trigger():
     assert context.lasterror_serial == "Test Error"
 
 
-def test_app_context_deprecated_methods():
-    """Test deprecated save/read measurement methods are no-ops."""
-    context = state_module.AppContext()
-    context.save_measurement()
-    context.read_measurement()
-
-
 def test_app_state_metadata():
     """Test AppState metadata."""
     context = state_module.AppContext()
@@ -181,13 +174,6 @@ def test_app_state_direct_meter():
     app_state.meters[1] = meter
     assert app_state.meters[1] is meter
     assert app_state.meters[1].total == 500
-
-
-def test_deprecated_methods():
-    """Test deprecated methods for coverage."""
-    context = state_module.AppContext()
-    context.save_measurement()
-    context.read_measurement()
 
 
 if __name__ == "__main__":
