@@ -10,7 +10,7 @@ logger = logging.getLogger("Verifier")
 
 BROKER = os.getenv("MQTT_HOST", "mqtt")
 PORT = int(os.getenv("MQTT_PORT", 1883))
-BASE_TOPIC = "s0pcm"
+BASE_TOPIC = "s0pcmreader"
 METER_ID = 1
 INITIAL_TOTAL = 5000
 
