@@ -90,21 +90,21 @@ jobs:
       - name: Run Standalone Stack
         run: docker compose -f tests/standalone/docker-compose.yml up -d
 
-      - name: Wait for startup
-        run: sleep 30
-
-      - name: Check App Health
+      - name: Wait for Verifier
         run: |
-          if [ $(docker inspect -f '{{.State.Running}}' standalone-app-1) != "true" ]; then
-            echo "App container is not running!"
+          echo "Waiting for verification..."
+          # Get container ID reliably
+          VERIFIER_ID=$(docker compose -f tests/standalone/docker-compose.yml ps -q verifier)
+          
+          # Wait for exit code
+          EXIT_CODE=$(docker wait $VERIFIER_ID)
+          
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "::error::Verifier failed with exit code $EXIT_CODE"
             docker compose -f tests/standalone/docker-compose.yml logs
             exit 1
           fi
-
-      - name: Verify logs
-        run: |
-          docker compose -f tests/standalone/docker-compose.yml logs app | grep "Start: s0pcm-reader"
-          docker compose -f tests/standalone/docker-compose.yml logs app | grep "MQTT successfully connected to broker" || echo "MQTT connection log missed (might be too fast), checking container status..."
+          echo "Verification passed!"
 
       - name: Cleanup
         if: always()
