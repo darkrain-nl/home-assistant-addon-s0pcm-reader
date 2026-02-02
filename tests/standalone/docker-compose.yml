@@ -16,6 +16,16 @@ services:
     ports:
       - "2000:2000"
 
+  verifier:
+    build:
+      context: ./verifier
+    environment:
+      - MQTT_HOST=mqtt
+      - MQTT_PORT=1883
+    depends_on:
+      mqtt:
+        condition: service_healthy
+
   app:
     build:
       context: ../../
@@ -27,3 +37,7 @@ services:
         condition: service_healthy
       simulator:
         condition: service_started
+      # App shouldn't technically depend on verifier, but for the test flow
+      # we want verifier to potentially seed data first.
+      # However, verifier script handles 'wait_for_broker' and seeding internally.
+      # We just start them in parallel.

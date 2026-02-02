@@ -44,17 +44,39 @@ else {
 }
 
 Write-Host "Running Standalone Integration Tests..." -ForegroundColor Blue
+# Start infrastructure
 docker compose -f tests/standalone/docker-compose.yml up -d --build
-Start-Sleep -Seconds 20
-$appState = docker inspect -f '{{.State.Running}}' standalone-app-1
 
-if ($appState -eq "true") {
-    Write-Host "Standalone Verification: App is RUNNING" -ForegroundColor Green
+Write-Host "Waiting for Verification (approx 45s)..." -ForegroundColor Cyan
+$exitCode = 0
+
+try {
+    # Wait for verifier to finish
+    $verifierId = docker compose -f tests/standalone/docker-compose.yml ps -q verifier
+    if (-not $verifierId) {
+        Write-Host "Error: Verifier container not found." -ForegroundColor Red
+        exit 1
+    }
+
+    $waitResult = docker wait $verifierId
+    $exitCode = [int]$waitResult
+}
+catch {
+    Write-Host "Error waiting for verifier: $_" -ForegroundColor Red
+    $exitCode = 1
+}
+
+if ($exitCode -eq 0) {
+    Write-Host "Standalone Verification: PASSED" -ForegroundColor Green
     docker compose -f tests/standalone/docker-compose.yml down
 }
 else {
-    Write-Host "Standalone Verification: App FAILED too start" -ForegroundColor Red
-    docker compose -f tests/standalone/docker-compose.yml logs
+    Write-Host "Standalone Verification: FAILED" -ForegroundColor Red
+    Write-Host "--- Verifier Logs ---" -ForegroundColor Yellow
+    docker compose -f tests/standalone/docker-compose.yml logs verifier
+    Write-Host "--- App Logs ---" -ForegroundColor Yellow
+    docker compose -f tests/standalone/docker-compose.yml logs app
+    
     docker compose -f tests/standalone/docker-compose.yml down
     exit 1
 }
