@@ -1,7 +1,7 @@
 import socket
 import time
 
-HOST = "0.0.0.0"
+HOST = socket.gethostbyname(socket.gethostname())
 PORT = 2000
 
 
