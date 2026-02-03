@@ -54,7 +54,7 @@ def get_version() -> str:
                 with path.open() as f:
                     if (config_yaml := yaml.safe_load(f)) and "version" in config_yaml:
                         return f"{config_yaml['version']} (local)"
-            except (OSError, yaml.YAMLError):
+            except OSError, yaml.YAMLError:
                 pass
 
     return "dev"
@@ -147,5 +147,5 @@ def parse_localized_number(value_str: str) -> float | None:
         if not clean_state.strip():
             return None
         return float(clean_state)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None

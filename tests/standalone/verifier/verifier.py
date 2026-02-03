@@ -71,7 +71,7 @@ def wait_for_broker():
         try:
             with socket.create_connection((BROKER, PORT), timeout=1):
                 return True
-        except (OSError, ConnectionRefusedError):
+        except OSError, ConnectionRefusedError:
             time.sleep(1)
     return False
 

@@ -64,7 +64,7 @@ def main() -> None:
         context.config = config_module.read_config(
             version=context.s0pcm_reader_version, config_dir=config_path
         ).model_dump()
-    except (ValidationError, Exception):
+    except ValidationError, Exception:
         logger.error("Fatal exception during startup", exc_info=True)
         sys.exit(1)
 
