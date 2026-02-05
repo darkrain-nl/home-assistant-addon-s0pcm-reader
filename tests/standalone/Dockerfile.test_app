@@ -1,0 +1,7 @@
+FROM python:3.14-alpine
+WORKDIR /
+COPY rootfs /
+RUN pip install --no-cache-dir -r /usr/src/requirements.txt
+# Bake in the test configuration
+COPY tests/standalone/config/options.json /data/options.json
+CMD [ "python3", "/usr/src/s0pcm_reader.py" ]

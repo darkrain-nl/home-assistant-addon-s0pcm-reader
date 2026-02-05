@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
+## [3.0.0] - 2026-02-02
+### Changed
+- **Complete Architecture Redesign**: Rebuilt the entire application with a modern, modular structure for better reliability and maintainability. The previous 1500-line monolithic script has been reorganized into focused, specialized components.
+- **Improved Startup Reliability**: Optimized the startup recovery phase with a safe 7-second default wait time, ensuring your meter data is fully recovered before counting new pulses. This prevents data loss on all hardware, including older Raspberry Pi models. Advanced users can adjust this via the new `mqtt_recovery_wait` configuration option.
+- **Automatic Hardware Detection**: The app now automatically detects which meters are active by reading MQTT retained messages. It seamlessly supports both S0PCM-2 and S0PCM-5 hardware without any configuration changes.
+- **Enhanced Logging**: Improved logging system provides clearer diagnostic information at all log levels, making it easier to troubleshoot issues when they occur.
+
+### Added
+- **Standalone Docker Mode**: You can now run the app in a standard Docker container outside of Home Assistant Supervisor, perfect for advanced users with custom setups or Home Assistant Container installations. See README for details.
+- **Hardware Simulation Support**: Added `socket://` connection support for testing and development with simulated S0PCM hardware.
+- **Comprehensive Testing**: Implemented extensive automated testing with unit tests, integration tests, and end-to-end verification to ensure rock-solid reliability and catch issues before they reach users.
+- **Better Error Messages**: Error reporting has been significantly improved with more specific, actionable messages to help you quickly identify and resolve issues.
+
+### Fixed
+- **Code Quality**: Applied professional-grade code quality standards using modern Python tooling, ensuring a maintainable and reliable codebase.
+- **Python 3.14 Compatibility**: Resolved compatibility issues with Python 3.14, future-proofing the app for upcoming Home Assistant releases.
+- **Legacy Code Removal**: Completely removed all remnants of the deprecated `measurement.json` local storage system and outdated naming conventions.
+
 ## [2.3.6] - 2026-01-24
 ### Fixed
 - **CI/CD Reliability**: Resolved a `PytestCacheWarning` in Docker/CI environments by disabling the pytest cache provider, preventing errors on read-only filesystems.
@@ -403,7 +421,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.1] - 2021-12-23
 ### Fixed
-- Fixed a bug that caused the add-on to fail after rebooting Home Assistant (https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/issues/3)
+- Fixed a bug that caused the Add-on to fail after rebooting Home Assistant (https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/issues/3)
 
 ## [0.3.0] - 2021-12-23
 ### Changed

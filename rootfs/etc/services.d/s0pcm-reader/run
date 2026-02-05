@@ -4,25 +4,27 @@ set -e
 if bashio::supervisor.ping; then
     bashio::log.blue \
         '-----------------------------------------------------------'
-    bashio::log.blue " Add-on: $(bashio::addon.name)"
+    bashio::log.blue " App: $(bashio::addon.name)"
     bashio::log.blue " $(bashio::addon.description)"
     bashio::log.blue \
         '-----------------------------------------------------------'
 
-    bashio::log.blue " Add-on version: $(bashio::addon.version)"
+    bashio::log.blue " App version: $(bashio::addon.version)"
     if bashio::var.true "$(bashio::addon.update_available)"; then
-        bashio::log.magenta ' There is an update available for this add-on!'
+        bashio::log.magenta ' There is an update available for this app!'
         bashio::log.magenta \
-            " Latest add-on version: $(bashio::addon.version_latest)"
+            " Latest app version: $(bashio::addon.version_latest)"
         bashio::log.magenta ' Please consider upgrading as soon as possible.'
     else
-        bashio::log.green ' You are running the latest version of this add-on.'
+        bashio::log.green ' You are running the latest version of this app.'
     fi
 
     bashio::log.blue " System: $(bashio::info.operating_system)" \
         " ($(bashio::info.arch) / $(bashio::info.machine))"
     bashio::log.blue " Home Assistant Core: $(bashio::info.homeassistant)"
     bashio::log.blue " Home Assistant Supervisor: $(bashio::info.supervisor)"
+    bashio::log.blue " Container OS: $(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)"
+    bashio::log.blue " Python Version: $(python3 --version)"
 
     bashio::log.blue \
         '-----------------------------------------------------------'
@@ -34,6 +36,6 @@ if bashio::supervisor.ping; then
         '-----------------------------------------------------------'
 fi
 
-bashio::log.info "Starting S0PCM Reader..."
+echo "$(date +'%Y-%m-%d %H:%M:%S,000') INFO: Starting S0PCM Reader..."
 export S0PCM_READER_VERSION=$(bashio::addon.version)
 exec python3 /usr/src/s0pcm_reader.py

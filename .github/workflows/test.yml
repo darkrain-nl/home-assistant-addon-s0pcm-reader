@@ -31,6 +31,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r tests/requirements-test.txt
 
+      - name: Lint with Ruff
+        run: |
+          ruff check .
+          ruff format --check .
+
       - name: Run tests with pytest
         run: |
           pytest tests/ -v --tb=short --cov=rootfs/usr/src --cov-report=xml --cov-report=term
@@ -69,6 +74,38 @@ jobs:
       - name: Run tests in container
         run: |
           docker run --rm \
-            -v "$(pwd)/rootfs:/workspace/rootfs:ro" \
             -v "$(pwd)/tests:/workspace/tests:ro" \
             s0pcm-reader-test
+
+  standalone-test:
+    name: Standalone Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Build Standalone Stack
+        run: docker compose -f tests/standalone/docker-compose.yml build
+
+      - name: Run Standalone Stack
+        run: docker compose -f tests/standalone/docker-compose.yml up -d
+
+      - name: Wait for Verifier
+        run: |
+          echo "Waiting for verification..."
+          # Get container ID reliably
+          VERIFIER_ID=$(docker compose -f tests/standalone/docker-compose.yml ps -q verifier)
+          
+          # Wait for exit code
+          EXIT_CODE=$(docker wait $VERIFIER_ID)
+          
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "::error::Verifier failed with exit code $EXIT_CODE"
+            docker compose -f tests/standalone/docker-compose.yml logs
+            exit 1
+          fi
+          echo "Verification passed!"
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f tests/standalone/docker-compose.yml down

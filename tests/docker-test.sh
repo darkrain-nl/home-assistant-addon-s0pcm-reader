@@ -18,4 +18,19 @@ docker run --rm \
   -v "$(pwd)/tests:/workspace/tests:ro" \
   s0pcm-reader-test "$@"
 
-echo -e "${GREEN}Tests completed!${NC}"
+echo -e "${GREEN}Unit Tests completed!${NC}"
+
+echo -e "${BLUE}Running Standalone Integration Tests...${NC}"
+docker compose -f tests/standalone/docker-compose.yml up -d --build
+sleep 20
+APP_STATE=$(docker inspect -f '{{.State.Running}}' standalone-app-1)
+
+if [ "$APP_STATE" == "true" ]; then
+    echo -e "${GREEN}Standalone Verification: App is RUNNING${NC}"
+    docker compose -f tests/standalone/docker-compose.yml down
+else
+    echo -e "${RED}Standalone Verification: App FAILED to start${NC}"
+    docker compose -f tests/standalone/docker-compose.yml logs
+    docker compose -f tests/standalone/docker-compose.yml down
+    exit 1
+fi

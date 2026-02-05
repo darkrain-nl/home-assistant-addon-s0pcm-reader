@@ -4,7 +4,7 @@ configuration:
     description: "The serial port device where your S0PCM is connected (Default: /dev/ttyACM0)."
   log_level:
     name: "Log Level"
-    description: "Determines the detail level of the addon logs (Default: info)."
+    description: "Determines the detail level of the app logs (Default: info)."
   mqtt_host:
     name: "MQTT Host"
     description: "Host address of your MQTT broker. Leave empty to use the internally discovered broker."
@@ -28,7 +28,7 @@ configuration:
     description: "The MQTT protocol version to use (Default: 5.0)."
   mqtt_discovery:
     name: "MQTT Auto-Discovery"
-    description: "Automatically create entities in Home Assistant when the addon starts (Default: true)."
+    description: "Automatically create entities in Home Assistant when the app starts (Default: true)."
   mqtt_discovery_prefix:
     name: "Discovery Prefix"
     description: "The prefix used for Home Assistant discovery messages (Default: homeassistant)."
@@ -50,3 +50,6 @@ configuration:
   mqtt_tls_check_peer:
     name: "Verify TLS Certificate"
     description: "If true, strictly verify the broker's certificate and hostname (Default: false)."
+  mqtt_recovery_wait:
+    name: "Recovery Wait Time"
+    description: "Seconds to wait for MQTT messages on startup. Default: 7. WARNING: Values below 3s can cause data loss on slow hardware!"

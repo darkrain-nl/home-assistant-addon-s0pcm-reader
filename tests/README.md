@@ -1,6 +1,6 @@
 # S0PCM Reader Tests
 
-This directory contains the comprehensive test suite for the S0PCM Reader Home Assistant addon.
+This directory contains the comprehensive test suite for the S0PCM Reader Home Assistant app.
 
 ## 🚀 Quick Start
 
@@ -20,7 +20,21 @@ pytest tests/ --cov=rootfs/usr/src --cov-report=term-missing
 This method ensures environment parity with CI/CD without needing Python installed locally.
 ```powershell
 # Windows (PowerShell)
+# Note: You may need to bypass execution policy:
+# Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\tests\docker-test.ps1
+
+# Run coverage in Docker
+docker run --rm s0pcm-reader-test pytest tests/ --cov=rootfs/usr/src --cov-report=term-missing
+
+# Save coverage to file
+docker run --rm s0pcm-reader-test pytest tests/ --cov=rootfs/usr/src --cov-report=term-missing | Out-File -FilePath coverage.txt -Encoding utf8
+
+**Reading the report:**
+- **Stmts**: Total code lines.
+- **Miss**: Lines not tested.
+- **Cover**: % covered.
+- **Missing**: Specific lines to target for better coverage.
 
 # Linux / Mac (Bash)
 ./tests/docker-test.sh
@@ -32,18 +46,24 @@ This method ensures environment parity with CI/CD without needing Python install
 
 ```text
 tests/
-├── conftest.py              # Shared fixtures (Mocks for Serial, MQTT, API)
-├── pytest.ini               # Pytest & Coverage configuration
-├── requirements-test.txt    # Test dependencies
-├── docker-test.ps1/sh       # Dockerized test runners
-├── Dockerfile.test          # Test container definition (Python 3.14)
-├── test_config.py           # Config loading & validation tests
-├── test_loops.py            # Main thread integration tests
-├── test_main.py             # Startup & Signal handling tests
-├── test_measurement_logic.py # Data processing & conversion tests
-├── test_mqtt_client.py      # MQTT publishing & recovery tests
-├── test_packet_parsing.py   # S0PCM telegram parsing tests
-└── test_serial_reader.py    # Serial connection & pulse logic tests
+├── standalone/               # Integrated E2E verification stack
+├── conftest.py               # Shared fixtures (Mocks for Serial, MQTT, API)
+├── pytest.ini                # Pytest & Coverage configuration
+├── requirements-test.txt     # Test dependencies
+├── docker-test.ps1           # Windows Dockerized test runner
+├── docker-test.sh            # Linux/Mac Dockerized test runner
+├── fix-lint.ps1              # Auto-fix linting runner
+├── Dockerfile.test           # Test container definition
+├── test_config.py            # Config loading & validation tests
+├── test_constants.py         # Constants validation tests
+├── test_discovery.py         # MQTT discovery message tests
+├── test_mqtt_handler.py      # MQTT publishing & TLS logic tests
+├── test_protocol.py          # S0PCM telegram parsing tests
+├── test_recovery.py          # State recovery & HA API fallback tests
+├── test_s0pcm_reader.py      # Main loop & signal handling tests
+├── test_serial_handler.py    # Serial connection & socket logic tests
+├── test_state.py             # Internal state management tests
+└── test_utils.py             # Utility function & logging tests
 ```
 
 ---
@@ -76,6 +96,33 @@ Tests run automatically via GitHub Actions on every push to `main` and `dev`. Re
 
 ---
 
+## 📡 Hardware Simulation & Integrated Testing
+
+### 1. Serial-over-TCP Simulation
+The S0PCM Reader supports `socket://<host>:<port>` URLs in the `device` configuration. This allows testing against simulated hardware over a network.
+
+- **Example**: Set `"device": "socket://127.0.0.1:2000"` in `options.json`.
+- **Packet Format**: The app expects standard S0PCM hex telegrams (e.g. `ID:0 ...`) followed by `\n`.
+
+### 2. Standalone Verification Suite
+For full end-to-end testing, we use a dedicated Docker Compose stack located in `tests/standalone/`. This stack includes:
+- **App**: The S0PCM Reader configured for standalone mode.
+- **Simulator**: A Python-based TCP server (`simulator.py`) that generates virtual S0PCM packets.
+- **MQTT**: A Mosquitto broker with a healthcheck configuration.
+
+To run the verification suite:
+```bash
+docker compose -f tests/standalone/docker-compose.yml up --build --exit-code-from app
+```
+
+### 3. Integrated Test Runners
+The `docker-test.ps1` (Windows) and `docker-test.sh` (Linux) scripts perform the following steps:
+1. Build and run the **Unit Test** container.
+2. Build and run the **Standalone Verification** stack.
+3. Verify that the app successfully connects to MQTT in the integrated environment.
+
+---
+
 ## 🔧 Troubleshooting
 
 ### Pytest Cache / Read-only Filesystems
@@ -96,4 +143,4 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
 
 ---
-*Last updated: 2026-01-24*
+*Last updated: 2026-01-31*

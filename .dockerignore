@@ -16,3 +16,6 @@ config.yaml
 icon.png
 logo.png
 translations/
+.ruff_cache/
+.agent/
+DEVELOPER.md

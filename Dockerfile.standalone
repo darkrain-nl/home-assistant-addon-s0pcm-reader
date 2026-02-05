@@ -1,0 +1,16 @@
+FROM python:3.14-alpine
+
+WORKDIR /
+
+# Copy root filesystem (source code, etc)
+COPY rootfs /
+
+# Install Python dependencies
+# Install Python dependencies
+RUN pip install --no-cache-dir -r /usr/src/requirements.txt
+
+# Run the application directly
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD ps -ef | grep "[s]0pcm_reader.py" || exit 1
+
+CMD [ "python3", "/usr/src/s0pcm_reader.py" ]

@@ -21,9 +21,12 @@ RUN pip install --no-cache-dir -r requirements-test.txt
 # Copy source code and tests
 COPY rootfs/usr/src/ ./rootfs/usr/src/
 COPY tests/ ./tests/
+COPY pyproject.toml .
 
 # Set Python path to find the module
 ENV PYTHONPATH=/workspace
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Default command runs all tests with verbose output
-CMD ["pytest", "tests/", "-v", "--tb=short"]
+# Default command runs linting then tests
+CMD sh -c "ruff check . && ruff format --check . && pytest tests/ -v --tb=short"

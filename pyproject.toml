@@ -1,0 +1,40 @@
+[project]
+name = "s0pcm-reader"
+version = "3.0.0"
+description = "S0PCM Reader Home Assistant App"
+requires-python = ">=3.14"
+
+[tool.ruff]
+# Same as Home Assistant
+line-length = 120
+target-version = "py314"
+src = ["rootfs/usr/src"]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+    "RUF",# ruff-specific rules
+]
+ignore = [
+    "E501", # Line too long (handled by formatter, but sometimes unavoidable)
+    "B008", # Do not perform function call in argument defaults (fastapi dependency injection pattern, fine here too)
+]
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+combine-as-imports = true
+
+[tool.pytest.ini_options]
+addopts = "-v --tb=short"
+pythonpath = [
+    "rootfs/usr/src",
+    "."
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
