@@ -248,6 +248,37 @@ To maintain perfect accuracy, you should occasionally check your physical meter'
 
 This app uses the [S6 Overlay][s6-overlay] for process supervision. If the S0PCM reader script crashes or exits unexpectedly, it will be automatically restarted.
 
+Additionally, the Docker container includes a **healthcheck** that monitors the main process. You can enable the **Watchdog** toggle on the app's Info page in Home Assistant to let the Supervisor automatically restart the app if it becomes unresponsive.
+
+## Troubleshooting
+
+### MQTT Connection Refused (`[Errno 111] Connection refused`)
+
+This means the app cannot reach the MQTT broker. Common causes:
+
+1. **Mosquitto broker is not running.** Go to **Settings > Apps** and verify the Mosquitto broker is started. Restart it if needed.
+2. **Broker started after S0PCM Reader.** If Home Assistant or the broker was recently restarted, the S0PCM Reader may have started before the broker was ready. Restart the S0PCM Reader app.
+3. **Wrong host/port.** If you configured a custom `mqtt_host` or `mqtt_port`, verify they are correct. Remove these options to use the auto-discovered broker.
+4. **TLS mismatch.** If `mqtt_tls` is enabled but your broker doesn't support TLS, the app will fail on the TLS port first, then fall back to the plain port. Check that the correct ports are configured.
+
+### Serial Port Not Found
+
+If the app cannot open the serial port:
+
+1. Verify the S0PCM device is **physically connected** via USB.
+2. Check that the correct **Device** is selected in the app's Configuration tab.
+3. Try unplugging and re-plugging the USB device, then restart the app.
+4. On Home Assistant OS, go to **Settings > System > Hardware** to verify the device is detected.
+
+### Meters Not Appearing in Home Assistant
+
+If no sensors appear after starting the app:
+
+1. Verify that **MQTT Discovery** is enabled (it is by default).
+2. Check the app logs for errors — the app must successfully connect to MQTT before it can publish discovery messages.
+3. Go to **Settings > Devices & Services > MQTT** and verify the S0PCM Reader device is listed.
+4. If you recently changed the **MQTT Base Topic**, the old device will show as "Unavailable" and a new device will be created under the new topic.
+
 ## MQTT Message Details
 
 The following MQTT messages are sent:
