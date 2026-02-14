@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          fetch-tags: true
 
       - name: Read version from config.yaml
         id: version
@@ -27,8 +29,9 @@ jobs:
       - name: Check if tag already exists
         id: check_tag
         run: |
-          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+          if git ls-remote --tags origin "v${{ steps.version.outputs.version }}" | grep -q .; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag v${{ steps.version.outputs.version }} already exists, skipping release"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
