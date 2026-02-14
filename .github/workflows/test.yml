@@ -129,8 +129,8 @@ jobs:
 
       - name: Check version consistency
         run: |
-          CONFIG_VERSION=$(grep '^version:' config.yaml | sed 's/version: *"\(.*\)"/\1/')
-          PYPROJECT_VERSION=$(grep '^version' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          CONFIG_VERSION=$(grep '^version:' config.yaml | sed 's/version: *"\(.*\)"/\1/' | tr -d '\r')
+          PYPROJECT_VERSION=$(grep '^version' pyproject.toml | sed 's/version = "\(.*\)"/\1/' | tr -d '\r')
 
           echo "config.yaml:   $CONFIG_VERSION"
           echo "pyproject.toml: $PYPROJECT_VERSION"
@@ -143,7 +143,7 @@ jobs:
 
       - name: Check CHANGELOG entry exists
         run: |
-          VERSION=$(grep '^version:' config.yaml | sed 's/version: *"\(.*\)"/\1/')
+          VERSION=$(grep '^version:' config.yaml | sed 's/version: *"\(.*\)"/\1/' | tr -d '\r')
 
           if grep -q "## \[$VERSION\]" CHANGELOG.md; then
             echo "✅ CHANGELOG entry found for version $VERSION"
