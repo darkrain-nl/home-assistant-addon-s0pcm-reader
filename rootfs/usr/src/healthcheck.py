@@ -25,7 +25,7 @@ def is_process_running(process_name: str = PROCESS_NAME) -> bool:
                     cmdline = f.read().decode("utf-8", errors="replace")
                     if process_name in cmdline:
                         return True
-            except (OSError, PermissionError):
+            except OSError, PermissionError:
                 continue
     except OSError:
         return False
