@@ -3,6 +3,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [3.1.0] - 2026-02-15
+### Changed
+- **Documentation Overhaul**:
+  - **README.md**: Redesigned as a clean landing page with quick links.
+  - **DOCS.md**: Reorganized into a comprehensive manual, including a new **Cookbook** for Home Assistant integration.
+  - **Cookbook**: Added recipes for converting pulses to units (m³/kWh) and calculating flow rates (L/min) using native HA Helpers.
+  - **Standalone Support**: Moved Docker/Standalone instructions to `DOCS.md` and updated them to prioritize local builds.
   
 ## [3.0.3] - 2026-02-14
 ### Added

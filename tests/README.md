@@ -57,6 +57,7 @@ tests/
 ├── test_config.py            # Config loading & validation tests
 ├── test_constants.py         # Constants validation tests
 ├── test_discovery.py         # MQTT discovery message tests
+├── test_healthcheck.py       # Docker Healthcheck & Signal tests
 ├── test_mqtt_handler.py      # MQTT publishing & TLS logic tests
 ├── test_protocol.py          # S0PCM telegram parsing tests
 ├── test_recovery.py          # State recovery & HA API fallback tests
@@ -143,4 +144,4 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
 
 ---
-*Last updated: 2026-01-31*
+*Last updated: 2026-02-15*
