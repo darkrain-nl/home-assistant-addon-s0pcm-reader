@@ -11,4 +11,4 @@ pyserial==3.5
 paho-mqtt==2.1.0
 pyyaml==6.0.3
 pydantic==2.12.5
-ruff>=0.15.1
+ruff>=0.15.2
