@@ -464,6 +464,57 @@ class TestMainLoop:
             assert mock_logger.called
             assert "MQTT Publish Failed" in mock_logger.call_args[0][0]
 
+    def test_main_loop_error_publish_success_with_timer(self, mqtt_task, mocker):
+        """Test successful error publish in _main_loop triggers the delayed clear timer."""
+        mqtt_task._state.connected = True
+        mqtt_task._state.mqttc = MagicMock()
+        mqtt_task._state.global_discovery_sent = True
+
+        # Mock threading.Timer to verify it gets called
+        mock_timer = mocker.patch("mqtt_handler.threading.Timer")
+
+        # We need the timer instance's start method to be a mock so we can verify it
+        mock_timer_instance = MagicMock()
+        mock_timer.return_value = mock_timer_instance
+
+        # Make loop run once
+        mqtt_task._stopper.is_set.side_effect = [False, True]
+
+        # Set an error to force publish call
+        mqtt_task.app_context.lasterror_share = "Connection Refused"
+
+        mqtt_task._main_loop()
+
+        # Verify mqtt publish was called for the error topic
+        publish_calls = [
+            call for call in mqtt_task._state.mqttc.publish.call_args_list if "/error" in str(call.args[0])
+        ]
+        assert len(publish_calls) > 0
+        assert "Connection Refused" in publish_calls[0].args[1]
+
+        # Verify threading.Timer was instantiated with 15.0 seconds and a callable
+        assert mock_timer.called
+        assert mock_timer.call_args[0][0] == 15.0
+        assert callable(mock_timer.call_args[0][1])
+
+        # Verify the timer was actually started
+        assert mock_timer_instance.start.called
+
+        # Test the delayed_clear callback directly
+        delayed_clear_func = mock_timer.call_args[0][1]
+        mock_set_error = mocker.patch.object(mqtt_task.app_context, "set_error")
+
+        # 1. Test when still connected
+        mqtt_task._state.connected = True
+        delayed_clear_func()
+        mock_set_error.assert_called_once_with(None, category="mqtt")
+
+        # 2. Test when disconnected (should not clear)
+        mock_set_error.reset_mock()
+        mqtt_task._state.connected = False
+        delayed_clear_func()
+        assert not mock_set_error.called
+
     def test_run_fatal_exception(self, mqtt_task, mocker):
         """Test fatal exception handling in run()."""
         mocker.patch.object(mqtt_task, "_connect_loop", side_effect=Exception("Fatal Run Error"))
