@@ -13,10 +13,10 @@ RUN apk add --no-cache \
 WORKDIR /workspace
 
 # Copy test requirements from tests directory
-COPY tests/requirements-test.txt .
+COPY tests/requirements-test.lock .
 
 # Install Python test dependencies
-RUN pip install --no-cache-dir -r requirements-test.txt
+RUN pip install --no-cache-dir -r requirements-test.lock
 
 # Copy source code and tests
 COPY rootfs/usr/src/ ./rootfs/usr/src/

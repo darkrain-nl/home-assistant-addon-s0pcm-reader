@@ -25,7 +25,9 @@
     "pip_requirements": {
         "managerFilePatterns": [
             "/(^|/)requirements\\.txt$/",
-            "/(^|/)requirements-test\\.txt$/"
+            "/(^|/)requirements\\.lock$/",
+            "/(^|/)requirements-test\\.txt$/",
+            "/(^|/)requirements-test\\.lock$/"
         ]
     },
     "customManagers": [

@@ -21,6 +21,8 @@ import state as state_module
 
 logger = logging.getLogger(__name__)
 
+MAX_PAYLOAD_SIZE = 256
+
 
 @dataclass
 class MqttTaskState:
@@ -116,6 +118,9 @@ class TaskDoMQTT(threading.Thread):
 
     def _handle_set_command(self, msg: mqtt.MQTTMessage) -> None:
         context = self.app_context
+        if len(msg.payload) > MAX_PAYLOAD_SIZE:
+            context.set_error(f"Ignored oversized payload ({len(msg.payload)} bytes) on {msg.topic}", category="mqtt")
+            return
         try:
             parts = msg.topic.split("/")
             identifier = parts[-3]
@@ -148,6 +153,9 @@ class TaskDoMQTT(threading.Thread):
 
     def _handle_name_set(self, msg: mqtt.MQTTMessage) -> None:
         context = self.app_context
+        if len(msg.payload) > MAX_PAYLOAD_SIZE:
+            context.set_error(f"Ignored oversized payload ({len(msg.payload)} bytes) on {msg.topic}", category="mqtt")
+            return
         try:
             parts = msg.topic.split("/")
             identifier = parts[-3]
@@ -158,6 +166,10 @@ class TaskDoMQTT(threading.Thread):
                 return
 
             new_name = msg.payload.decode("utf-8").strip()
+            # Sanitize MQTT special characters from meter names
+            for char in "/+#":
+                new_name = new_name.replace(char, "")
+            new_name = new_name.strip()
             if not new_name:
                 new_name = None
 
@@ -227,7 +239,6 @@ class TaskDoMQTT(threading.Thread):
     def _connect_loop(self):
         context = self.app_context
         use_tls = context.config["mqtt"]["tls"]
-        fallback_happened = False
 
         while not self._stopper.is_set():
             if not self._state.mqttc and not self._setup_mqtt_client(use_tls):
@@ -255,14 +266,9 @@ class TaskDoMQTT(threading.Thread):
                 if self._state.mqttc:
                     self._state.mqttc.loop_stop()
                     self._state.mqttc = None
-                if use_tls and not fallback_happened:
-                    context.set_error(f"MQTT TLS failed: {e}. Falling back to plain.", category="mqtt")
-                    use_tls = False
-                    fallback_happened = True
-                else:
-                    context.set_error(f"MQTT connection failed: {e}", category="mqtt")
-                    logger.error(f"MQTT connection failed with exception: {e}", exc_info=True)
-                    time.sleep(context.config["mqtt"]["connect_retry"])
+                context.set_error(f"MQTT connection failed: {e}", category="mqtt")
+                logger.error(f"MQTT connection failed with exception: {e}", exc_info=True)
+                time.sleep(context.config["mqtt"]["connect_retry"])
 
     def _publish_diagnostics(self):
         context = self.app_context

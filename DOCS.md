@@ -66,10 +66,13 @@ services:
 - **Recovery Wait Time**: (Default: `7s`) Time to wait for MQTT retained messages on startup. **Do not lower** this unless you have fast hardware, or you risk data loss.
 
 ### Security Settings (TLS)
-- **MQTT TLS**: (Default: `false`) Enable TLS encryption.
+- **MQTT TLS**: (Default: `false`) Enable TLS encryption. The connection will **not** fall back to plaintext if TLS fails.
 - **MQTT TLS Port**: (Default: `8883`) Port to use for TLS connections.
 - **MQTT TLS CA**: (Optional) Path to a custom CA certificate file.
 - **MQTT Check Peer**: (Default: `false`) Verify the server's certificate. Disabled by default for compatibility with self-signed certs.
+
+> [!NOTE]
+> When TLS is enabled without a CA certificate, the connection is encrypted but the server's identity is **not verified**. This is safe on a local Home Assistant OS setup. If you connect to an external broker over an untrusted network, provide a CA certificate and enable **MQTT Check Peer**.
 
 ## 4. Usage Guide
 

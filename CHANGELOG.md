@@ -5,6 +5,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [3.2.0] - 2026-02-22
+### Security
+- **TLS Hardening**: TLS connections no longer silently fall back to unencrypted plaintext if the TLS handshake fails. The addon will now retry with TLS instead of downgrading.
+- **MQTT Topic Sanitization**: Meter names are now sanitized to remove MQTT special characters (`/`, `+`, `#`), preventing potential topic injection.
+- **Payload Size Limits**: Incoming MQTT command payloads are now limited to 256 bytes to guard against oversized messages.
+- **Transitive Dependency Pinning**: All transitive Python dependencies are now fully pinned via lock files (`requirements.lock`, `requirements-test.lock`), reducing supply chain risk.
+
 ### Changed
 - **Maintenance**: Restricted Renovate updates to the `dev` branch only to ensure all dependencies are vetted in development before being promoted to `main`.
 - **Dependency Updates**: Updated `ruff` to version 0.15.2 across all testing environments.

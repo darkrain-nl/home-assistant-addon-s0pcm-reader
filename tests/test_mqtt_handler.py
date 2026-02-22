@@ -172,33 +172,24 @@ class TestConnectionHandling:
             assert mock_sleep.called
 
     @patch("time.sleep")
-    def test_connect_loop_tls_fallback(self, mock_sleep, mqtt_task):
-        """Test connection loop falling back from TLS to plain MQTT on failure."""
+    def test_connect_loop_tls_no_fallback(self, mock_sleep, mqtt_task):
+        """Test connection loop does NOT fall back from TLS to plain on failure."""
         context = state_module.get_context()
         context.config["mqtt"]["tls"] = True
 
-        # Loop twice: 1 for TLS fail, 2 for Plain success (simulated) then stop
+        # Loop twice: both with TLS, then stop
         mqtt_task._stopper.is_set.side_effect = [False, False, True]
 
         mock_client = MagicMock()
 
         with patch("mqtt_handler.mqtt.Client", return_value=mock_client):
-            # First connect raises error, triggering fallback
-            def connect_side_effect(*args, **kwargs):
-                if connect_side_effect.called == 0:
-                    connect_side_effect.called += 1
-                    raise Exception("TLS Error")
-                mqtt_task._state.connected = True
-                return 0
-
-            connect_side_effect.called = 0
-            mock_client.connect.side_effect = connect_side_effect
+            mock_client.connect.side_effect = Exception("TLS Error")
 
             mqtt_task._connect_loop()
 
-            assert "MQTT TLS failed" in context.lasterror_share
-            assert "Falling back to plain" in context.lasterror_share
-            assert connect_side_effect.called > 0
+            assert "MQTT connection failed: TLS Error" in context.lasterror_share
+            assert "Falling back" not in (context.lasterror_share or "")
+            assert mock_sleep.called
 
 
 class TestMessageHandling:
@@ -603,6 +594,74 @@ def test_handle_name_set_creates_new_meter(mqtt_task, mocker):
     # Should create new meter
     assert 7 in context.state.meters
     assert context.state.meters[7].name == "NewMeter"
+
+
+class TestSecurityHardening:
+    """Tests for security hardening measures."""
+
+    def test_name_set_sanitizes_mqtt_characters(self, mqtt_task, mocker):
+        """Test that /+# characters are stripped from meter names."""
+        mqtt_task.app_context.state.meters[1] = state_module.MeterState()
+        mqtt_task._state.mqttc = MagicMock()
+
+        mocker.patch("mqtt_handler.discovery.send_global_discovery")
+        mocker.patch("mqtt_handler.discovery.send_meter_discovery", return_value="MyMeter")
+
+        msg = MagicMock()
+        msg.topic = "s0pcmreader/1/name/set"
+        msg.payload = b"My/Meter+Name#Test"
+
+        mqtt_task._handle_name_set(msg)
+
+        assert mqtt_task.app_context.state.meters[1].name == "MyMeterNameTest"
+
+    def test_name_set_only_special_chars_becomes_none(self, mqtt_task, mocker):
+        """Test that a name consisting only of MQTT special chars becomes None."""
+        mqtt_task.app_context.state.meters[1] = state_module.MeterState(name="OldName")
+        mqtt_task._state.mqttc = MagicMock()
+
+        mocker.patch("mqtt_handler.discovery.send_global_discovery")
+        mocker.patch("mqtt_handler.discovery.send_meter_discovery")
+
+        msg = MagicMock()
+        msg.topic = "s0pcmreader/1/name/set"
+        msg.payload = b"/+#"
+
+        mqtt_task._handle_name_set(msg)
+
+        assert mqtt_task.app_context.state.meters[1].name is None
+
+    def test_handle_set_command_oversized_payload(self, mqtt_task, mocker):
+        """Test that oversized payloads on total/set are rejected."""
+        mqtt_task.app_context.state.meters[1] = state_module.MeterState(total=1000)
+        mock_set_error = mocker.patch.object(mqtt_task.app_context, "set_error")
+
+        msg = MagicMock()
+        msg.topic = "s0pcmreader/1/total/set"
+        msg.payload = b"x" * 257
+
+        mqtt_task._handle_set_command(msg)
+
+        assert mock_set_error.called
+        assert "oversized payload" in str(mock_set_error.call_args).lower()
+        # Total should NOT have changed
+        assert mqtt_task.app_context.state.meters[1].total == 1000
+
+    def test_handle_name_set_oversized_payload(self, mqtt_task, mocker):
+        """Test that oversized payloads on name/set are rejected."""
+        mqtt_task.app_context.state.meters[1] = state_module.MeterState(name="Water")
+        mock_set_error = mocker.patch.object(mqtt_task.app_context, "set_error")
+
+        msg = MagicMock()
+        msg.topic = "s0pcmreader/1/name/set"
+        msg.payload = b"A" * 257
+
+        mqtt_task._handle_name_set(msg)
+
+        assert mock_set_error.called
+        assert "oversized payload" in str(mock_set_error.call_args).lower()
+        # Name should NOT have changed
+        assert mqtt_task.app_context.state.meters[1].name == "Water"
 
 
 class TestMQTTAdditionalCoverage:

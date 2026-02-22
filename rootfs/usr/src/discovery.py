@@ -124,6 +124,9 @@ def send_meter_discovery(mqttc: mqtt.Client, meter_id: int, meter_data: MeterDat
     device_info = {"identifiers": [base_topic]}  # Link to global device
     raw_name = meter_data.get("name")
     instancename = str(meter_id) if not raw_name or str(raw_name).lower() == "none" else str(raw_name)
+    # Defensive: strip MQTT special characters from topic names
+    for char in "/+#":
+        instancename = instancename.replace(char, "")
 
     for subkey in ["total", "today", "yesterday"]:
         unique_id = f"s0pcm_{base_topic}_{meter_id}_{subkey}"

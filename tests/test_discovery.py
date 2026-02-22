@@ -203,3 +203,28 @@ def test_send_meter_discovery_combined_topic(mocker):
                 found_template = True
                 break
     assert found_template is True
+
+
+def test_send_meter_discovery_sanitizes_name():
+    """Test that MQTT special characters in meter names are stripped from topics."""
+    import discovery
+
+    context = state_module.get_context()
+    context.config["mqtt"] = {
+        "discovery": True,
+        "base_topic": "s0pcm",
+        "discovery_prefix": "homeassistant",
+        "split_topic": True,
+    }
+    mqttc = MagicMock()
+
+    meter_data = {"name": "My/Water+Meter#1"}
+    instancename = discovery.send_meter_discovery(mqttc, 1, meter_data)
+
+    assert instancename == "MyWaterMeter1"
+
+    # Verify no topics contain MQTT special characters from the name
+    for call in mqttc.publish.call_args_list:
+        topic = call.args[0]
+        if "MyWaterMeter1" in topic:
+            assert "/" not in topic.split("s0pcm/")[-1].replace("MyWaterMeter1/", "MyWaterMeter1")
