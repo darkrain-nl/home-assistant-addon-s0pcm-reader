@@ -1,0 +1,47 @@
+name: Update Copyright Year
+
+on:
+  schedule:
+    # Run at 00:00 on January 1st every year
+    - cron: '0 0 1 1 *'
+  workflow_dispatch: # Allow running manually
+
+jobs:
+  update-year:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Update copyright year in LICENSE
+        run: |
+          YEAR=$(date +%Y)
+          # Update the end year in "Copyright 2021-YYYY" format
+          sed -i -E "s/Copyright 2021-[0-9]{4}/Copyright 2021-${YEAR}/" LICENSE
+
+      - name: Check for changes
+        id: var
+        run: |
+          if git diff --exit-code LICENSE; then
+            echo "changed=0" >> $GITHUB_OUTPUT
+          else
+            echo "changed=1" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.var.outputs.changed == '1'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore: update copyright year to ${{ env.YEAR }}"
+          branch: update-copyright-year
+          delete-branch: true
+          title: "chore: update copyright year"
+          body: |
+            Automatically generated PR to update the copyright year in the `LICENSE` file.
+          labels: |
+            chore
+            automated pr
