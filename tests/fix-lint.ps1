@@ -2,7 +2,7 @@
 # Usage: .\tests\fix-lint.ps1
 
 Write-Host "Building test container..." -ForegroundColor Blue
-docker build -f tests/Dockerfile.test -t s0pcm-reader-test .
+docker build --no-cache -f tests/Dockerfile.test -t s0pcm-reader-test .
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Build failed!" -ForegroundColor Red

@@ -188,7 +188,7 @@ def read_config(
 
     # Debug logging with redacted sensitive info
     config_log = model.model_dump()
-    config_log["mqtt"]["password"] = "********"
+    config_log["mqtt"]["password"] = "********"  # noqa: S105
     config_log["mqtt"]["username"] = "********"
     logger.debug(f"Config: {config_log!s}")
 

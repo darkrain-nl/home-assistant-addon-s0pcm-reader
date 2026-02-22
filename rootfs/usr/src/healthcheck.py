@@ -7,6 +7,7 @@ Exit code 0 = healthy, 1 = unhealthy.
 """
 
 import os
+from pathlib import Path
 import sys
 
 PROCESS_NAME = "s0pcm_reader.py"
@@ -17,14 +18,14 @@ def is_process_running(process_name: str = PROCESS_NAME) -> bool:
     my_pid = str(os.getpid())
 
     try:
-        for pid in os.listdir("/proc"):
+        for entry in Path("/proc").iterdir():
+            pid = entry.name
             if not pid.isdigit() or pid == my_pid:
                 continue
             try:
-                with open(f"/proc/{pid}/cmdline", "rb") as f:
-                    cmdline = f.read().decode("utf-8", errors="replace")
-                    if process_name in cmdline:
-                        return True
+                cmdline = (entry / "cmdline").read_bytes().decode("utf-8", errors="replace")
+                if process_name in cmdline:
+                    return True
             except OSError, PermissionError:
                 continue
     except OSError:

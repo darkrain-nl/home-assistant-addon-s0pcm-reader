@@ -6,7 +6,6 @@ WORKDIR /
 COPY rootfs /
 
 # Install Python dependencies
-# Install Python dependencies
 RUN pip install --no-cache-dir -r /usr/src/requirements.lock
 
 # Run the application directly

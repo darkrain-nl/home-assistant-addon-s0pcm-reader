@@ -63,6 +63,9 @@ def test_send_meter_discovery(mocker):
     payload = json.loads(total_call[-1][0][1])  # Get last call for this topic
     assert payload["name"] == "Water Total"
     assert payload["state_class"] == "total_increasing"
+    assert payload["availability_topic"] == "s0pcm/status"
+    assert payload["payload_available"] == "online"
+    assert payload["payload_not_available"] == "offline"
 
 
 def test_discovery_disabled(mocker):

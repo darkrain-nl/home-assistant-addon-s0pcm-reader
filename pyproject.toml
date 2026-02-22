@@ -19,15 +19,25 @@ select = [
     "B",  # flake8-bugbear
     "UP", # pyupgrade
     "RUF",# ruff-specific rules
+    "S",  # flake8-bandit (security)
+    "SIM",# flake8-simplify
+    "PTH",# flake8-use-pathlib
 ]
 ignore = [
     "E501", # Line too long (handled by formatter, but sometimes unavoidable)
     "B008", # Do not perform function call in argument defaults (fastapi dependency injection pattern, fine here too)
+    "S310", # Audit URL open for permitted schemes (only hardcoded Supervisor API URLs used)
+    "S603", # subprocess call - check for execution of untrusted input (not applicable)
+    "S607", # Starting a process with a partial executable path (not applicable)
+    "S104", # Possible binding to all interfaces (not applicable)
 ]
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true
 combine-as-imports = true
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S108", "PTH"]  # assert, temp paths, and os.path are standard in pytest
 
 [tool.pytest.ini_options]
 addopts = "-v --tb=short"

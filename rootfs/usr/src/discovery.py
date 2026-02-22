@@ -134,9 +134,12 @@ def send_meter_discovery(mqttc: mqtt.Client, meter_id: int, meter_data: MeterDat
 
         payload = {"name": f"{instancename} {subkey.capitalize()}", "unique_id": unique_id, "device": device_info}
 
-        if subkey == "total":
-            payload["state_class"] = "total_increasing"
-        elif subkey == "today":
+        # Availability: sensors go "Unavailable" when addon is offline
+        payload["availability_topic"] = base_topic + "/status"
+        payload["payload_available"] = "online"
+        payload["payload_not_available"] = "offline"
+
+        if subkey == "total" or subkey == "today":
             payload["state_class"] = "total_increasing"
         else:
             payload["state_class"] = "measurement"

@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Maintenance**: Restricted Renovate updates to the `dev` branch only to ensure all dependencies are vetted in development before being promoted to `main`.
 - **Dependency Updates**: Updated `ruff` to version 0.15.2 across all testing environments.
+- **Sensor Availability**: Meter sensors now include MQTT availability tracking. Sensors will show as "Unavailable" in Home Assistant when the addon is offline, preventing stale data on dashboards.
+- **Code Quality**: Expanded linting rules with `S` (security/bandit), `SIM` (simplify), and `PTH` (pathlib enforcement) for stricter static analysis.
 
 ## [3.1.0] - 2026-02-15
 ### Changed
