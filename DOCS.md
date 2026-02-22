@@ -147,7 +147,9 @@ mqtt:
 ### Common Issues
 - **"Connection Refused"**: Check if MQTT broker is running.
 - **"Serial Port Not Found"**: Check USB connection and "Hardware" tab in HA OS.
-- **Sensors "Unavailable"**: Did you change the MQTT Base Topic? This creates a new device.
+- **Sensors "Unavailable"**: 
+  - If the addon is disconnected from the MQTT broker (e.g., during a restart), sensors will automatically show as "Unavailable" to prevent stale data. They will recover once reconnected.
+  - If they never recover, did you change the MQTT Base Topic? This creates a new device.
 
 ### State Recovery
 The app uses a dual-layer recovery system:

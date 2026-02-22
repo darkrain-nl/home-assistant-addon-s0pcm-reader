@@ -76,6 +76,10 @@ def send_global_discovery(mqttc: mqtt.Client) -> None:
         "entity_category": "diagnostic",
         "state_topic": base_topic + "/error",
         "icon": "mdi:alert-circle",
+        # Force the sensor to stay Available to prevent HA from inheriting device-level offline states
+        "availability": [
+            {"topic": base_topic + "/status", "value_template": "{{ 'online' }}", "payload_available": "online"}
+        ],
     }
     mqttc.publish(error_topic, json.dumps(error_payload), retain=True)
 

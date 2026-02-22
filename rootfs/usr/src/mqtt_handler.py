@@ -36,6 +36,7 @@ class MqttTaskState:
     last_diagnostics: dict[str, Any] = field(default_factory=dict)
     last_info_payload: str | None = None
     last_error_msg: str | None = None
+    error_clear_armed_time: float | None = None
 
 
 class TaskDoMQTT(threading.Thread):
@@ -266,8 +267,11 @@ class TaskDoMQTT(threading.Thread):
                 if self._state.mqttc:
                     self._state.mqttc.loop_stop()
                     self._state.mqttc = None
-                context.set_error(f"MQTT connection failed: {e}", category="mqtt")
-                logger.error(f"MQTT connection failed with exception: {e}", exc_info=True)
+
+                # Format a clean error string
+                err_str = f"MQTT connection failed: {e}"
+                context.set_error(err_str, category="mqtt")
+                logger.error(err_str)
                 time.sleep(context.config["mqtt"]["connect_retry"])
 
     def _publish_diagnostics(self):
@@ -396,8 +400,16 @@ class TaskDoMQTT(threading.Thread):
                     )
                     self._state.last_error_msg = error_to_publish
 
-                if self._state.connected and error_msg is None:
-                    context.set_error(None, category="mqtt", trigger_event=False)
+                    # If we just successfully published a REAL connection failure, launch a robust
+                    # 15-second background timer to clear it later, bypassing any rapid serial events.
+                    # This completely avoids race conditions with HA's state ingestion.
+                    if error_to_publish != "No Error":
+
+                        def delayed_clear():
+                            if self._state.connected:
+                                context.set_error(None, category="mqtt")
+
+                        threading.Timer(15.0, delayed_clear).start()
             except Exception as e:
                 logger.error(f"MQTT Publish Failed for error: {e}")
 

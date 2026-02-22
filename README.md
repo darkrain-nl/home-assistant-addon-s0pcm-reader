@@ -9,6 +9,7 @@ An easy-to-use Home Assistant App that reads pulse counters from an **S0PCM-2** 
 - **Plug & Play**: Automatically shows up in Home Assistant (MQTT Discovery).
 - **Easy Configuration**: Rename meters and fix totals directly in Home Assistant - no editing files.
 - **Reliable**: Restores your meter data on restart so you don't lose counts.
+- **Data Integrity**: Sensors automatically report as "Unavailable" when disconnected to prevent stale readings in HA.
 - **Simple & Clean**: No local database files to worry about.
 - **Secure**: Supports MQTT with TLS encryption.
 - **Instant Issues**: Reports connection errors immediately so you know if something is wrong.

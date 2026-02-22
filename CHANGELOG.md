@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sensor Availability**: Meter sensors now include MQTT availability tracking. Sensors will show as "Unavailable" in Home Assistant when the addon is offline, preventing stale data on dashboards.
 - **Code Quality**: Expanded linting rules with `S` (security/bandit), `SIM` (simplify), and `PTH` (pathlib enforcement) for stricter static analysis.
 
+### Fixed
+- **Sticky Error Sensor**: Fixed a bug where the `s0pcmreader/error` sensor would get stuck on "MQTT connection failed" and never clear back to "No Error" even after the addon successfully reconnected to the broker.
+- **Verbose Logs**: Silenced full Python tracebacks in the logs when the MQTT broker is starting up or restarting. It now only logs the standard warning message.
+
 ## [3.1.0] - 2026-02-15
 ### Changed
 - **Documentation Overhaul**:
