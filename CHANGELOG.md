@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Code Simplification**: Removed duplicate test helper code and inlined trivial constants for a cleaner codebase.
 - **Improved Type Safety**: Discovery functions now accept typed `MeterState` objects directly instead of untyped dictionaries, completing the Pydantic model migration.
 - **Reduced Global Coupling**: Discovery module functions now receive the application context explicitly as a parameter instead of relying on a hidden global singleton.
+- **Test Coverage**: Achieved 100.00% unified test suite coverage by resolving test pollution and covering error-handling edge cases in handlers.
 
 ## [3.2.0] - 2026-02-22
 ### Security

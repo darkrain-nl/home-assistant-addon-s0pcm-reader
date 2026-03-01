@@ -34,5 +34,5 @@ def is_process_running(process_name: str = PROCESS_NAME) -> bool:
     return False
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     sys.exit(0 if is_process_running() else 1)

@@ -269,7 +269,7 @@ def test_read_loop_errors(serial_task_missing):
 def test_run_fatal_exception(serial_task_missing, mocker):
     """Test run fatal exception (line 219-220)."""
     # Force exception at start of run
-    serial_task_missing.app_context.recovery_event.wait = MagicMock(side_effect=Exception("Fatal Error"))
+    mocker.patch.object(serial_task_missing.app_context.recovery_event, "wait", side_effect=Exception("Fatal Error"))
 
     with patch("serial_handler.logger.error") as mock_logger:
         serial_task_missing.run()
