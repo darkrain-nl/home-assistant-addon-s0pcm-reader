@@ -138,19 +138,19 @@ class TestConnectionHandling:
     def test_connect_loop_success_runs_recovery(self, mock_recoverer_cls, mock_sleep, mqtt_task, mocker):
         """Test that successful connection triggers state recovery (lines 261-262, 65-70)."""
         mqtt_task._stopper.is_set.side_effect = [False, True]
-        
+
         with patch.object(mqtt_task, "_setup_mqtt_client", return_value=True):
             mock_client = MagicMock()
             mqtt_task._state.mqttc = mock_client
-            
+
             # Simulate connected flag being set during the loop
             def simulate_connection(*args):
                 mqtt_task._state.connected = True
-                
+
             mock_client.connect.side_effect = simulate_connection
-            
+
             mqtt_task._connect_loop()
-            
+
             assert mock_recoverer_cls.called
             assert mqtt_task._state.recovery_complete is True
 
