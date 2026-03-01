@@ -26,25 +26,22 @@ class TestConfigLoading:
         # Mock Path.exists and Path.read_text for safer modern python testing
         mocker.patch.object(Path, "exists", return_value=False)
         context = state_module.get_context()
-        context.config = config_module.read_config().model_dump()
-        assert "mqtt" in context.config
-        assert context.config["mqtt"]["host"] == "127.0.0.1"
+        context.config = config_module.read_config()
+        assert context.config.mqtt.host == "127.0.0.1"
 
     def test_load_config_from_options(self, sample_options, mocker):
         mocker.patch.object(Path, "exists", return_value=True)
         mocker.patch.object(Path, "read_text", return_value=json.dumps(sample_options))
         context = state_module.get_context()
-        context.config = config_module.read_config().model_dump()
-        assert context.config["mqtt"]["host"] == sample_options["mqtt_host"]
+        context.config = config_module.read_config()
+        assert context.config.mqtt.host == sample_options["mqtt_host"]
 
 
 class TestCLI:
     def test_init_args_custom(self, mocker):
-        import s0pcm_reader
-
-        # Use patch.object on sys.argv
+        # init_args was inlined; test config_module.init_args directly
         with patch.object(sys, "argv", ["s0pcm_reader", "--config", "/custom/path"]):
-            path = s0pcm_reader.init_args()
+            path = config_module.init_args()
             assert path == Path("/custom/path")
 
 
@@ -54,9 +51,9 @@ class TestConfigEdgeCases:
         mocker.patch.object(Path, "read_text", return_value=json.dumps({"mqtt_tls": True, "mqtt_tls_ca": "ca.crt"}))
         mocker.patch.object(Path, "read_text", return_value=json.dumps({"mqtt_tls": True, "mqtt_tls_ca": "ca.crt"}))
         context = state_module.get_context()
-        context.config = config_module.read_config(config_dir=Path("/data/")).model_dump()
+        context.config = config_module.read_config(config_dir=Path("/data/"))
         expected_path = os.path.normpath("data/ca.crt")
-        actual_path = os.path.normpath(context.config["mqtt"]["tls_ca"])
+        actual_path = os.path.normpath(context.config.mqtt.tls_ca)
         assert expected_path in actual_path
 
     def test_password_redaction(self, mocker):
@@ -124,13 +121,11 @@ class TestConfigCoverage:
             found = any("Using MQTT service discovery" in str(c) for c in mock_logger.call_args_list)
             assert found
 
-    def test_read_config_compat_dict(self):
-        """Test backwards compatibility dict population (lines 176-179)."""
-        d = {}
-        config_module.read_config(config_dict=d)
-        assert "mqtt" in d
-        assert "log" in d
-        assert d["mqtt"]["base_topic"] == "s0pcmreader"
+    def test_read_config_returns_model(self):
+        """Test that read_config returns a ConfigModel directly."""
+        model = config_module.read_config()
+        assert model.mqtt.base_topic == "s0pcmreader"
+        assert model.log.level == "INFO"
 
 
 if __name__ == "__main__":

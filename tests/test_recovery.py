@@ -13,6 +13,7 @@ import datetime
 import json
 from unittest.mock import MagicMock, patch
 
+from helpers import make_test_config
 import pytest
 
 from recovery import StateRecoverer
@@ -32,13 +33,7 @@ def mock_mqtt_client():
 def recoverer(mock_mqtt_client):
     """Create a StateRecoverer instance with mocked MQTT client."""
     context = state_module.get_context()
-    context.config = {
-        "mqtt": {
-            "base_topic": "s0pcmreader",
-            "discovery_prefix": "homeassistant",
-            "recovery_wait": 0,  # Speed up tests
-        }
-    }
+    context.config = make_test_config(recovery_wait=0)
     return StateRecoverer(context, mock_mqtt_client)
 
 
@@ -241,7 +236,7 @@ class TestRobustStateCleaning:
 
     def test_clean_state_with_cubic_meters(self, recoverer):
         """Test cleaning state with m³ unit."""
-        recoverer.context.config["mqtt"]["base_topic"] = "s0pcmreader"
+        recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState(name="Water")
 
         ha_states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1234.56 m³"}]
@@ -252,7 +247,7 @@ class TestRobustStateCleaning:
 
     def test_clean_state_with_kwh(self, recoverer):
         """Test cleaning state with kWh unit."""
-        recoverer.context.config["mqtt"]["base_topic"] = "s0pcmreader"
+        recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState()
 
         ha_states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "5678.90 kWh"}]
@@ -263,7 +258,7 @@ class TestRobustStateCleaning:
 
     def test_clean_state_with_comma_decimal(self, recoverer):
         """Test cleaning state with European decimal separator (comma)."""
-        recoverer.context.config["mqtt"]["base_topic"] = "s0pcmreader"
+        recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState()
 
         ha_states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1234,56"}]
@@ -274,7 +269,7 @@ class TestRobustStateCleaning:
 
     def test_clean_state_with_thousands_separator(self, recoverer):
         """Test cleaning state with thousands separators."""
-        recoverer.context.config["mqtt"]["base_topic"] = "s0pcmreader"
+        recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState()
 
         ha_states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1.234.567"}]
@@ -285,7 +280,7 @@ class TestRobustStateCleaning:
 
     def test_clean_state_with_mixed_separators(self, recoverer):
         """Test cleaning state with both dot and comma (European format)."""
-        recoverer.context.config["mqtt"]["base_topic"] = "s0pcmreader"
+        recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState()
 
         ha_states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1.234,56 m³"}]
@@ -297,7 +292,7 @@ class TestRobustStateCleaning:
 
     def test_clean_state_plain_number(self, recoverer):
         """Test cleaning plain numeric state."""
-        recoverer.context.config["mqtt"]["base_topic"] = "s0pcmreader"
+        recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState()
 
         ha_states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "9876543"}]
@@ -308,7 +303,7 @@ class TestRobustStateCleaning:
 
     def test_find_total_with_name_pattern(self, recoverer):
         """Test finding total using name-based entity pattern."""
-        recoverer.context.config["mqtt"]["base_topic"] = "s0pcmreader"
+        recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState(name="Water Meter")
 
         ha_states = [{"entity_id": "sensor.s0pcmreader_water_meter_total", "state": "12345"}]
@@ -319,7 +314,7 @@ class TestRobustStateCleaning:
 
     def test_find_total_returns_none_for_unavailable(self, recoverer):
         """Test that unavailable states return None."""
-        recoverer.context.config["mqtt"]["base_topic"] = "s0pcmreader"
+        recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState()
 
         ha_states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "unavailable"}]

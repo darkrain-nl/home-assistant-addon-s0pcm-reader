@@ -9,7 +9,7 @@ import argparse
 import json
 import logging
 from pathlib import Path
-from typing import Any, Final
+from typing import Any
 
 import paho.mqtt.client as mqtt
 from pydantic import BaseModel, Field
@@ -80,14 +80,12 @@ class ConfigModel(BaseModel):
 # Configuration Paths
 # ------------------------------------------------------------------------------------
 
-DEFAULT_CONFIG_DIR: Final = "./"
-
 
 def init_args() -> Path:
     """Initialize arguments and global configuration paths."""
     parser = argparse.ArgumentParser(prog="s0pcm-reader", description="S0 Pulse Counter Module")
     # Determine default config directory: /data for HA, ./ for local dev
-    default_config = "/data" if Path("/data").exists() else DEFAULT_CONFIG_DIR
+    default_config = "/data" if Path("/data").exists() else "./"
     parser.add_argument(
         "-c", "--config", help="Directory where the configuration resides", type=str, default=default_config
     )
@@ -98,16 +96,15 @@ def init_args() -> Path:
 
 
 def read_config(
-    config_dict: dict[str, Any] | None = None,
     version: str = "Unknown",
-    config_dir: Path = Path(DEFAULT_CONFIG_DIR),
+    config_dir: Path = Path("./"),
 ) -> ConfigModel:
     """
     Read and populate the configuration.
 
     Args:
-        config_dict: Optional dictionary to populate (for backwards compatibility)
         version: The app version string for logging
+        config_dir: Directory where config files reside
 
     Returns:
         ConfigModel: The populated configuration object
@@ -176,13 +173,6 @@ def read_config(
     stream.setLevel(model.log.level)
     stream.setFormatter(formatter)
     root_logger.addHandler(stream)
-
-    # 5. Backwards compatibility: populate dictionary
-    if config_dict is not None:
-        config_dict.clear()
-        config_dict.update(model.model_dump())
-        # Restore version object (pydantic will have dumped it as int/str potentially)
-        config_dict["mqtt"]["version"] = model.mqtt.version
 
     logger.info(f"Start: s0pcm-reader - version: {version}")
 

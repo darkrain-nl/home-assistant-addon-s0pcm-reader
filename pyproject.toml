@@ -1,6 +1,6 @@
 [project]
 name = "s0pcm-reader"
-version = "3.2.0"
+version = "3.2.1"
 description = "S0PCM Reader Home Assistant App"
 requires-python = ">=3.14"
 
@@ -40,11 +40,32 @@ combine-as-imports = true
 "tests/**" = ["S101", "S108", "PTH"]  # assert, temp paths, and os.path are standard in pytest
 
 [tool.pytest.ini_options]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --strict-markers --disable-warnings -p no:cacheprovider"
 pythonpath = [
     "rootfs/usr/src",
+    "tests",
     "."
+]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow running tests",
+    "serial: Tests requiring serial port mocking",
+    "mqtt: Tests requiring MQTT mocking",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+
+[tool.coverage.run]
+source = ["rootfs/usr/src"]
+omit = ["*/tests/*", "*/conftest.py"]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false

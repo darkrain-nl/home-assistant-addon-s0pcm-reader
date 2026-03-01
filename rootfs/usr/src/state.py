@@ -4,30 +4,23 @@ S0PCM Reader State
 Managed global state, threading locks, errors, and measurement data.
 """
 
-from dataclasses import dataclass, field
 import datetime
 import logging
 import threading
-from typing import Any, Literal, Self
+from typing import TYPE_CHECKING, Literal, Self
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from config import ConfigModel
 
 logger = logging.getLogger(__name__)
 
 # ------------------------------------------------------------------------------------
-# Type Aliases and Error Types
+# Type Aliases
 # ------------------------------------------------------------------------------------
 
 type ErrorCategory = Literal["serial", "mqtt"]
-
-
-@dataclass
-class AppError:
-    """Structured error information with timestamp and category."""
-
-    category: ErrorCategory
-    message: str
-    timestamp: datetime.datetime = field(default_factory=lambda: datetime.datetime.now(datetime.UTC))
 
 
 # ------------------------------------------------------------------------------------
@@ -76,13 +69,10 @@ class AppContext:
         self.state = AppState()
         self.state_share = AppState()  # Snapshot for MQTT
 
-        # Configuration (To be populated as ConfigModel)
-        self.config: dict[str, Any] = {}
+        # Configuration
+        self.config: ConfigModel | None = None
 
-        # Structured Error State (NEW: with timestamps)
-        self.errors: list[AppError] = []
-
-        # Legacy Error State (for backward compatibility)
+        # Error State
         self.lasterror_serial: str | None = None
         self.lasterror_mqtt: str | None = None
         self.lasterror_share: str | None = None
@@ -114,7 +104,6 @@ class AppContext:
         """
         changed = False
 
-        # Update legacy error tracking (for backward compatibility)
         if category == "serial":
             if message != self.lasterror_serial:
                 self.lasterror_serial = message
@@ -123,15 +112,6 @@ class AppContext:
             if message != self.lasterror_mqtt:
                 self.lasterror_mqtt = message
                 changed = True
-
-        # Update structured error list
-        if message is None:
-            # Clear errors for this category
-            self.errors = [e for e in self.errors if e.category != category]
-        else:
-            # Remove old error for this category and add new one
-            self.errors = [e for e in self.errors if e.category != category]
-            self.errors.append(AppError(category=category, message=message))
 
         if changed:
             errors = []

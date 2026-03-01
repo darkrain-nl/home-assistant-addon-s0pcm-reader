@@ -132,13 +132,12 @@ def test_main_config_exception_exit(mocker):
 
 def test_init_args_coverage():
     """Test init_args function coverage (line 55)."""
-    import s0pcm_reader
+    import config as config_module_imp
 
-    # We can just call it to cover the function definition, even if not run in main
-    # But init_args parses sys.argv. We should mock argparse.
+    # init_args was inlined; test config_module.init_args directly
     with patch("argparse.ArgumentParser.parse_args") as mock_parse:
         mock_parse.return_value.config = "/tmp/test"
-        result_path = s0pcm_reader.init_args()
+        result_path = config_module_imp.init_args()
         assert str(result_path) == "/tmp/test"
 
 

@@ -72,7 +72,7 @@ class StateRecoverer:
 
     def on_message(self, client, userdata, msg):
         """Process messages for state recovery."""
-        base_topic = self.context.config["mqtt"]["base_topic"]
+        base_topic = self.context.config.mqtt.base_topic
         try:
             # 1. Discovery topics (Name Mapping)
             if "/config" in msg.topic:
@@ -115,8 +115,8 @@ class StateRecoverer:
     def run(self):
         """Execute the recovery process."""
         logger.info("Starting State Recovery phase...")
-        base_topic = self.context.config["mqtt"]["base_topic"]
-        discovery_prefix = self.context.config["mqtt"]["discovery_prefix"]
+        base_topic = self.context.config.mqtt.base_topic
+        discovery_prefix = self.context.config.mqtt.discovery_prefix
 
         # Temporarily steal on_message
         original_on_message = self.mqttc.on_message
@@ -134,7 +134,7 @@ class StateRecoverer:
         for t in topics:
             self.mqttc.subscribe(t)
 
-        wait_time = self.context.config["mqtt"]["recovery_wait"]
+        wait_time = self.context.config.mqtt.recovery_wait
         logger.info(f"Recovery: Waiting {wait_time}s for MQTT retained messages...")
         time.sleep(wait_time)
 
@@ -205,7 +205,7 @@ class StateRecoverer:
 
     def _find_total_in_ha(self, mid: int, ha_states: EntityStateList) -> int | None:
         """Surgically find the total for a meter in a list of HA states."""
-        base_topic = self.context.config["mqtt"]["base_topic"]
+        base_topic = self.context.config.mqtt.base_topic
         meter = self.context.state.meters.get(mid)
         name = meter.name if meter else None
 

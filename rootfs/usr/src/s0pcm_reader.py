@@ -24,11 +24,6 @@ from utils import get_version
 logger = logging.getLogger(__name__)
 
 
-def init_args() -> Path:
-    """Initialize command-line arguments and configuration paths."""
-    return config_module.init_args()
-
-
 # ------------------------------------------------------------------------------------
 # Global Events (for signal handling and test access)
 # ------------------------------------------------------------------------------------
@@ -55,15 +50,13 @@ def main() -> None:
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    config_path = Path(config_module.DEFAULT_CONFIG_DIR)
+    config_path = Path("./")
     if __name__ == "__main__":
-        config_path = init_args()  # pragma: no cover
+        config_path = config_module.init_args()  # pragma: no cover
 
     try:
         # Load Configuration into context
-        context.config = config_module.read_config(
-            version=context.s0pcm_reader_version, config_dir=config_path
-        ).model_dump()
+        context.config = config_module.read_config(version=context.s0pcm_reader_version, config_dir=config_path)
     except ValidationError, Exception:
         logger.error("Fatal exception during startup", exc_info=True)
         sys.exit(1)

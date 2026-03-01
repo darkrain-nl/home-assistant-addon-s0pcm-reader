@@ -14,9 +14,9 @@ Tests cover:
 import ssl
 from unittest.mock import MagicMock, patch
 
+from helpers import make_test_config
 import pytest
 
-# from mqtt_handler import TaskDoMQTT - lazy imported in fixture
 import state as state_module
 
 
@@ -30,31 +30,7 @@ def mqtt_task():
     stopper.is_set.return_value = False
 
     context = state_module.get_context()
-    context.config = {
-        "mqtt": {
-            "base_topic": "s0pcmreader",
-            "discovery_prefix": "homeassistant",
-            "host": "core-mosquitto",
-            "port": 1883,
-            "tls_port": 8883,
-            "username": "test_user",
-            "password": "test_pass",
-            "client_id": None,
-            "version": 5,
-            "retain": True,
-            "split_topic": True,
-            "connect_retry": 0.01,
-            "online": "online",
-            "offline": "offline",
-            "lastwill": "offline",
-            "tls": False,
-            "tls_ca": "",
-            "tls_check_peer": False,
-            "discovery": True,
-            "recovery_wait": 0,
-        },
-        "serial": {"port": "/dev/ttyACM0"},
-    }
+    context.config = make_test_config()
     context.s0pcm_reader_version = "3.0.0"
     context.s0pcm_firmware = "V0.7"
     context.lasterror_share = None
@@ -68,8 +44,7 @@ class TestTLSSetup:
 
     def test_setup_mqtt_client_with_tls_no_ca(self, mqtt_task, mocker):
         """Test TLS setup without CA certificate (creates default context)."""
-        mqtt_task.app_context.config["mqtt"]["tls"] = True
-        mqtt_task.app_context.config["mqtt"]["tls_ca"] = ""
+        mqtt_task.app_context.config = make_test_config(tls=True, tls_ca="")
 
         mock_ssl_context = MagicMock()
         mocker.patch("ssl.SSLContext", return_value=mock_ssl_context)
@@ -83,9 +58,7 @@ class TestTLSSetup:
 
     def test_setup_mqtt_client_with_tls_and_ca(self, mqtt_task, mocker):
         """Test TLS setup with CA certificate."""
-        mqtt_task.app_context.config["mqtt"]["tls"] = True
-        mqtt_task.app_context.config["mqtt"]["tls_ca"] = "/path/to/ca.crt"
-        mqtt_task.app_context.config["mqtt"]["tls_check_peer"] = True
+        mqtt_task.app_context.config = make_test_config(tls=True, tls_ca="/path/to/ca.crt", tls_check_peer=True)
 
         mock_ssl_context = MagicMock()
         mocker.patch("ssl.SSLContext", return_value=mock_ssl_context)
@@ -99,8 +72,7 @@ class TestTLSSetup:
 
     def test_setup_mqtt_client_tls_ca_load_error(self, mqtt_task, mocker):
         """Test TLS setup handles CA load errors."""
-        mqtt_task.app_context.config["mqtt"]["tls"] = True
-        mqtt_task.app_context.config["mqtt"]["tls_ca"] = "/invalid/path/ca.crt"
+        mqtt_task.app_context.config = make_test_config(tls=True, tls_ca="/invalid/path/ca.crt")
 
         mock_ssl_context = MagicMock()
         mock_ssl_context.load_verify_locations.side_effect = Exception("File not found")
@@ -175,7 +147,7 @@ class TestConnectionHandling:
     def test_connect_loop_tls_no_fallback(self, mock_sleep, mqtt_task):
         """Test connection loop does NOT fall back from TLS to plain on failure."""
         context = state_module.get_context()
-        context.config["mqtt"]["tls"] = True
+        context.config = make_test_config(tls=True)
 
         # Loop twice: both with TLS, then stop
         mqtt_task._stopper.is_set.side_effect = [False, False, True]
@@ -367,7 +339,7 @@ class TestPublishingLogic:
     def test_publish_measurements_split_topic_mode(self, mqtt_task):
         """Test publishing in split_topic mode."""
         mqtt_task._state.mqttc = MagicMock()
-        mqtt_task.app_context.config["mqtt"]["split_topic"] = True
+        mqtt_task.app_context.config = make_test_config(split_topic=True)
 
         state_snapshot = state_module.AppState()
         state_snapshot.meters[1] = state_module.MeterState(name="Water", total=1000, today=50)
@@ -533,7 +505,7 @@ def test_handle_name_set_triggers_discovery(mqtt_task, mocker):
     context = state_module.get_context()
     context.state.meters[1] = state_module.MeterState(total=100)
     context.state.meters[2] = state_module.MeterState(total=200)
-    context.config["mqtt"]["discovery"] = True
+    context.config = make_test_config(discovery=True)
 
     # Mock both discovery functions
     mocker.patch("mqtt_handler.discovery.send_global_discovery")
@@ -555,7 +527,7 @@ def test_handle_name_set_triggers_discovery(mqtt_task, mocker):
 def test_handle_name_set_exception_handling(mqtt_task, mocker):
     """Test exception handling in _handle_name_set (lines 172-173)."""
     context = state_module.get_context()
-    context.config["mqtt"]["discovery"] = True
+    context.config = make_test_config(discovery=True)
 
     # Mock send_meter_discovery to raise an exception
     mocker.patch("mqtt_handler.discovery.send_meter_discovery", side_effect=Exception("Test error"))
@@ -611,7 +583,7 @@ def test_handle_name_set_by_name_lookup(mqtt_task, mocker):
     """Test name/set with name-based meter lookup (lines 144-145)."""
     context = state_module.get_context()
     context.state.meters[5] = state_module.MeterState(name="WaterMeter")
-    context.config["mqtt"]["discovery"] = True
+    context.config = make_test_config(discovery=True)
 
     mocker.patch("mqtt_handler.discovery.send_global_discovery")
     mocker.patch("mqtt_handler.discovery.send_meter_discovery", return_value="Water")
@@ -630,7 +602,7 @@ def test_handle_name_set_by_name_lookup(mqtt_task, mocker):
 def test_handle_name_set_creates_new_meter(mqtt_task, mocker):
     """Test name/set creates new meter if ID doesn't exist (line 159)."""
     context = state_module.get_context()
-    context.config["mqtt"]["discovery"] = True
+    context.config = make_test_config(discovery=True)
 
     mocker.patch("mqtt_handler.discovery.send_global_discovery")
     mocker.patch("mqtt_handler.discovery.send_meter_discovery", return_value="Test")
@@ -721,7 +693,7 @@ class TestMQTTAdditionalCoverage:
     def test_publish_measurements_combined_topic_mode(self, mqtt_task):
         """Test publishing when split_topic is False (JSON mode) (lines 340, 351-353)."""
         mqtt_task._state.mqttc = MagicMock()
-        mqtt_task.app_context.config["mqtt"]["split_topic"] = False
+        mqtt_task.app_context.config = make_test_config(split_topic=False)
 
         state_snapshot = state_module.AppState()
         state_snapshot.meters[1] = state_module.MeterState(name="Water", total=1000, today=50)

@@ -5,8 +5,10 @@ Tests for discovery module (discovery.py).
 import json
 from unittest.mock import MagicMock, patch
 
-# import discovery - lazy imported in tests
+from helpers import make_test_config
+
 import state as state_module
+from state import MeterState
 
 
 def test_send_global_discovery(mocker):
@@ -15,16 +17,10 @@ def test_send_global_discovery(mocker):
 
     mock_mqttc = MagicMock()
     context = state_module.get_context()
-    context.config["mqtt"] = {
-        "discovery": True,
-        "base_topic": "s0pcm",
-        "discovery_prefix": "homeassistant",
-        "online": "online",
-        "offline": "offline",
-    }
+    context.config = make_test_config(base_topic="s0pcm")
     context.s0pcm_reader_version = "3.0.0"
 
-    discovery.send_global_discovery(mock_mqttc)
+    discovery.send_global_discovery(mock_mqttc, context)
 
     # Core check: Was something published?
     assert mock_mqttc.publish.called
@@ -45,15 +41,10 @@ def test_send_meter_discovery(mocker):
 
     mock_mqttc = MagicMock()
     context = state_module.get_context()
-    context.config["mqtt"] = {
-        "discovery": True,
-        "base_topic": "s0pcm",
-        "discovery_prefix": "homeassistant",
-        "split_topic": True,
-    }
+    context.config = make_test_config(base_topic="s0pcm")
 
-    meter_data = {"name": "Water"}
-    instancename = discovery.send_meter_discovery(mock_mqttc, 1, meter_data)
+    meter_state = MeterState(name="Water")
+    instancename = discovery.send_meter_discovery(mock_mqttc, context, 1, meter_state)
 
     assert instancename == "Water"
 
@@ -74,12 +65,12 @@ def test_discovery_disabled(mocker):
 
     mock_mqttc = MagicMock()
     context = state_module.get_context()
-    context.config["mqtt"] = {"discovery": False}
+    context.config = make_test_config(discovery=False)
 
-    discovery.send_global_discovery(mock_mqttc)
+    discovery.send_global_discovery(mock_mqttc, context)
     assert not mock_mqttc.publish.called
 
-    result = discovery.send_meter_discovery(mock_mqttc, 1, {})
+    result = discovery.send_meter_discovery(mock_mqttc, context, 1, MeterState())
     assert result is None
     assert not mock_mqttc.publish.called
 
@@ -90,15 +81,7 @@ def test_send_global_discovery_with_units(mocker):
 
     context = state_module.get_context()
     context.s0pcm_reader_version = "3.0.0"
-    context.config = {
-        "mqtt": {
-            "discovery": True,
-            "base_topic": "s0pcm",
-            "discovery_prefix": "homeassistant",
-            "online": "online",
-            "offline": "offline",
-        }
-    }
+    context.config = make_test_config(base_topic="s0pcm")
     mqttc = MagicMock()
 
     # Custom diagnostics with all fields including 'unit'
@@ -113,7 +96,7 @@ def test_send_global_discovery_with_units(mocker):
     ]
 
     with patch("discovery.GLOBAL_DIAGNOSTICS", custom_diags):
-        discovery.send_global_discovery(mqttc)
+        discovery.send_global_discovery(mqttc, context)
 
     # Verify the published config
     # topic: homeassistant/sensor/s0pcm/s0pcm_s0pcm_temp/config
@@ -131,17 +114,10 @@ def test_send_meter_discovery_split_topic():
     import discovery
 
     context = state_module.get_context()
-    context.config = {
-        "mqtt": {
-            "discovery": True,
-            "base_topic": "s0pcm",
-            "discovery_prefix": "homeassistant",
-            "split_topic": True,
-        }
-    }
+    context.config = make_test_config(base_topic="s0pcm", split_topic=True)
     mqttc = MagicMock()
 
-    discovery.send_meter_discovery(mqttc, 1, {"name": "test"})
+    discovery.send_meter_discovery(mqttc, context, 1, MeterState(name="test"))
 
     # Find the 'total' config message
     total_call = next(c for c in mqttc.publish.call_args_list if "total" in c.args[0] and "{" in str(c.args[1]))
@@ -155,10 +131,10 @@ def test_cleanup_meter_discovery_enabled():
     import discovery
 
     context = state_module.get_context()
-    context.config = {"mqtt": {"discovery": True, "base_topic": "s0pcmreader", "discovery_prefix": "homeassistant"}}
+    context.config = make_test_config()
     mqttc = MagicMock()
 
-    discovery.cleanup_meter_discovery(mqttc, 5)
+    discovery.cleanup_meter_discovery(mqttc, context, 5)
 
     # Should publish empty payloads to clear discovery
     assert mqttc.publish.call_count > 0
@@ -174,10 +150,10 @@ def test_cleanup_meter_discovery_disabled():
     import discovery
 
     context = state_module.get_context()
-    context.config = {"mqtt": {"discovery": False}}
+    context.config = make_test_config(discovery=False)
     mqttc = MagicMock()
 
-    discovery.cleanup_meter_discovery(mqttc, 1)
+    discovery.cleanup_meter_discovery(mqttc, context, 1)
     mqttc.publish.assert_not_called()
 
 
@@ -186,15 +162,10 @@ def test_send_meter_discovery_combined_topic(mocker):
     import discovery
 
     context = state_module.get_context()
-    context.config["mqtt"] = {
-        "discovery": True,
-        "base_topic": "s0pcm",
-        "discovery_prefix": "homeassistant",
-        "split_topic": False,
-    }
+    context.config = make_test_config(base_topic="s0pcm", split_topic=False)
     mock_mqtt = MagicMock()
 
-    discovery.send_meter_discovery(mock_mqtt, 1, {"name": "Combined"})
+    discovery.send_meter_discovery(mock_mqtt, context, 1, MeterState(name="Combined"))
 
     # Check if value_template is correctly set in one of the publish calls
     found_template = False
@@ -213,16 +184,11 @@ def test_send_meter_discovery_sanitizes_name():
     import discovery
 
     context = state_module.get_context()
-    context.config["mqtt"] = {
-        "discovery": True,
-        "base_topic": "s0pcm",
-        "discovery_prefix": "homeassistant",
-        "split_topic": True,
-    }
+    context.config = make_test_config(base_topic="s0pcm")
     mqttc = MagicMock()
 
-    meter_data = {"name": "My/Water+Meter#1"}
-    instancename = discovery.send_meter_discovery(mqttc, 1, meter_data)
+    meter_state = MeterState(name="My/Water+Meter#1")
+    instancename = discovery.send_meter_discovery(mqttc, context, 1, meter_state)
 
     assert instancename == "MyWaterMeter1"
 

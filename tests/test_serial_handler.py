@@ -6,9 +6,11 @@ import datetime
 import threading
 from unittest.mock import MagicMock, patch
 
+from helpers import make_test_config
 import pytest
 
 import config as config_module
+from config import SerialConfig
 from serial_handler import TaskReadSerial
 import state as state_module
 
@@ -18,7 +20,7 @@ def setup_serial_test_state():
     """Ensure a clean state for every test."""
     context = state_module.get_context()
     # Initialize basic config using standard logic
-    context.config = config_module.read_config(version="test").model_dump()
+    context.config = config_module.read_config(version="test")
     context.s0pcm_firmware = "Unknown"
     context.state.reset_state()
     context.lasterror_serial = None
@@ -136,15 +138,7 @@ class TestSerialConnection:
     def test_serial_connect_success(self, mock_serial):
         # Setup config
         context = state_module.get_context()
-        context.config["serial"] = {
-            "port": "/dev/ttyACM0",
-            "baudrate": 9600,
-            "parity": "E",
-            "stopbits": 1,
-            "bytesize": 7,
-            "timeout": None,
-            "connect_retry": 5,
-        }
+        context.config = make_test_config()
         task = TaskReadSerial(context, None, threading.Event())
         mock_serial.return_value = MagicMock()
         assert task._connect() is not None
@@ -176,17 +170,20 @@ def serial_task_missing():
     stopper.is_set.return_value = False
 
     context = state_module.get_context()
-    context.config = {
-        "serial": {
-            "port": "/dev/ttyTEST",
-            "baudrate": 9600,
-            "parity": "N",
-            "stopbits": 1,
-            "bytesize": 8,
-            "timeout": 1,
-            "connect_retry": 0.01,
+    context.config = make_test_config()
+    context.config = context.config.model_copy(
+        update={
+            "serial": SerialConfig(
+                port="/dev/ttyTEST",
+                baudrate=9600,
+                parity="N",
+                stopbits=1,
+                bytesize=8,
+                timeout=1,
+                connect_retry=1,
+            )
         }
-    }
+    )
     context.state.meters = {}
     context.lasterror_serial = None
 
@@ -319,7 +316,7 @@ def test_connect_stopper_set(serial_task_missing):
 def test_task_read_serial_loop_execution(mocker):
     """Integrate TaskReadSerial loop."""
     context = state_module.get_context()
-    context.config.update({"serial": {"connect_retry": 0.1}})
+    context.config = make_test_config()
 
     stopper = threading.Event()
     task = TaskReadSerial(context, threading.Event(), stopper)

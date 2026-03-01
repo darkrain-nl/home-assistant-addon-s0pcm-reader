@@ -14,7 +14,6 @@ import pytest
 # Add the source directory to the path so we can import s0pcm_reader
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "rootfs", "usr", "src")))
 
-import config as config_module
 import state as state_module
 
 
@@ -163,7 +162,6 @@ def reset_global_state():
     context.lasterror_serial = None
     context.lasterror_mqtt = None
     context.lasterror_share = None
+    context.config = None
     context.s0pcm_firmware = "Unknown"
-    # Reset config defaults if needed
-    config_module.configdirectory = "./"
     yield
