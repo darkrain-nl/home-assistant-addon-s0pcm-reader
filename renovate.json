@@ -57,6 +57,16 @@
     ],
     "packageRules": [
         {
+            "description": "Do NOT enable automerge for python dependencies. Lock files (.lock) must be manually regenerated via .agent/workflows/dependencies.md when .txt files update.",
+            "matchUpdateTypes": [
+                "minor",
+                "patch",
+                "pin",
+                "digest"
+            ],
+            "automerge": false
+        },
+        {
             "matchPackageNames": [
                 "ghcr.io/home-assistant/**"
             ],
