@@ -7,7 +7,7 @@
         ":combinePatchMinorReleases",
         ":disableDependencyDashboard"
     ],
-    "baseBranches": [
+    "baseBranchPatterns": [
         "dev"
     ],
     "ignorePaths": [
@@ -31,17 +31,6 @@
         ]
     },
     "customManagers": [
-        {
-            "customType": "regex",
-            "description": "Fallback for test requirements",
-            "managerFilePatterns": [
-                "/(^|/)requirements-test\\.txt$/"
-            ],
-            "matchStrings": [
-                "(?<depName>[a-zA-Z0-9._-]+)\\s*(?:==|>=|~=|>|<=|<)\\s*(?<currentValue>[a-zA-Z0-9._-]+)"
-            ],
-            "datasourceTemplate": "pypi"
-        },
         {
             "customType": "regex",
             "description": "Home Assistant build.yaml base images",
