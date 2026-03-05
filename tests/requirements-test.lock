@@ -36,7 +36,7 @@ pytest-timeout==2.4.0
     # via -r requirements-test.txt
 pyyaml==6.0.3
     # via -r requirements-test.txt
-ruff==0.15.4
+ruff==0.15.5
     # via -r requirements-test.txt
 typing-extensions==4.15.0
     # via
