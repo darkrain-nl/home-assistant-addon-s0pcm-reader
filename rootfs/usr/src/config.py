@@ -150,9 +150,7 @@ def read_config(
             username=mqtt_opts.get("username") or mqtt_service.get("username"),
             password=mqtt_opts.get("password") or mqtt_service.get("password"),
             base_topic=mqtt_opts.get("base_topic", "s0pcmreader"),
-            client_id=mqtt_opts.get("client_id")
-            if mqtt_opts.get("client_id") not in [None, "", "None"]
-            else None,
+            client_id=mqtt_opts.get("client_id") if mqtt_opts.get("client_id") not in [None, "", "None"] else None,
             version=mqtt_version,
             retain=adv_opts.get("retain", True),
             split_topic=adv_opts.get("split_topic", True),

@@ -38,8 +38,8 @@ schema:
     recovery_wait: int(1,60)?
   security:
     tls: bool?
+    tls_check_peer: bool?
     tls_port: port?
     tls_ca: str?
-    tls_check_peer: bool?
 services:
   - mqtt:want

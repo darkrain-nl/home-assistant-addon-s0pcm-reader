@@ -64,13 +64,9 @@ def sample_options():
             "port": 1883,
             "username": "test_user",
             "password": "test_pass",
-            "base_topic": "s0pcmreader"
+            "base_topic": "s0pcmreader",
         },
-        "advanced": {
-            "discovery": True,
-            "split_topic": True,
-            "retain": True
-        }
+        "advanced": {"discovery": True, "split_topic": True, "retain": True},
     }
 
 
