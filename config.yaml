@@ -1,6 +1,6 @@
 name: "S0PCM Reader"
 description: "S0PCM reader for Home Assistant"
-version: "3.2.1"
+version: "4.0.0"
 slug: "s0pcm_reader"
 url: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader"
 arch:
@@ -12,16 +12,22 @@ hassio_api: true
 homeassistant_api: true
 options:
   device: null
-  log_level: info
-  mqtt: {}
+  mqtt:
+    base_topic: "s0pcmreader"
+    protocol: "5.0"
   advanced:
+    discovery: true
+    discovery_prefix: "homeassistant"
+    retain: true
+    split_topic: true
     recovery_wait: 7
   security:
     tls: false
     tls_check_peer: false
+    tls_port: 8883
+  log_level: info
 schema:
   device: device(subsystem=tty)
-  log_level: list(critical|error|warning|info|debug)?
   mqtt:
     host: str?
     port: port?
@@ -41,5 +47,6 @@ schema:
     tls_check_peer: bool?
     tls_port: port?
     tls_ca: str?
+  log_level: list(critical|error|warning|info|debug)?
 services:
   - mqtt:want

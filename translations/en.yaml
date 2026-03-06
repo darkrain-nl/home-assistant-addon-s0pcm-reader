@@ -2,28 +2,25 @@ configuration:
   device:
     name: "Serial Port"
     description: "The serial port device where your S0PCM is connected (Default: /dev/ttyACM0)."
-  log_level:
-    name: "Log Level"
-    description: "Determines the detail level of the app logs (Default: info)."
   mqtt:
     name: "Basic MQTT Settings"
-    description: "Configure connection details for your MQTT broker."
+    description: "Leave these fields empty if you use Home Assistant OS with the Mosquitto broker App! We will automatically connect."
     fields:
       host:
         name: "MQTT Host"
-        description: "Host address of your MQTT broker. Leave empty to use the internally discovered broker."
+        description: "IP or hostname of your MQTT broker. Leave empty to auto-discover the Mosquitto App."
       port:
         name: "MQTT Port"
-        description: "The port for unencrypted MQTT connections (Default: 1883)."
+        description: "The port for MQTT connections. Leave empty for default (1883 or 8883 for TLS)."
       username:
         name: "MQTT Username"
-        description: "Username for MQTT broker authentication."
+        description: "Username for MQTT broker authentication. Leave empty to use HA OS auto-discovery."
       password:
         name: "MQTT Password"
-        description: "Password for MQTT broker authentication."
+        description: "Password for MQTT broker authentication. Leave empty to use HA OS auto-discovery."
       client_id:
         name: "MQTT Client ID"
-        description: "Unique identifier for this MQTT client. Leave empty for an auto-generated ID."
+        description: "Unique identifier for this MQTT client. Leave empty to auto-generate an ID."
       base_topic:
         name: "MQTT Base Topic"
         description: "The root topic for all messages (Default: s0pcmreader). WARNING: Changing this will create a new device in Home Assistant!"
@@ -32,7 +29,7 @@ configuration:
         description: "The MQTT protocol version to use (Default: 5.0)."
   advanced:
     name: "Advanced MQTT Settings"
-    description: "Advanced options for MQTT publishing."
+    description: "Advanced options for MQTT publishing. The defaults work best for Home Assistant."
     fields:
       discovery:
         name: "MQTT Auto-Discovery"
@@ -65,3 +62,6 @@ configuration:
       tls_check_peer:
         name: "Verify TLS Certificate"
         description: "If true, strictly verify the broker's certificate and hostname (Default: false)."
+  log_level:
+    name: "Log Level"
+    description: "Determines the detail level of the app logs (Default: info)."

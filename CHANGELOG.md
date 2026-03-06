@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-03-06
+### Breaking Changes
+- **Configuration Overhaul**: The Home Assistant App configuration options have been completely restructured with grouped schemas (Basic/Advanced MQTT Settings, Security & TLS Settings) to provide a better user experience. Manual configuration keys in `options.json` have changed significantly (e.g., `mqtt_host` is now nested under `mqtt: host`).
+- **Terminology Update**: Systematically replaced all user-facing instances of "Add-on" with "App" across Home Assistant UI texts and project documentation.
+
+### Added
+- **UI Default Visibility**: Known system defaults (e.g. `base_topic: s0pcmreader`, `tls_port: 8883`) natively render in the Home Assistant options window for better clarity without overriding Supervisor discovery logic.
+
 ## [3.2.1] - 2026-03-01
 ### Changed
 - **Code Simplification**: Removed duplicate test helper code and inlined trivial constants for a cleaner codebase.

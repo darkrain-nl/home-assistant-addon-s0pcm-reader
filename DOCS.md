@@ -6,11 +6,11 @@ This application reads pulse counts from S0PCM-2 (2-channel) or S0PCM-5 (5-chann
 
 ## 2. Installation Methods
 
-### Home Assistant Add-on (Recommended)
+### Home Assistant App (Recommended)
 1. Add the repository: `https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader`
-2. Install **S0PCM Reader** from the Add-on Store.
+2. Install **S0PCM Reader** from the App Store.
 3. Configure the **Device** (e.g., `/dev/ttyACM0`) in the Configuration tab.
-4. Start the add-on.
+4. Start the app.
 
 ### Standalone Docker Container (Advanced)
 If you are not using Home Assistant OS/Supervisor, you can run this as a standalone container.
@@ -91,7 +91,7 @@ To sync the app with your physical meter:
 
 ## 5. Home Assistant Integration (Cookbook)
 
-The addon provides **raw pulse counts** (e.g., `12345` pulses). To make this useful, use Home Assistant's native helpers.
+The app provides **raw pulse counts** (e.g., `12345` pulses). To make this useful, use Home Assistant's native helpers.
 
 ### Recipe 1: Convert to Units (m³ or kWh)
 Create a **Template Sensor** to convert raw pulses to your desired unit (e.g., 1000 pulses = 1 m³).
@@ -148,7 +148,7 @@ mqtt:
 - **"Connection Refused"**: Check if MQTT broker is running.
 - **"Serial Port Not Found"**: Check USB connection and "Hardware" tab in HA OS.
 - **Sensors "Unavailable"**: 
-  - If the addon is disconnected from the MQTT broker (e.g., during a restart), sensors will automatically show as "Unavailable" to prevent stale data. They will recover once reconnected.
+  - If the app is disconnected from the MQTT broker (e.g., during a restart), sensors will automatically show as "Unavailable" to prevent stale data. They will recover once reconnected.
   - If they never recover, did you change the MQTT Base Topic? This creates a new device.
 
 ### State Recovery
