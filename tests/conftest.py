@@ -59,14 +59,18 @@ def sample_options():
     return {
         "device": "/dev/ttyACM0",
         "log_level": "INFO",
-        "mqtt_host": "core-mosquitto",
-        "mqtt_port": 1883,
-        "mqtt_username": "test_user",
-        "mqtt_password": "test_pass",
-        "mqtt_base_topic": "s0pcmreader",
-        "mqtt_discovery": True,
-        "mqtt_split_topic": True,
-        "mqtt_retain": True,
+        "mqtt": {
+            "host": "core-mosquitto",
+            "port": 1883,
+            "username": "test_user",
+            "password": "test_pass",
+            "base_topic": "s0pcmreader"
+        },
+        "advanced": {
+            "discovery": True,
+            "split_topic": True,
+            "retain": True
+        }
     }
 
 
