@@ -19,10 +19,12 @@ If you are not using Home Assistant OS/Supervisor, you can run this as a standal
 ```json
 {
   "device": "/dev/ttyACM0",
-  "mqtt_host": "192.168.1.50",
-  "mqtt_username": "user",
-  "mqtt_password": "password",
-  "mqtt_base_topic": "s0pcmreader",
+  "mqtt": {
+    "host": "192.168.1.50",
+    "username": "user",
+    "password": "password",
+    "base_topic": "s0pcmreader"
+  },
   "log_level": "info"
 }
 ```
