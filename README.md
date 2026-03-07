@@ -38,6 +38,8 @@ If you want to help test upcoming features, you can install the Beta version. Yo
 1. Add the Beta repository to your Home Assistant App Store:
    `https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader-beta`
 2. Search for **S0PCM Reader (Beta)** and click **Install**.
+3. Go to your Stable **S0PCM Reader**, **Stop** it, and disable **Start on boot**.
+4. Go to **S0PCM Reader (Beta)**, configure your USB device, and **Start** it.
 
 ## 📖 Documentation
 

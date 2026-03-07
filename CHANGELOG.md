@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Migration Guide**: Because v4.0.0 requires you to re-enter your configuration settings due to the schema overhaul, we strongly recommend installing the **S0PCM Reader (Beta)** app alongside your current **v3.2.1** stable app.
 > 1. Add the beta repository: `https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader-beta`
 > 2. Install S0PCM Reader (Beta) and configure it with your settings.
-> 3. Stop v3.2.1 and start the Beta app.
+> 3. Stop v3.2.1, disable its **Start on Boot** toggle, and then start the Beta app.
 > 4. Once you verify the Beta is reading your meter correctly, you can leave the beta running until v4.0.0 hits the stable channel. When it does, just update the Stable app, copy your new settings over, and you're good to go!
 
 ### Added
