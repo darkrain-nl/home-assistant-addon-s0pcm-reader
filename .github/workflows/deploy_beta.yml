@@ -38,6 +38,10 @@ jobs:
           sed -i 's|org.opencontainers.image.source: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader"|org.opencontainers.image.source: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader-beta"|' build.yaml
           sed -i 's|org.opencontainers.image.url: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader"|org.opencontainers.image.url: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader-beta"|' build.yaml
           sed -i 's|org.opencontainers.image.documentation: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/blob/main/DOCS.md"|org.opencontainers.image.documentation: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader-beta/blob/main/DOCS.md"|' build.yaml
+          
+          # Modify README.md badges to point to the beta repo and include pre-releases
+          sed -i 's|github/v/release/darkrain-nl/home-assistant-addon-s0pcm-reader?style=flat-square|github/v/release/darkrain-nl/home-assistant-addon-s0pcm-reader-beta?include_prereleases\&style=flat-square|' README.md
+          sed -i 's|github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/releases|github.com/darkrain-nl/home-assistant-addon-s0pcm-reader-beta/releases|' README.md
 
       - name: Push to Beta Repository
         env:
@@ -51,7 +55,7 @@ jobs:
           
           # Remove existing remote if any, and commit the changes
           git remote rm origin || true
-          git add config.yaml repository.yaml build.yaml
+          git add config.yaml repository.yaml build.yaml README.md
           
           # Only commit if there are changes
           if ! git diff-index --quiet HEAD; then
