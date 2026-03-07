@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **UI Default Visibility**: Known system defaults (e.g. `base_topic: s0pcmreader`, `tls_port: 8883`) natively render in the Home Assistant options window for better clarity without overriding Supervisor discovery logic.
 
+### Changed
+- **Shutdown Reliability**: MQTT error-clearing timer now runs as a daemon thread, preventing it from blocking clean process shutdown.
+- **Code Quality**: Simplified condition in discovery module and fixed a docstring typo in the serial handler.
+
 ## [3.2.1] - 2026-03-01
 ### Changed
 - **Code Simplification**: Removed duplicate test helper code and inlined trivial constants for a cleaner codebase.

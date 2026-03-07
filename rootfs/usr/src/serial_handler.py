@@ -51,7 +51,7 @@ class TaskReadSerial(threading.Thread):
 
     def _connect(self) -> serial.Serial | None:
         """
-        Established a connection to the serial port.
+        Establish a connection to the serial port.
 
         Returns:
             serial.Serial: The connected serial object, or None if failed and stopped.

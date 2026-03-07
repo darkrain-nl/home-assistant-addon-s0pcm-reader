@@ -409,7 +409,9 @@ class TaskDoMQTT(threading.Thread):
                             if self._state.connected:
                                 context.set_error(None, category="mqtt")
 
-                        threading.Timer(15.0, delayed_clear).start()
+                        timer = threading.Timer(15.0, delayed_clear)
+                        timer.daemon = True
+                        timer.start()
             except Exception as e:
                 logger.error(f"MQTT Publish Failed for error: {e}")
 
