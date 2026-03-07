@@ -69,7 +69,7 @@ jobs:
 
           PRERELEASE_FLAG=""
           LATEST_FLAG=""
-          if [ "${{ github.ref_name }}" = "beta" ] || [ "${{ github.ref_name }}" = "main" -a "${{ github.repository }}" = "darkrain-nl/home-assistant-addon-s0pcm-reader-beta" ]; then
+          if [ "${{ github.ref_name }}" = "beta" ]; then
             PRERELEASE_FLAG="--prerelease"
             LATEST_FLAG="--latest=false"
           fi
