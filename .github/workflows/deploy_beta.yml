@@ -1,5 +1,8 @@
 name: Sync Beta Release
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
