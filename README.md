@@ -69,7 +69,7 @@ If you encounter issues or have suggestions, please [open an issue](https://gith
 
 Inspired by the [docker-s0pcm-reader](https://github.com/ualex73/docker-s0pcm-reader) project by @ualex73.
 
-[releases-shield]: https://img.shields.io/github/v/release/darkrain-nl/home-assistant-addon-s0pcm-reader?include_prereleases&style=flat-square
+[releases-shield]: https://img.shields.io/github/v/release/darkrain-nl/home-assistant-addon-s0pcm-reader?style=flat-square
 [releases]: https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/releases
 [installations-shield-stable]: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fanalytics.home-assistant.io%2Faddons.json&query=%24%5B%224a252ed0_s0pcm_reader%22%5D.total&label=Reported%20Installations&color=0382B9&style=flat-square
 [installations-link]: https://analytics.home-assistant.io/add-ons
