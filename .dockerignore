@@ -18,4 +18,4 @@ logo.png
 translations/
 .ruff_cache/
 .agent/
-DEVELOPER.md
+CONTRIBUTING.md
