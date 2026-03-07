@@ -16,6 +16,7 @@ jobs:
           ref: beta
           path: main-repo
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Modify configuration files for Beta
         run: |
