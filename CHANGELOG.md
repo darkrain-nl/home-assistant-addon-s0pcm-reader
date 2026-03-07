@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Shutdown Reliability**: MQTT error-clearing timer now runs as a daemon thread, preventing it from blocking clean process shutdown.
 - **Code Quality**: Simplified condition in discovery module and fixed a docstring typo in the serial handler.
+- **Developer Guide**: Rewrote `DEVELOPER.md` as a public contributor guide (architecture, project structure, dev setup, code standards, release process). Agent-specific instructions moved to `.agent/`.
+- **Documentation Fix**: Updated the standalone `options.json` example in `DOCS.md` to reflect the new nested configuration structure.
 
 ## [3.2.1] - 2026-03-01
 ### Changed
