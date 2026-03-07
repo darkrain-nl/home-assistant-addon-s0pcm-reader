@@ -68,12 +68,14 @@ jobs:
           git push origin "${{ steps.version.outputs.tag }}"
 
           PRERELEASE_FLAG=""
+          LATEST_FLAG=""
           if [ "${{ github.ref_name }}" = "beta" ] || [ "${{ github.ref_name }}" = "main" -a "${{ github.repository }}" = "darkrain-nl/home-assistant-addon-s0pcm-reader-beta" ]; then
             PRERELEASE_FLAG="--prerelease"
+            LATEST_FLAG="--latest=false"
           fi
 
           gh release create "${{ steps.version.outputs.tag }}" \
             --title "Release ${{ steps.version.outputs.version }}" \
             --notes-file release_notes.md \
-            --latest=false \
+            $LATEST_FLAG \
             $PRERELEASE_FLAG
