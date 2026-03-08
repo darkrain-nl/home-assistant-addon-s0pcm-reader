@@ -126,11 +126,15 @@ def read_config(
             logger.info("Using MQTT service discovery for connection settings.")
 
     # 3. Build Config Model
-    mqtt_version_str = str(ha_options.get("mqtt_protocol", "5.0"))
+    mqtt_opts = ha_options.get("mqtt", {})
+    adv_opts = ha_options.get("advanced", {})
+    sec_opts = ha_options.get("security", {})
+
+    mqtt_version_str = str(mqtt_opts.get("protocol", "5.0"))
     version_map = {"3.1": mqtt.MQTTv31, "3.1.1": mqtt.MQTTv311, "5.0": mqtt.MQTTv5}
     mqtt_version = version_map.get(mqtt_version_str, mqtt.MQTTv5)
 
-    tls_ca = ha_options.get("mqtt_tls_ca", "")
+    tls_ca = sec_opts.get("tls_ca", "")
     if tls_ca:
         tls_ca_path = Path(tls_ca)
         if not tls_ca_path.is_absolute():
@@ -140,24 +144,22 @@ def read_config(
         log=LogConfig(level=(ha_options.get("log_level") or "INFO").upper()),
         serial=SerialConfig(port=ha_options.get("device", "/dev/ttyACM0")),
         mqtt=MqttConfig(
-            host=ha_options.get("mqtt_host") or mqtt_service.get("host", "127.0.0.1"),
-            port=ha_options.get("mqtt_port") or mqtt_service.get("port", 1883),
-            tls_port=ha_options.get("mqtt_tls_port", 8883),
-            username=ha_options.get("mqtt_username") or mqtt_service.get("username"),
-            password=ha_options.get("mqtt_password") or mqtt_service.get("password"),
-            base_topic=ha_options.get("mqtt_base_topic", "s0pcmreader"),
-            client_id=ha_options.get("mqtt_client_id")
-            if ha_options.get("mqtt_client_id") not in [None, "", "None"]
-            else None,
+            host=mqtt_opts.get("host") or mqtt_service.get("host", "127.0.0.1"),
+            port=mqtt_opts.get("port") or mqtt_service.get("port", 1883),
+            tls_port=sec_opts.get("tls_port", 8883),
+            username=mqtt_opts.get("username") or mqtt_service.get("username"),
+            password=mqtt_opts.get("password") or mqtt_service.get("password"),
+            base_topic=mqtt_opts.get("base_topic", "s0pcmreader"),
+            client_id=mqtt_opts.get("client_id") if mqtt_opts.get("client_id") not in [None, "", "None"] else None,
             version=mqtt_version,
-            retain=ha_options.get("mqtt_retain", True),
-            split_topic=ha_options.get("mqtt_split_topic", True),
-            discovery=ha_options.get("mqtt_discovery", True),
-            discovery_prefix=ha_options.get("mqtt_discovery_prefix", "homeassistant"),
-            tls=ha_options.get("mqtt_tls", False),
+            retain=adv_opts.get("retain", True),
+            split_topic=adv_opts.get("split_topic", True),
+            discovery=adv_opts.get("discovery", True),
+            discovery_prefix=adv_opts.get("discovery_prefix", "homeassistant"),
+            tls=sec_opts.get("tls", False),
             tls_ca=tls_ca,
-            tls_check_peer=ha_options.get("mqtt_tls_check_peer", False),
-            recovery_wait=ha_options.get("mqtt_recovery_wait", 7),
+            tls_check_peer=sec_opts.get("tls_check_peer", False),
+            recovery_wait=adv_opts.get("recovery_wait", 7),
         ),
     )
 

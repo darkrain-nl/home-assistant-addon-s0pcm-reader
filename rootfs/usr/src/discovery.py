@@ -140,7 +140,7 @@ def send_meter_discovery(mqttc: mqtt.Client, context: AppContext, meter_id: int,
         payload["payload_available"] = "online"
         payload["payload_not_available"] = "offline"
 
-        if subkey == "total" or subkey == "today":
+        if subkey in ("total", "today"):
             payload["state_class"] = "total_increasing"
         else:
             payload["state_class"] = "measurement"

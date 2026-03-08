@@ -4,7 +4,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.0.0] - 2026-03-08
+### Breaking Changes
+- **Configuration Overhaul**: The Home Assistant App configuration options have been completely restructured with grouped schemas (Basic/Advanced MQTT Settings, Security & TLS Settings) to provide a better user experience. Manual configuration keys in `options.json` have changed significantly (e.g., `mqtt_host` is now nested under `mqtt: host`).
+- **Terminology Update**: Systematically replaced all user-facing instances of "Add-on" with "App" across Home Assistant UI texts and project documentation.
+
+> [!IMPORTANT]
+> **Migration Guide**: Because v4.0.0 requires you to re-enter your configuration settings due to the schema overhaul, we strongly recommend installing the **S0PCM Reader (Beta)** app alongside your current **v3.2.1** stable app.
+> 1. Add the beta repository: `https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader-beta`
+> 2. Install S0PCM Reader (Beta) and configure it with your settings.
+> 3. Stop v3.2.1, disable its **Start on Boot** toggle, and then start the Beta app.
+> 4. Once you verify the Beta is reading your meter correctly, you can leave the beta running until v4.0.0 hits the stable channel. When it does, just update the Stable app, copy your new settings over, and you're good to go!
+
+### Added
+- **UI Default Visibility**: Known system defaults (e.g. `base_topic: s0pcmreader`, `tls_port: 8883`) natively render in the Home Assistant options window for better clarity without overriding Supervisor discovery logic.
+
+### Changed
+- **Shutdown Reliability**: MQTT error-clearing timer now runs as a daemon thread, preventing it from blocking clean process shutdown.
+- **Code Quality**: Simplified condition in discovery module and fixed a docstring typo in the serial handler.
+- **Contributing Guide**: Added `CONTRIBUTING.md` (GitHub-standard contributor guide) covering architecture, project structure, dev setup, code standards, release process, and how to submit PRs.
+- **Documentation Fix**: Updated the standalone `options.json` example in `DOCS.md` to reflect the new nested configuration structure.
 
 ## [3.2.1] - 2026-03-01
 ### Changed

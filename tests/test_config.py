@@ -34,7 +34,7 @@ class TestConfigLoading:
         mocker.patch.object(Path, "read_text", return_value=json.dumps(sample_options))
         context = state_module.get_context()
         context.config = config_module.read_config()
-        assert context.config.mqtt.host == sample_options["mqtt_host"]
+        assert context.config.mqtt.host == sample_options["mqtt"]["host"]
 
 
 class TestCLI:
@@ -48,8 +48,7 @@ class TestCLI:
 class TestConfigEdgeCases:
     def test_tls_path_join(self, mocker):
         mocker.patch.object(Path, "exists", return_value=True)
-        mocker.patch.object(Path, "read_text", return_value=json.dumps({"mqtt_tls": True, "mqtt_tls_ca": "ca.crt"}))
-        mocker.patch.object(Path, "read_text", return_value=json.dumps({"mqtt_tls": True, "mqtt_tls_ca": "ca.crt"}))
+        mocker.patch.object(Path, "read_text", return_value=json.dumps({"security": {"tls": True, "tls_ca": "ca.crt"}}))
         context = state_module.get_context()
         context.config = config_module.read_config(config_dir=Path("/data/"))
         expected_path = os.path.normpath("data/ca.crt")
@@ -59,7 +58,7 @@ class TestConfigEdgeCases:
     def test_password_redaction(self, mocker):
         mocker.patch.object(Path, "exists", return_value=True)
         # Test 1: Password set
-        mocker.patch.object(Path, "read_text", return_value=json.dumps({"mqtt_password": "secret"}))
+        mocker.patch.object(Path, "read_text", return_value=json.dumps({"mqtt": {"password": "secret"}}))
         with patch("logging.Logger.debug") as mock_debug:
             config_module.read_config()
             assert "********" in str(mock_debug.call_args[0][0])

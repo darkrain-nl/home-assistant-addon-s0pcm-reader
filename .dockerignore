@@ -18,4 +18,5 @@ logo.png
 translations/
 .ruff_cache/
 .agent/
-DEVELOPER.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
