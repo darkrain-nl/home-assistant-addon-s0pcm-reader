@@ -65,7 +65,7 @@ powershell -ExecutionPolicy Bypass -File .\tests\fix-lint.ps1
 
 ## Code Standards
 
-- **100% test coverage** is required. If you add or modify code, you must write tests to cover all branches. Use of `# pragma: no cover` is restricted to standard guard clauses (e.g., `if __name__ == "__main__":`).
+- **Full test coverage** is required. If you add or modify code, you must write tests to cover all branches. Use of `# pragma: no cover` is restricted to standard guard clauses (e.g., `if __name__ == "__main__":`).
 - **Ruff linting** must pass with zero warnings. Run the linter before committing.
 - **Terminology**: Use "App" instead of "Add-on" or "Addon" in all user-facing text (`README.md`, `DOCS.md`, `translations/en.yaml`). Historical `CHANGELOG.md` entries are not updated.
 - **No hardcoded metrics** in documentation — don't put specific test counts or coverage percentages in README, DOCS, etc.
