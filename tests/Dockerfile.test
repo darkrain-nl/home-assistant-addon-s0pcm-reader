@@ -19,7 +19,7 @@ COPY tests/requirements-test.lock .
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Install Python test dependencies
-RUN uv pip install --system --no-cache -r requirements-test.lock
+RUN uv pip install --system --no-cache --index-strategy unsafe-best-match -r requirements-test.lock
 
 # Copy source code and tests
 COPY rootfs/usr/src/ ./rootfs/usr/src/
