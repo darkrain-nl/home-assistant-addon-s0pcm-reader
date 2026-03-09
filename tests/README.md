@@ -7,7 +7,7 @@ This directory contains the comprehensive test suite for the S0PCM Reader Home A
 ### Local Testing (Python Environment)
 ```bash
 # 1. Install dependencies
-pip install -r tests/requirements-test.txt
+uv pip install -r tests/requirements-test.txt
 
 # 2. Run all tests
 pytest tests/
