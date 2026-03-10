@@ -12,13 +12,15 @@ services:
 
   simulator:
     build:
-      context: ./simulator
+      context: ../../
+      dockerfile: tests/standalone/simulator/Dockerfile
     ports:
       - "2000:2000"
 
   verifier:
     build:
-      context: ./verifier
+      context: ../../
+      dockerfile: tests/standalone/verifier/Dockerfile
     environment:
       - MQTT_HOST=mqtt
       - MQTT_PORT=1883
