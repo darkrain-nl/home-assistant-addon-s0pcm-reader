@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [4.0.1-b1] - 2026-03-09
 ### Changed
 - **Performance**: Migrated all Docker dependency installation and locking workflows from `pip` to `uv`, drastically reducing image build times and making dependency updates significantly faster.
+- **Build Reproducibility**: Consolidated all Python dependencies into `pyproject.toml` with a single `uv.lock` file, replacing the scattered `requirements.txt` / `requirements.lock` files. Pinned the `uv` Docker image to a specific version for deterministic builds.
+
+### Fixed
+- **Standalone Test Build**: Fixed `Dockerfile.test_app` installing from unpinned `requirements.txt` instead of the lock file.
 
 ## [4.0.0] - 2026-03-08
 ### Breaking Changes
