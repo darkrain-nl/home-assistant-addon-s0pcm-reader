@@ -31,16 +31,16 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system -r tests/requirements-test.lock
+          uv sync --frozen --group test
 
       - name: Lint with Ruff
         run: |
-          ruff check .
-          ruff format --check .
+          uv run ruff check .
+          uv run ruff format --check .
 
       - name: Run tests with pytest
         run: |
-          pytest tests/ -v --tb=short --cov=rootfs/usr/src --cov-report=xml --cov-report=term
+          uv run pytest tests/ -v --tb=short --cov=rootfs/usr/src --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

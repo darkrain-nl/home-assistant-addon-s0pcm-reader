@@ -12,19 +12,17 @@ RUN apk add --no-cache \
 # Set working directory
 WORKDIR /workspace
 
-# Copy test requirements from tests directory
-COPY tests/requirements-test.lock .
-
 # Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.10.9 /uv /uvx /bin/
 
-# Install Python test dependencies
-RUN uv pip install --system --no-cache --index-strategy unsafe-best-match -r requirements-test.lock
+# Install all deps (prod + test group)
+COPY pyproject.toml uv.lock ./
+RUN uv export --frozen --no-emit-project --no-hashes --group test | \
+    uv pip install --system --no-cache -r -
 
 # Copy source code and tests
 COPY rootfs/usr/src/ ./rootfs/usr/src/
 COPY tests/ ./tests/
-COPY pyproject.toml .
 
 # Set Python path to find the module
 ENV PYTHONPATH=/workspace

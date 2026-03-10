@@ -7,7 +7,7 @@ This directory contains the comprehensive test suite for the S0PCM Reader Home A
 ### Local Testing (Python Environment)
 ```bash
 # 1. Install dependencies
-uv pip install -r tests/requirements-test.txt
+uv sync --frozen --group test
 
 # 2. Run all tests
 pytest tests/
@@ -48,8 +48,6 @@ docker run --rm s0pcm-reader-test pytest tests/ --cov=rootfs/usr/src --cov-repor
 tests/
 ├── standalone/               # Integrated E2E verification stack
 ├── conftest.py               # Shared fixtures (Mocks for Serial, MQTT, API)
-├── pytest.ini                # Pytest & Coverage configuration
-├── requirements-test.txt     # Test dependencies
 ├── docker-test.ps1           # Windows Dockerized test runner
 ├── docker-test.sh            # Linux/Mac Dockerized test runner
 ├── fix-lint.ps1              # Auto-fix linting runner
