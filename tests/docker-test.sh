@@ -22,15 +22,26 @@ echo -e "${GREEN}Unit Tests completed!${NC}"
 
 echo -e "${BLUE}Running Standalone Integration Tests...${NC}"
 docker compose -f tests/standalone/docker-compose.yml up -d --build
-sleep 20
-APP_STATE=$(docker inspect -f '{{.State.Running}}' standalone-app-1)
 
-if [ "$APP_STATE" == "true" ]; then
-    echo -e "${GREEN}Standalone Verification: App is RUNNING${NC}"
+echo -e "${BLUE}Waiting for Verification (approx 45s)...${NC}"
+VERIFIER_ID=$(docker compose -f tests/standalone/docker-compose.yml ps -q verifier)
+
+if [ -z "$VERIFIER_ID" ]; then
+    echo -e "${RED}Error: Verifier container not found.${NC}"
+    exit 1
+fi
+
+EXIT_CODE=$(docker wait $VERIFIER_ID)
+
+if [ "$EXIT_CODE" -eq 0 ]; then
+    echo -e "${GREEN}Standalone Verification: PASSED${NC}"
     docker compose -f tests/standalone/docker-compose.yml down
 else
-    echo -e "${RED}Standalone Verification: App FAILED to start${NC}"
-    docker compose -f tests/standalone/docker-compose.yml logs
+    echo -e "${RED}Standalone Verification: FAILED${NC}"
+    echo -e "${BLUE}--- Verifier Logs ---${NC}"
+    docker compose -f tests/standalone/docker-compose.yml logs verifier
+    echo -e "${BLUE}--- App Logs ---${NC}"
+    docker compose -f tests/standalone/docker-compose.yml logs app
     docker compose -f tests/standalone/docker-compose.yml down
-    exit 1
+    exit $EXIT_CODE
 fi

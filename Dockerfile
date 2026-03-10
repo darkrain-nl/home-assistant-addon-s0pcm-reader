@@ -7,7 +7,8 @@ COPY rootfs /
 
 COPY --from=ghcr.io/astral-sh/uv:0.10.9 /uv /uvx /bin/
 
-RUN cd /tmp/uv && uv export --frozen --no-dev --no-emit-project --no-hashes | \
+RUN --mount=type=cache,target=/root/.cache/uv \
+    cd /tmp/uv && uv export --frozen --no-dev --no-emit-project --no-hashes | \
     uv pip install --system --no-cache -r - && \
     cd / && rm -rf /tmp/uv && \
     chmod a+x /etc/services.d/s0pcm-reader/*
