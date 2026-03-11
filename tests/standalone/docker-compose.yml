@@ -1,5 +1,6 @@
 services:
   mqtt:
+    container_name: standalone-mqtt-test
     build:
       context: ./mqtt
     ports:
@@ -24,6 +25,8 @@ services:
     environment:
       - MQTT_HOST=mqtt
       - MQTT_PORT=1883
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       mqtt:
         condition: service_healthy

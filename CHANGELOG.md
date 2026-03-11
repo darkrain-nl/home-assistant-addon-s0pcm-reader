@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1-b2] - 2026-03-11
+### Added
+- **Integration Testing**: Enhanced the standalone MQTT test suite (`verifier.py`) to actively assert Home Assistant discovery payloads, dynamic runtime renaming, and unhappy-path resilience against broker crashes without data loss.
+
 ## [4.0.1-b1] - 2026-03-09
 ### Changed
 - **Performance**: Migrated all Docker dependency installation and locking workflows from `pip` to `uv`, drastically reducing image build times and making dependency updates significantly faster.

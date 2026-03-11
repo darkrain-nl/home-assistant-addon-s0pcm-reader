@@ -9,5 +9,8 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system --no-cache paho-mqtt
 
+# Install docker-cli to control sibling containers
+RUN apk add --no-cache docker-cli
+
 COPY tests/standalone/verifier/verifier.py .
 CMD ["python", "-u", "verifier.py"]
