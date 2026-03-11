@@ -6,6 +6,9 @@ on:
     - cron: '0 0 1 1 *'
   workflow_dispatch: # Allow running manually
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   update-year:
     runs-on: ubuntu-latest

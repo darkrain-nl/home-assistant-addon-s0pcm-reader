@@ -8,6 +8,9 @@ on:
     branches:
       - beta
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   sync-to-beta-repo:
     name: Sync to Beta Repository
