@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1-b3] - 2026-03-11
+### Fixed
+- **Build Caching**: Re-enabled BuildKit cache mounts during `uv` dependency installation by removing the conflicting `--no-cache` flag.
+
 ## [4.0.1-b2] - 2026-03-11
 ### Added
 - **Integration Testing**: Enhanced the standalone MQTT test suite (`verifier.py`) to actively assert Home Assistant discovery payloads, dynamic runtime renaming, and unhappy-path resilience against broker crashes without data loss.
