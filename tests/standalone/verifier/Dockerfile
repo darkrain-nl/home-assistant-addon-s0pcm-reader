@@ -2,7 +2,7 @@ FROM python:3.14-alpine
 WORKDIR /app
 
 # Install uv
-COPY --from=ghcr.io/astral-sh/uv:0.10.9 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.10.10 /uv /uvx /bin/
 
 # Use the project's lock file for paho-mqtt version consistency
 COPY pyproject.toml uv.lock ./
