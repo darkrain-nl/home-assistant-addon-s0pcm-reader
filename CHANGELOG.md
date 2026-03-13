@@ -4,20 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.0.1-b3] - 2026-03-11
-### Fixed
-- **Build Caching**: Re-enabled BuildKit cache mounts during `uv` dependency installation by removing the conflicting `--no-cache` flag.
+## [4.0.1] - 2026-03-13
 
-## [4.0.1-b2] - 2026-03-11
+> [!CAUTION]
+> **Upgrading from v3.x?** Version 4.0.0 introduced a complete **Configuration Overhaul**. You will need to re-enter your settings. Please review the [v4.0.0 release notes](#400---2026-03-08) for the full migration guide before upgrading.
+
 ### Added
 - **Integration Testing**: Enhanced the standalone MQTT test suite (`verifier.py`) to actively assert Home Assistant discovery payloads, dynamic runtime renaming, and unhappy-path resilience against broker crashes without data loss.
 
-## [4.0.1-b1] - 2026-03-09
 ### Changed
 - **Performance**: Migrated all Docker dependency installation and locking workflows from `pip` to `uv`, drastically reducing image build times and making dependency updates significantly faster.
 - **Build Reproducibility**: Consolidated all Python dependencies into `pyproject.toml` with a single `uv.lock` file, replacing the scattered `requirements.txt` / `requirements.lock` files. Pinned the `uv` Docker image to a specific version for deterministic builds.
 
 ### Fixed
+- **Build Caching**: Re-enabled BuildKit cache mounts during `uv` dependency installation by removing the conflicting `--no-cache` flag.
 - **Standalone Test Build**: Fixed `Dockerfile.test_app` installing from unpinned `requirements.txt` instead of the lock file.
 
 ## [4.0.0] - 2026-03-08
