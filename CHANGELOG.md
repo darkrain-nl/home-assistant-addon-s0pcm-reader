@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.2-b1] - 2026-03-13
+
+### Changed
+- **Dependencies**: Updated `ruff` to v0.15.5 and `uv` to v0.10.10 for improved development efficiency and security.
+
 ## [4.0.1] - 2026-03-13
 
 > [!CAUTION]
