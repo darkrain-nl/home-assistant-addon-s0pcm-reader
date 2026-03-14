@@ -48,6 +48,18 @@ jobs:
             sed -i "s/^version: \"${VERSION}\"/version: \"${NEW_VERSION}\"/" config.yaml
             sed -i "s/^version = \"${VERSION}\"/version = \"${NEW_VERSION}\"/" pyproject.toml
             
+            # Auto-bump the topmost heading in CHANGELOG.md so the release extractor finds the notes!
+            # It replaces the very first "## [...-b...]" heading with the newly generated NEW_VERSION and today's date
+            TODAY=$(date +%Y-%m-%d)
+            awk -v new_ver="$NEW_VERSION" -v today="$TODAY" '
+              !done && /^## \[[0-9]+\.[0-9]+\.[0-9]+-b[0-9]+\]/ {
+                print "## [" new_ver "] - " today
+                done=1
+                next
+              }
+              {print}
+            ' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+            
             echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
             echo "did_bump=true" >> $GITHUB_OUTPUT
             
@@ -83,7 +95,7 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add config.yaml pyproject.toml
+          git add config.yaml pyproject.toml CHANGELOG.md
           git commit -m "ci: bump beta version to $new_version"
           git push
 
