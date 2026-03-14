@@ -1,0 +1,183 @@
+name: Publish
+
+on:
+  workflow_run:
+    workflows: ["Tests"]
+    types: [completed]
+    branches: [main, beta]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build Add-on
+    runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.conclusion == 'success'
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+      did_bump: ${{ steps.bump.outputs.did_bump }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-tags: true
+
+      - name: Bump beta version files locally
+        id: bump
+        if: >
+          github.event.workflow_run.head_branch == 'beta'
+        run: |
+          VERSION=$(grep '^version:' config.yaml | sed 's/version: *"\(.*\)"/\1/')
+          echo "Current version: $VERSION"
+
+          if [[ "$VERSION" =~ ^(.+)-b([0-9]+)$ ]]; then
+            BASE="${BASH_REMATCH[1]}"
+            BETA_NUM="${BASH_REMATCH[2]}"
+            NEW_BETA_NUM=$((BETA_NUM + 1))
+            NEW_VERSION="${BASE}-b${NEW_BETA_NUM}"
+
+            echo "Bumping beta locally: $VERSION → $NEW_VERSION"
+            sed -i "s/^version: \"${VERSION}\"/version: \"${NEW_VERSION}\"/" config.yaml
+            sed -i "s/^version = \"${VERSION}\"/version = \"${NEW_VERSION}\"/" pyproject.toml
+            
+            echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+            echo "did_bump=true" >> $GITHUB_OUTPUT
+            
+            # Since outputs don't easily cross to other steps via env without extra mapping,
+            # Let's also export to GITHUB_ENV for this job's later steps
+            echo "new_version=${NEW_VERSION}" >> $GITHUB_ENV
+            echo "did_bump=true" >> $GITHUB_ENV
+          else
+            echo "Version '$VERSION' has no beta suffix, skipping auto-bump"
+            echo "did_bump=false" >> $GITHUB_OUTPUT
+            echo "did_bump=false" >> $GITHUB_ENV
+          fi
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push
+        uses: home-assistant/builder@master
+        with:
+          args: |
+            --amd64 \
+            --aarch64 \
+            --target /data \
+            --cosign \
+            ${{ github.event.workflow_run.head_branch == 'beta' && '--no-latest' || '' }}
+
+      - name: Commit and push bumped version
+        if: env.did_bump == 'true'
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add config.yaml pyproject.toml
+          git commit -m "ci: bump beta version to $new_version"
+          git push
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.head_branch == 'main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-tags: true
+
+      - name: Read version from config.yaml
+        id: version
+        run: |
+          VERSION=$(grep '^version:' config.yaml | sed 's/version: *"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $VERSION"
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          if git ls-remote --tags origin "${{ steps.version.outputs.tag }}" | grep -q .; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${{ steps.version.outputs.tag }} already exists, skipping release"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
+  sync-to-beta-repo:
+    name: Sync to Beta Repository
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.head_branch == 'beta'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          path: main-repo
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Modify configuration files for Beta
+        run: |
+          cd main-repo
+          
+          # Modify config.yaml
+          sed -i 's/^name: "S0PCM Reader"/name: "S0PCM Reader (Beta)"/' config.yaml
+          sed -i 's/^slug: "s0pcm_reader"/slug: "s0pcm_reader_beta"/' config.yaml
+          
+          # Modify repository.yaml
+          sed -i 's/^name: S0PCM-Reader/name: "S0PCM-Reader (Beta)"/' repository.yaml
+          sed -i 's|url: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader"|url: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader-beta"|' repository.yaml
+          
+          # Modify build.yaml
+          sed -i 's|org.opencontainers.image.title: "S0PCM Reader"|org.opencontainers.image.title: "S0PCM Reader (Beta)"|' build.yaml
+          sed -i 's|org.opencontainers.image.source: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader"|org.opencontainers.image.source: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader-beta"|' build.yaml
+          sed -i 's|org.opencontainers.image.url: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader"|org.opencontainers.image.url: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader-beta"|' build.yaml
+          sed -i 's|org.opencontainers.image.documentation: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/blob/main/DOCS.md"|org.opencontainers.image.documentation: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader-beta/blob/main/DOCS.md"|' build.yaml
+          
+          # Modify README.md badge to include pre-releases
+          sed -i 's|github/v/release/darkrain-nl/home-assistant-addon-s0pcm-reader?style=flat-square|github/v/release/darkrain-nl/home-assistant-addon-s0pcm-reader?include_prereleases\&style=flat-square|' README.md
+
+      - name: Push to Beta Repository
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.BETA_SYNC_TOKEN }}
+        run: |
+          cd main-repo
+          
+          # Setup git config
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          
+          git remote rm origin || true
+          git add config.yaml repository.yaml build.yaml README.md
+          
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "chore: Automatic preparation for beta release [skip ci]"
+          fi
+          
+          git remote add origin "https://x-access-token:${API_TOKEN_GITHUB}@github.com/darkrain-nl/home-assistant-addon-s0pcm-reader-beta.git"
+          git push -f origin HEAD:main
