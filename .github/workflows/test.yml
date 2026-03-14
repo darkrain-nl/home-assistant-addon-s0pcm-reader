@@ -151,9 +151,12 @@ jobs:
         run: |
           VERSION=$(grep '^version:' config.yaml | sed 's/version: *"\(.*\)"/\1/' | tr -d '\r')
 
-          if grep -q "## \[$VERSION\]" CHANGELOG.md; then
-            echo "✅ CHANGELOG entry found for version $VERSION"
+          # For beta versions, check the base version (strip -bN suffix)
+          CHECK_VERSION=$(echo "$VERSION" | sed 's/-b[0-9]*$//')
+
+          if grep -q "## \[$CHECK_VERSION" CHANGELOG.md; then
+            echo "✅ CHANGELOG entry found for version $CHECK_VERSION"
           else
-            echo "::error::No CHANGELOG entry found for version $VERSION"
+            echo "::error::No CHANGELOG entry found for version $CHECK_VERSION"
             exit 1
           fi
