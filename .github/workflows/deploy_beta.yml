@@ -4,9 +4,10 @@ permissions:
   contents: read
 
 on:
-  push:
-    branches:
-      - beta
+  workflow_run:
+    workflows: ["Builder"]
+    types: [completed]
+    branches: [beta]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -15,6 +16,7 @@ jobs:
   sync-to-beta-repo:
     name: Sync to Beta Repository
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
