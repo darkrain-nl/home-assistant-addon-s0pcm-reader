@@ -14,5 +14,5 @@ labels:
   org.opencontainers.image.licenses: "Apache-2.0"
 
 cosign:
-  identity: https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/.github/workflows/builder.yml@refs/heads/main
-  base_identity: https://github.com/home-assistant/builder/.github/workflows/builder.yml@refs/heads/main
+  identity: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/.*"
+  base_identity: "https://github.com/home-assistant/docker-base/.*"
