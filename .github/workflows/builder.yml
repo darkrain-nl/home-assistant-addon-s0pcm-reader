@@ -33,4 +33,5 @@ jobs:
           args: |
             --amd64 \
             --aarch64 \
+            --target /data \
             --cosign
