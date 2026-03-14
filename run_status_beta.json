@@ -1,0 +1,82 @@
+﻿[
+    {
+        "name":  "Tests",
+        "status":  "completed",
+        "conclusion":  "success",
+        "head_branch":  "beta",
+        "html_url":  "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/actions/runs/23088378258",
+        "created_at":  "2026-03-14T12:55:48Z"
+    },
+    {
+        "name":  "Tests",
+        "status":  "completed",
+        "conclusion":  "success",
+        "head_branch":  "beta",
+        "html_url":  "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/actions/runs/23088043454",
+        "created_at":  "2026-03-14T12:33:48Z"
+    },
+    {
+        "name":  "Tests",
+        "status":  "completed",
+        "conclusion":  "success",
+        "head_branch":  "beta",
+        "html_url":  "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/actions/runs/23087794586",
+        "created_at":  "2026-03-14T12:18:00Z"
+    },
+    {
+        "name":  "Release",
+        "status":  "completed",
+        "conclusion":  "success",
+        "head_branch":  "beta",
+        "html_url":  "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/actions/runs/23086895174",
+        "created_at":  "2026-03-14T11:18:50Z"
+    },
+    {
+        "name":  "Sync Beta Release",
+        "status":  "completed",
+        "conclusion":  "success",
+        "head_branch":  "beta",
+        "html_url":  "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/actions/runs/23086895185",
+        "created_at":  "2026-03-14T11:18:50Z"
+    },
+    {
+        "name":  "Builder",
+        "status":  "completed",
+        "conclusion":  "success",
+        "head_branch":  "beta",
+        "html_url":  "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/actions/runs/23086895178",
+        "created_at":  "2026-03-14T11:18:50Z"
+    },
+    {
+        "name":  "Sync Beta Release",
+        "status":  "completed",
+        "conclusion":  "success",
+        "head_branch":  "beta",
+        "html_url":  "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/actions/runs/23086839096",
+        "created_at":  "2026-03-14T11:15:05Z"
+    },
+    {
+        "name":  "Release",
+        "status":  "completed",
+        "conclusion":  "success",
+        "head_branch":  "beta",
+        "html_url":  "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/actions/runs/23086839095",
+        "created_at":  "2026-03-14T11:15:05Z"
+    },
+    {
+        "name":  "Builder",
+        "status":  "completed",
+        "conclusion":  "failure",
+        "head_branch":  "beta",
+        "html_url":  "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/actions/runs/23086839097",
+        "created_at":  "2026-03-14T11:15:05Z"
+    },
+    {
+        "name":  "Sync Beta Release",
+        "status":  "completed",
+        "conclusion":  "success",
+        "head_branch":  "beta",
+        "html_url":  "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/actions/runs/23086675925",
+        "created_at":  "2026-03-14T11:04:32Z"
+    }
+]

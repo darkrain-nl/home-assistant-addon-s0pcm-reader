@@ -24,6 +24,8 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_branch }}
           fetch-tags: true
+          # We check out the branch name, not the workflow commit SHA,
+          # so we get the auto-bumped version from Builder.
 
       - name: Read version from config.yaml
         id: version

@@ -21,7 +21,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: beta
+          ref: ${{ github.event.workflow_run.head_branch }}
           path: main-repo
           persist-credentials: false
           fetch-depth: 0

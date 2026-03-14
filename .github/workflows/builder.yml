@@ -25,36 +25,30 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_branch || github.ref }}
 
-      - name: Bump beta version
+      - name: Bump beta version files locally
         if: >
           (github.event.workflow_run.head_branch == 'beta' || github.ref == 'refs/heads/beta')
         run: |
           VERSION=$(grep '^version:' config.yaml | sed 's/version: *"\(.*\)"/\1/')
           echo "Current version: $VERSION"
 
-          # Only auto-bump if version has a -bN suffix
           if [[ "$VERSION" =~ ^(.+)-b([0-9]+)$ ]]; then
             BASE="${BASH_REMATCH[1]}"
             BETA_NUM="${BASH_REMATCH[2]}"
             NEW_BETA_NUM=$((BETA_NUM + 1))
             NEW_VERSION="${BASE}-b${NEW_BETA_NUM}"
 
-            echo "Bumping beta: $VERSION → $NEW_VERSION"
-
-            # Update config.yaml
+            echo "Bumping beta locally: $VERSION → $NEW_VERSION"
             sed -i "s/^version: \"${VERSION}\"/version: \"${NEW_VERSION}\"/" config.yaml
-
-            # Update pyproject.toml
             sed -i "s/^version = \"${VERSION}\"/version = \"${NEW_VERSION}\"/" pyproject.toml
-
-            # Commit and push (GITHUB_TOKEN won't re-trigger workflows)
-            git config user.name "GitHub Actions"
-            git config user.email "actions@github.com"
-            git add config.yaml pyproject.toml
-            git commit -m "ci: bump beta version to ${NEW_VERSION} [skip ci]"
-            git push
+            
+            # Save new version and base to outputs for the commit step later
+            # and to be used in GHCR tagging if needed
+            echo "new_version=${NEW_VERSION}" >> $GITHUB_ENV
+            echo "did_bump=true" >> $GITHUB_ENV
           else
             echo "Version '$VERSION' has no beta suffix, skipping auto-bump"
+            echo "did_bump=false" >> $GITHUB_ENV
           fi
 
       - name: Login to GitHub Container Registry
@@ -73,3 +67,12 @@ jobs:
             --target /data \
             --cosign \
             ${{ (github.event.workflow_run.head_branch == 'beta' || github.ref == 'refs/heads/beta') && '--no-latest' || '' }}
+
+      - name: Commit and push bumped version
+        if: env.did_bump == 'true'
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add config.yaml pyproject.toml
+          git commit -m "ci: bump beta version to $new_version"
+          git push

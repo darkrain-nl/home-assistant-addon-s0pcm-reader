@@ -1,0 +1,32 @@
+﻿[
+    {
+        "name":  "Scheduled",
+        "status":  "completed",
+        "conclusion":  "success",
+        "head_branch":  "main"
+    },
+    {
+        "name":  "Release",
+        "status":  "completed",
+        "conclusion":  "success",
+        "head_branch":  "main"
+    },
+    {
+        "name":  "Builder",
+        "status":  "completed",
+        "conclusion":  "success",
+        "head_branch":  "main"
+    },
+    {
+        "name":  "Release",
+        "status":  "completed",
+        "conclusion":  "skipped",
+        "head_branch":  "main"
+    },
+    {
+        "name":  "Builder",
+        "status":  "completed",
+        "conclusion":  "failure",
+        "head_branch":  "main"
+    }
+]
