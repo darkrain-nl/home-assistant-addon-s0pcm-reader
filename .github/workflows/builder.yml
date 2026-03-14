@@ -33,5 +33,4 @@ jobs:
           args: |
             --amd64 \
             --aarch64 \
-            --target /workspace \
             --cosign
