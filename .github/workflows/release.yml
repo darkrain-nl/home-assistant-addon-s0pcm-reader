@@ -1,10 +1,10 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - main
-      - beta
+  workflow_run:
+    workflows: ["Builder"]
+    types: [completed]
+    branches: [main, beta]
 
 permissions:
   contents: write
@@ -16,11 +16,13 @@ jobs:
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.workflow_run.head_branch }}
           fetch-tags: true
 
       - name: Read version from config.yaml
@@ -72,7 +74,7 @@ jobs:
 
           PRERELEASE_FLAG=""
           LATEST_FLAG=""
-          if [ "${{ github.ref_name }}" = "beta" ]; then
+          if [ "${{ github.event.workflow_run.head_branch }}" = "beta" ]; then
             PRERELEASE_FLAG="--prerelease"
             LATEST_FLAG="--latest=false"
           fi
