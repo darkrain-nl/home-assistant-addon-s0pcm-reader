@@ -1,4 +1,4 @@
-image: homeassistant/{arch}-homeassistant-base
+image: ghcr.io/darkrain-nl/{arch}-addon-s0pcm_reader
 shadow_repository: ghcr.io/home-assistant
 build_from:
   aarch64: ghcr.io/home-assistant/aarch64-base-python:3.14-alpine3.23
@@ -12,3 +12,7 @@ labels:
   org.opencontainers.image.url: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader"
   org.opencontainers.image.documentation: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/blob/main/DOCS.md"
   org.opencontainers.image.licenses: "Apache-2.0"
+
+cosign:
+  identity: https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/.github/workflows/builder.yml@refs/heads/main
+  base_identity: https://github.com/home-assistant/builder/.github/workflows/builder.yml@refs/heads/main

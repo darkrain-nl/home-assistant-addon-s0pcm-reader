@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.2-b2] - 2026-03-14
+
+### Added
+- **Security**: Implemented **Cosign** signing for App images using the official Home Assistant Builder with keyless identity (Sigstore/Fulcio). This ensures a verifiable supply chain for all distributed images.
+- **Workflow**: Added a new `Builder` GitHub Action to automate signed builds and publishing to GHCR.
+
+### Changed
+- **Infrastructure**: Updated GitHub Actions to use the latest versions (`actions/checkout@v6`, `docker/login-action@v4`) for improved security and performance.
+
 ## [4.0.2-b1] - 2026-03-13
 
 ### Changed
