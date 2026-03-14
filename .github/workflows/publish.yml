@@ -91,7 +91,6 @@ jobs:
     name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.head_branch == 'main'
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -117,8 +116,10 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create Release
-        if: steps.check_tag.outputs.exists == 'false'
+      - name: Create Stable Release
+        if: >
+          steps.check_tag.outputs.exists == 'false' &&
+          github.event.workflow_run.head_branch == 'main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
@@ -126,6 +127,19 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
+
+      - name: Create Beta Pre-release
+        if: >
+          steps.check_tag.outputs.exists == 'false' &&
+          github.event.workflow_run.head_branch == 'beta'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Pre-release ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          draft: false
+          prerelease: true
+          make_latest: false
 
   sync-to-beta-repo:
     name: Sync to Beta Repository
