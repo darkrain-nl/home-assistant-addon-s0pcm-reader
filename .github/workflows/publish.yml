@@ -15,11 +15,46 @@ permissions:
   id-token: write
 
 jobs:
+  check:
+    name: Check if Release Needed
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - name: Checkout config.yaml
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          sparse-checkout: |
+            config.yaml
+          sparse-checkout-cone-mode: false
+
+      - name: Check if version exists as tag
+        id: check
+        run: |
+          VERSION=$(grep '^version:' config.yaml | sed 's/version: *"\(.*\)"/\1/')
+          echo "Detected version: $VERSION"
+          
+          if [[ "${{ github.event.workflow_run.head_branch }}" == "beta" ]]; then
+            echo "Beta branch push, always building."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          else
+            if git ls-remote --tags origin "v$VERSION" | grep -q .; then
+              echo "Tag v$VERSION already exists, skipping build."
+              echo "should_build=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "Tag v$VERSION does not exist, proceeding with build."
+              echo "should_build=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
   build:
-    name: Build Add-on
+    name: Build App
+    needs: check
     runs-on: ubuntu-latest
     if: >
-      github.event.workflow_run.conclusion == 'success'
+      github.event.workflow_run.conclusion == 'success' &&
+      needs.check.outputs.should_build == 'true'
     outputs:
       new_version: ${{ steps.bump.outputs.new_version }}
       did_bump: ${{ steps.bump.outputs.did_bump }}
@@ -49,10 +84,10 @@ jobs:
             sed -i "s/^version = \"${VERSION}\"/version = \"${NEW_VERSION}\"/" pyproject.toml
             
             # Auto-bump the topmost heading in CHANGELOG.md so the release extractor finds the notes!
-            # It replaces the very first "## [...-b...]" heading with the newly generated NEW_VERSION and today's date
+            # It replaces the very first "## [x.y.z...]" heading with the newly generated NEW_VERSION and today's date
             TODAY=$(date +%Y-%m-%d)
             awk -v new_ver="$NEW_VERSION" -v today="$TODAY" '
-              !done && /^## \[[0-9]+\.[0-9]+\.[0-9]+-b[0-9]+\]/ {
+              !done && /^## \[[0-9]+\.[0-9]+\.[0-9]+(-b[0-9]+)?\]/ {
                 print "## [" new_ver "] - " today
                 done=1
                 next
