@@ -116,6 +116,20 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Extract Release Notes from CHANGELOG
+        if: steps.check_tag.outputs.exists == 'false'
+        id: extract_notes
+        run: |
+          # Extract the section from CHANGELOG.md for the current version
+          # It looks for "## [version]" and stops at the next "## ["
+          # The tail -n +2 removes the heading line itself so it doesn't duplicate
+          awk "/^## \[${{ steps.version.outputs.version }}\]/{flag=1; print; next} /^## \[/{flag=0} flag" CHANGELOG.md | tail -n +2 > release_notes.md
+          
+          # If nothing was matched/extracted, just create an empty file so it doesn't fail
+          if [ ! -s release_notes.md ]; then
+            echo "No specific changelog entry found for ${{ steps.version.outputs.version }}." > release_notes.md
+          fi
+
       - name: Create Stable Release
         if: >
           steps.check_tag.outputs.exists == 'false' &&
@@ -124,6 +138,7 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Release ${{ steps.version.outputs.tag }}
+          body_path: release_notes.md
           generate_release_notes: true
           draft: false
           prerelease: false
@@ -136,6 +151,7 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Pre-release ${{ steps.version.outputs.tag }}
+          body_path: release_notes.md
           generate_release_notes: true
           draft: false
           prerelease: true
