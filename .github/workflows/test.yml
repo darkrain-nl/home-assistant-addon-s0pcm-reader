@@ -79,7 +79,7 @@ jobs:
 
       - name: Set up Docker Buildx
 <<<<<<< HEAD
-        uses: docker/setup-buildx-action@4d04d5d304918e7e174b1e523f317e3357591605 # v4.0.0
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 =======
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 >>>>>>> ci/fixalerts
