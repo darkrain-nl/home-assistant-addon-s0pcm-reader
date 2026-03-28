@@ -24,7 +24,7 @@ jobs:
 
       - name: Install uv
 <<<<<<< HEAD
-        uses: astral-sh/setup-uv@37802adc946573c2b8c919d7d2c31e21b5c46e3b # v7.6.0
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
 =======
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
 >>>>>>> ci/fixalerts
