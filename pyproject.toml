@@ -7,7 +7,7 @@ dependencies = [
     "pyyaml==6.0.3",
     "pyserial==3.5",
     "paho-mqtt==2.1.0",
-    "pydantic==2.13.0",
+    "pydantic==2.13.1",
 ]
 
 [dependency-groups]
