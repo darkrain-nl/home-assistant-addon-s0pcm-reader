@@ -48,12 +48,23 @@ def on_message(client, userdata, msg):
     topic = msg.topic
     payload = msg.payload.decode()
 
+    # Generic reconnection detection for Phase 2:
+    if (
+        state["phase"] == 2
+        and state["broker_restarted"]
+        and not state["app_reconnected"]
+        and topic.startswith(f"{BASE_TOPIC}/")
+    ):
+        logger.info(f"✅ App RECONNECTED after broker restart (detected via {topic})!")
+        state["app_reconnected"] = True
+
     if topic == f"{BASE_TOPIC}/status":
         if payload == "online":
             if state["phase"] == 1:
                 logger.info("✅ App is ONLINE")
                 state["app_online"] = True
             elif state["phase"] == 2 and state["broker_restarted"] and not state["app_reconnected"]:
+                # This branch still exists for legacy reasons/clarity, but usually covered by generic detection above
                 logger.info("✅ App RECONNECTED after broker restart!")
                 state["app_reconnected"] = True
 

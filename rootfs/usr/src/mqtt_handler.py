@@ -80,7 +80,7 @@ class TaskDoMQTT(threading.Thread):
             self._state.mqttc.publish(
                 context.config.mqtt.base_topic + "/status",
                 ConnectionStatus.ONLINE,
-                retain=context.config.mqtt.retain,
+                retain=True,
             )
             self._state.mqttc.subscribe(context.config.mqtt.base_topic + "/+/total/set")
             self._state.mqttc.subscribe(context.config.mqtt.base_topic + "/+/name/set")
@@ -233,7 +233,7 @@ class TaskDoMQTT(threading.Thread):
         self._state.mqttc.will_set(
             context.config.mqtt.base_topic + "/status",
             ConnectionStatus.OFFLINE,
-            retain=context.config.mqtt.retain,
+            retain=True,
         )
         return True
 
@@ -430,7 +430,7 @@ class TaskDoMQTT(threading.Thread):
                         self._state.mqttc.publish(
                             context.config.mqtt.base_topic + "/status",
                             ConnectionStatus.OFFLINE,
-                            retain=context.config.mqtt.retain,
+                            retain=True,
                         )
                     self._state.mqttc.loop_stop()
                     self._state.mqttc.disconnect()

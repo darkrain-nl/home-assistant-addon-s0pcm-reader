@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.4] - 2026-04-16
+### Added
+- **Quality Assurance**: Integrated a new `lint` command into `./tests/docker-test.sh` for easy Docker-based code formatting and linting using Ruff.
+
+### Changed
+- **Dependencies**: Upgraded to **Python 3.14-alpine** for all App and Standalone images, ensures compatibility with the latest Python features.
+- **Dependencies**: Updated `uv` base images to the latest version and regenerated `uv.lock`.
+- **Security**: Updated GitHub CodeQL analysis to the latest major version (v3).
+- **MQTT**: Enabled **message retention** for the App `status` topic. This ensures Home Assistant and other clients always see the current availability state immediately upon connection, even if the App started first.
+
+### Fixed
+- **Testing**: Resolved a race condition in the integration test suite that caused intermittent timeouts during broker restarts.
+- **Testing**: Fixed a legacy Python 2 syntax error in the integration test `verifier.py` script.
+
+### Workflow
+- **Automation**: Added a `release.sh` script to automate the entire release process (dev → beta → main), including branch syncing, CI monitoring, and PR management.
+
 ## [4.2.3] - 2026-04-12
 ### Fixed
 - **MQTT**: Fixed an issue where meter discovery payloads lacked the required `"name"` property on the linked device info schema, silencing a Home Assistant core warning.

@@ -73,12 +73,24 @@ powershell -ExecutionPolicy Bypass -File .\tests\fix-lint.ps1
 
 ## Release Process
 
+The easiest way to perform a release is using the automated **`release.sh`** script in the project root. It handles branch merging, CI monitoring, and synchronization.
+
 1. **Bump the version** in both `config.yaml` and `pyproject.toml` (they must match).
 2. **Add a CHANGELOG entry** following [Keep a Changelog](https://keepachangelog.com/) format.
 3. **Verify documentation** (`README.md`, `DOCS.md`, `tests/README.md`) is up to date.
-4. **Merge to `main`** via PR from `dev`.
+4. **Run the release script**:
+   ```bash
+   ./release.sh
+   ```
 
-A GitHub Actions workflow will automatically create a tag and GitHub Release from the CHANGELOG.
+The script will:
+1. Push your changes to `dev`.
+2. Merge `dev` into `beta` and push (triggering a beta release).
+3. Wait for the GitHub Actions pipeline to complete.
+4. For stable releases (no `-bN` version suffix), it will automatically create and merge a Pull Request from `beta` into `main`.
+5. Synchronize all branches back to your local environment.
+
+A GitHub Actions workflow (`publish.yml`) will automatically create the actual git tags and GitHub Releases based on the version in `config.yaml`.
 
 ## Submitting Changes
 
