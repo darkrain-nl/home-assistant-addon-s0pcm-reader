@@ -1,6 +1,6 @@
 name: "S0PCM Reader"
 description: "S0PCM reader for Home Assistant"
-version: "4.2.5-b3"
+version: "4.2.5-b4"
 slug: "s0pcm_reader"
 image: "ghcr.io/darkrain-nl/addon-s0pcm_reader"
 url: "https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader"
