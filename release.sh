@@ -104,4 +104,5 @@ git pull origin beta
 git checkout dev
 git pull origin dev
 
-echo -e "${GREEN}Release process complete for v$VERSION!${NC}"
+RELEASED_VERSION=$(grep '^version:' config.yaml | sed 's/version: *"\(.*\)"/\1/' | tr -d '\r')
+echo -e "${GREEN}Release process complete for v$RELEASED_VERSION!${NC}"
