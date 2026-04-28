@@ -10,7 +10,7 @@ import logging
 import threading
 import time
 
-import serial
+import serialx
 
 from constants import SerialPacketType
 from protocol import parse_s0pcm_packet
@@ -49,24 +49,23 @@ class TaskReadSerial(threading.Thread):
         self._state = SerialTaskState()
         self.app_context = context
 
-    def _connect(self) -> serial.Serial | None:
+    def _connect(self) -> serialx.BaseSerial | None:
         """
         Establish a connection to the serial port.
 
         Returns:
-            serial.Serial: The connected serial object, or None if failed and stopped.
+            serialx.BaseSerial: The connected serial object, or None if failed and stopped.
         """
         while not self._stopper.is_set():
             logger.debug(f"Opening serialport '{self.app_context.config.serial.port}'")
             try:
-                ser = serial.serial_for_url(
+                ser = serialx.serial_for_url(
                     self.app_context.config.serial.port,
                     baudrate=self.app_context.config.serial.baudrate,
                     parity=self.app_context.config.serial.parity,
                     stopbits=self.app_context.config.serial.stopbits,
-                    bytesize=self.app_context.config.serial.bytesize,
-                    timeout=self.app_context.config.serial.timeout,
-                    do_not_open=True,
+                    byte_size=self.app_context.config.serial.bytesize,
+                    read_timeout=self.app_context.config.serial.timeout,
                 )
                 ser.open()
                 self._state.serialerror = 0
@@ -186,7 +185,7 @@ class TaskReadSerial(threading.Thread):
             meter.total += delta
             meter.today += delta
 
-    def _read_loop(self, ser: serial.Serial) -> None:
+    def _read_loop(self, ser: serialx.BaseSerial) -> None:
         """
         Continuous read loop from serial port.
 

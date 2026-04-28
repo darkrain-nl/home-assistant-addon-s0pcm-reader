@@ -13,7 +13,7 @@ from typing import Any
 
 import paho.mqtt.client as mqtt
 from pydantic import BaseModel, Field
-import serial
+import serialx
 
 from constants import ConnectionStatus
 from utils import get_supervisor_config
@@ -36,9 +36,9 @@ class SerialConfig(BaseModel):
 
     port: str = "/dev/ttyACM0"
     baudrate: int = 9600
-    parity: str = serial.PARITY_EVEN
-    stopbits: int = serial.STOPBITS_ONE
-    bytesize: int = serial.SEVENBITS
+    parity: serialx.Parity = serialx.PARITY_EVEN
+    stopbits: serialx.StopBits = serialx.STOPBITS_ONE
+    bytesize: int = serialx.SEVENBITS
     timeout: float | None = None
     connect_retry: int = 5
 

@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from helpers import make_test_config
 import pytest
+import serialx
 
 import config as config_module
 from config import SerialConfig
@@ -28,7 +29,7 @@ def setup_serial_test_state():
 
 @pytest.fixture
 def mock_serial():
-    with patch("serial.serial_for_url") as mock:
+    with patch("serialx.serial_for_url") as mock:
         yield mock
 
 
@@ -176,9 +177,9 @@ def serial_task_missing():
             "serial": SerialConfig(
                 port="/dev/ttyTEST",
                 baudrate=9600,
-                parity="N",
-                stopbits=1,
-                bytesize=8,
+                parity=serialx.PARITY_NONE,
+                stopbits=serialx.STOPBITS_ONE,
+                bytesize=serialx.EIGHTBITS,
                 timeout=1,
                 connect_retry=1,
             )
@@ -197,7 +198,7 @@ def test_connect_exception_retry(serial_task_missing, mocker):
     # First call raises Exception, second call returns mock_serial
     # This forces the loop to run once with an exception, covering lines 64-70
     with (
-        patch("serial.serial_for_url", side_effect=[Exception("Connection Failed"), mock_serial]),
+        patch("serialx.serial_for_url", side_effect=[Exception("Connection Failed"), mock_serial]),
         patch("time.sleep") as mock_sleep,
     ):
         ser = serial_task_missing._connect()
@@ -306,7 +307,7 @@ def test_connect_stopper_set(serial_task_missing):
 
     # If stopper set after failure
     serial_task_missing._stopper.is_set.side_effect = [False, True]
-    with patch("serial.serial_for_url", side_effect=Exception("Connection Failed")), patch("time.sleep"):
+    with patch("serialx.serial_for_url", side_effect=Exception("Connection Failed")), patch("time.sleep"):
         assert serial_task_missing._connect() is None
 
 
