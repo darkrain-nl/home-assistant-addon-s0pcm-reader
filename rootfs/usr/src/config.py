@@ -176,10 +176,13 @@ def read_config(
     stream.setFormatter(formatter)
     root_logger.addHandler(stream)
 
+    # Suppress serialx's verbose internal debug logging (logs every byte read/write)
+    logging.getLogger("serialx").setLevel(logging.WARNING)
+
     logger.info(f"Start: s0pcm-reader - version: {version}")
 
-    # Debug logging with redacted sensitive info
-    config_log = model.model_dump()
+    # Debug logging with redacted sensitive info (mode="json" for clean enum serialization)
+    config_log = model.model_dump(mode="json")
     config_log["mqtt"]["password"] = "********"  # noqa: S105
     config_log["mqtt"]["username"] = "********"
     logger.debug(f"Config: {config_log!s}")
