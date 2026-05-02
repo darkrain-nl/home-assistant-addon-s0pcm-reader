@@ -66,6 +66,7 @@ class TaskReadSerial(threading.Thread):
                     stopbits=self.app_context.config.serial.stopbits,
                     byte_size=self.app_context.config.serial.bytesize,
                     read_timeout=self.app_context.config.serial.timeout,
+                    exclusive=True,
                 )
                 ser.open()
                 self._state.serialerror = 0
@@ -75,9 +76,23 @@ class TaskReadSerial(threading.Thread):
                 self.app_context.set_error(
                     f"Serialport connection failed: {type(e).__name__}: '{e}'", category="serial"
                 )
+                if self._state.serialerror == 1:
+                    self._log_available_ports()
                 logger.error(f"Retry in {self.app_context.config.serial.connect_retry} seconds")
                 time.sleep(self.app_context.config.serial.connect_retry)
         return None
+
+    def _log_available_ports(self) -> None:
+        """Log available serial ports for debugging on connection failure."""
+        try:
+            ports = serialx.list_serial_ports()
+            if ports:
+                port_list = ", ".join(p.device for p in ports)
+                logger.info(f"Available serial ports: {port_list}")
+            else:
+                logger.warning("No serial ports detected on system")
+        except Exception:
+            logger.debug("Unable to enumerate serial ports")
 
     def _handle_header(self, datastr: str) -> None:
         """
@@ -231,8 +246,8 @@ class TaskReadSerial(threading.Thread):
             while not self._stopper.is_set():
                 ser = self._connect()
                 if ser:
-                    self._read_loop(ser)
-                    ser.close()
+                    with ser:
+                        self._read_loop(ser)
         except Exception:
             logger.error("Fatal exception in Serial Task", exc_info=True)
         finally:

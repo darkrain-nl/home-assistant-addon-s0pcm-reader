@@ -200,6 +200,7 @@ def test_connect_exception_retry(serial_task_missing, mocker):
     with (
         patch("serialx.serial_for_url", side_effect=[Exception("Connection Failed"), mock_serial]),
         patch("time.sleep") as mock_sleep,
+        patch.object(serial_task_missing, "_log_available_ports"),
     ):
         ser = serial_task_missing._connect()
 
@@ -307,8 +308,91 @@ def test_connect_stopper_set(serial_task_missing):
 
     # If stopper set after failure
     serial_task_missing._stopper.is_set.side_effect = [False, True]
-    with patch("serialx.serial_for_url", side_effect=Exception("Connection Failed")), patch("time.sleep"):
+    with (
+        patch("serialx.serial_for_url", side_effect=Exception("Connection Failed")),
+        patch("time.sleep"),
+        patch.object(serial_task_missing, "_log_available_ports"),
+    ):
         assert serial_task_missing._connect() is None
+
+
+def test_connect_exclusive_mode(serial_task_missing):
+    """Test that exclusive=True is passed to serial_for_url."""
+    with patch("serialx.serial_for_url") as mock_serial_for_url:
+        mock_serial_for_url.return_value = MagicMock()
+        serial_task_missing._connect()
+        mock_serial_for_url.assert_called_once()
+        _, kwargs = mock_serial_for_url.call_args
+        assert kwargs["exclusive"] is True
+
+
+def test_log_available_ports_with_ports(serial_task_missing):
+    """Test _log_available_ports when ports are detected."""
+    mock_port = MagicMock()
+    mock_port.device = "/dev/ttyACM0"
+    with (
+        patch("serialx.list_serial_ports", return_value=[mock_port]),
+        patch("serial_handler.logger") as mock_logger,
+    ):
+        serial_task_missing._log_available_ports()
+        assert any("/dev/ttyACM0" in str(c) for c in mock_logger.info.call_args_list)
+
+
+def test_log_available_ports_no_ports(serial_task_missing):
+    """Test _log_available_ports when no ports are detected."""
+    with (
+        patch("serialx.list_serial_ports", return_value=[]),
+        patch("serial_handler.logger") as mock_logger,
+    ):
+        serial_task_missing._log_available_ports()
+        assert mock_logger.warning.called
+        assert "No serial ports detected" in mock_logger.warning.call_args[0][0]
+
+
+def test_log_available_ports_exception(serial_task_missing):
+    """Test _log_available_ports handles exceptions gracefully."""
+    with (
+        patch("serialx.list_serial_ports", side_effect=OSError("Permission denied")),
+        patch("serial_handler.logger") as mock_logger,
+    ):
+        serial_task_missing._log_available_ports()
+        assert mock_logger.debug.called
+        assert "Unable to enumerate" in mock_logger.debug.call_args[0][0]
+
+
+def test_log_available_ports_called_on_first_failure(serial_task_missing):
+    """Test that _log_available_ports is called only on the first connection failure."""
+    with (
+        patch("serialx.serial_for_url", side_effect=[Exception("Fail 1"), Exception("Fail 2"), MagicMock()]),
+        patch("time.sleep"),
+        patch.object(serial_task_missing, "_log_available_ports") as mock_log_ports,
+    ):
+        serial_task_missing._connect()
+        # Should be called exactly once (on first failure, not second)
+        mock_log_ports.assert_called_once()
+
+
+def test_run_context_manager_closes_port(mocker):
+    """Test that run() uses context manager for safe serial port cleanup."""
+    context = state_module.get_context()
+    context.config = make_test_config()
+
+    stopper = threading.Event()
+    task = TaskReadSerial(context, threading.Event(), stopper)
+    context.recovery_event.set()
+
+    mock_ser = MagicMock()
+    mocker.patch.object(task, "_connect", return_value=mock_ser)
+
+    def stop_logic(ser):
+        stopper.set()
+
+    mocker.patch.object(task, "_read_loop", side_effect=stop_logic)
+
+    task.run()
+
+    # Verify __exit__ was called (context manager close)
+    mock_ser.__exit__.assert_called_once()
 
 
 # --- From test_loops.py ---

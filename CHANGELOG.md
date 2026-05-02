@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [4.3.0-b5] - 2026-05-01
 ### Changed
 - **Dependencies**: Migrated serial communication library from `pyserial` (unmaintained) to `serialx`, the modern successor with native async support, used by the Home Assistant ecosystem.
-
+- **Serial Connection**: Updated `serialx` usage to use its native context manager for safer resource cleanup, enabled exclusive mode to prevent port conflicts, and added automatic logging of available serial ports on connection failure to aid in debugging.
 ### Fixed
 - **Documentation**: Fixed a broken Troubleshooting link in `README.md`, corrected a legacy config key reference in `DOCS.md`, and updated `CONTRIBUTING.md` and `tests/README.md` to show Linux/bash commands as the primary option.
 
