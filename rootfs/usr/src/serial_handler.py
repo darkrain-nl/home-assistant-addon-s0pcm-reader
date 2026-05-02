@@ -221,7 +221,6 @@ class TaskReadSerial(threading.Thread):
                         stopbits=self.app_context.config.serial.stopbits,
                         byte_size=self.app_context.config.serial.bytesize,
                         read_timeout=self.app_context.config.serial.timeout,
-                        rtsdtr_on_open=False,
                         exclusive=True,
                     )
                     with ser:
