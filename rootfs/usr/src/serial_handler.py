@@ -224,6 +224,7 @@ class TaskReadSerial(threading.Thread):
                     )
                     with ser:
                         self._state.serialerror = 0
+                        logger.info(f"Connected to serialport '{self.app_context.config.serial.port}'")
                         self._read_loop(ser)
                 except Exception as e:
                     self._state.serialerror += 1
