@@ -145,7 +145,9 @@ mqtt:
 
 ### Common Issues
 - **"Connection Refused"**: Check if MQTT broker is running.
-- **"Serial Port Not Found"**: Check USB connection and "Hardware" tab in HA OS.
+- **"Serialport connection failed"**: Check USB connection and "Hardware" tab in HA OS.
+  - **Available Ports**: On the first connection failure, the app will automatically log a list of all detected serial ports to help you find the correct path.
+  - **Exclusive Access**: The app requires exclusive access to the port. If another add-on (e.g. ZHA, Zigbee2MQTT) or Home Assistant integration is using the same USB device, the connection will fail.
 - **Sensors "Unavailable"**: 
   - If the app is disconnected from the MQTT broker (e.g., during a restart), sensors will automatically show as "Unavailable" to prevent stale data. They will recover once reconnected.
   - If they never recover, did you change the MQTT Base Topic? This creates a new device.
