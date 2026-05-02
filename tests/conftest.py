@@ -34,8 +34,8 @@ def setup_s0pcm_globals():
 
 @pytest.fixture
 def mock_serial(mocker):
-    """Mock serial.Serial class."""
-    return mocker.patch("serial.Serial")
+    """Mock serialx.Serial class."""
+    return mocker.patch("serialx.Serial")
 
 
 @pytest.fixture

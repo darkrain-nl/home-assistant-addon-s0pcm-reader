@@ -13,7 +13,7 @@ from typing import Any
 
 import paho.mqtt.client as mqtt
 from pydantic import BaseModel, Field
-import serial
+import serialx
 
 from constants import ConnectionStatus
 from utils import get_supervisor_config
@@ -36,9 +36,9 @@ class SerialConfig(BaseModel):
 
     port: str = "/dev/ttyACM0"
     baudrate: int = 9600
-    parity: str = serial.PARITY_EVEN
-    stopbits: int = serial.STOPBITS_ONE
-    bytesize: int = serial.SEVENBITS
+    parity: serialx.Parity = serialx.PARITY_EVEN
+    stopbits: serialx.StopBits = serialx.STOPBITS_ONE
+    bytesize: int = serialx.SEVENBITS
     timeout: float | None = None
     connect_retry: int = 5
 
@@ -176,10 +176,13 @@ def read_config(
     stream.setFormatter(formatter)
     root_logger.addHandler(stream)
 
+    # Suppress serialx's verbose internal debug logging (logs every byte read/write)
+    logging.getLogger("serialx").setLevel(logging.WARNING)
+
     logger.info(f"Start: s0pcm-reader - version: {version}")
 
-    # Debug logging with redacted sensitive info
-    config_log = model.model_dump()
+    # Debug logging with redacted sensitive info (mode="json" for clean enum serialization)
+    config_log = model.model_dump(mode="json")
     config_log["mqtt"]["password"] = "********"  # noqa: S105
     config_log["mqtt"]["username"] = "********"
     logger.debug(f"Config: {config_log!s}")

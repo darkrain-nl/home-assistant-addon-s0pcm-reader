@@ -10,7 +10,7 @@ import logging
 import threading
 import time
 
-import serial
+import serialx
 
 from constants import SerialPacketType
 from protocol import parse_s0pcm_packet
@@ -24,6 +24,7 @@ class SerialTaskState:
     """Internal state for Serial task."""
 
     serialerror: int = 0
+    started: bool = False
 
 
 class TaskReadSerial(threading.Thread):
@@ -49,36 +50,17 @@ class TaskReadSerial(threading.Thread):
         self._state = SerialTaskState()
         self.app_context = context
 
-    def _connect(self) -> serial.Serial | None:
-        """
-        Establish a connection to the serial port.
-
-        Returns:
-            serial.Serial: The connected serial object, or None if failed and stopped.
-        """
-        while not self._stopper.is_set():
-            logger.debug(f"Opening serialport '{self.app_context.config.serial.port}'")
-            try:
-                ser = serial.serial_for_url(
-                    self.app_context.config.serial.port,
-                    baudrate=self.app_context.config.serial.baudrate,
-                    parity=self.app_context.config.serial.parity,
-                    stopbits=self.app_context.config.serial.stopbits,
-                    bytesize=self.app_context.config.serial.bytesize,
-                    timeout=self.app_context.config.serial.timeout,
-                    do_not_open=True,
-                )
-                ser.open()
-                self._state.serialerror = 0
-                return ser
-            except Exception as e:
-                self._state.serialerror += 1
-                self.app_context.set_error(
-                    f"Serialport connection failed: {type(e).__name__}: '{e}'", category="serial"
-                )
-                logger.error(f"Retry in {self.app_context.config.serial.connect_retry} seconds")
-                time.sleep(self.app_context.config.serial.connect_retry)
-        return None
+    def _log_available_ports(self) -> None:
+        """Log available serial ports for debugging on connection failure."""
+        try:
+            ports = serialx.list_serial_ports()
+            if ports:
+                port_list = ", ".join(p.device for p in ports)
+                logger.info(f"Available serial ports: {port_list}")
+            else:
+                logger.warning("No serial ports detected on system")
+        except Exception:
+            logger.debug("Unable to enumerate serial ports")
 
     def _handle_header(self, datastr: str) -> None:
         """
@@ -186,7 +168,7 @@ class TaskReadSerial(threading.Thread):
             meter.total += delta
             meter.today += delta
 
-    def _read_loop(self, ser: serial.Serial) -> None:
+    def _read_loop(self, ser: serialx.BaseSerial) -> None:
         """
         Continuous read loop from serial port.
 
@@ -230,10 +212,33 @@ class TaskReadSerial(threading.Thread):
             logger.info("Serial Task: Recovery complete, starting serial read loop.")
 
             while not self._stopper.is_set():
-                ser = self._connect()
-                if ser:
-                    self._read_loop(ser)
-                    ser.close()
+                logger.debug(f"Opening serialport '{self.app_context.config.serial.port}'")
+                try:
+                    ser = serialx.serial_for_url(
+                        self.app_context.config.serial.port,
+                        baudrate=self.app_context.config.serial.baudrate,
+                        parity=self.app_context.config.serial.parity,
+                        stopbits=self.app_context.config.serial.stopbits,
+                        byte_size=self.app_context.config.serial.bytesize,
+                        read_timeout=self.app_context.config.serial.timeout,
+                        exclusive=True,
+                    )
+                    with ser:
+                        self._state.serialerror = 0
+                        logger.info(f"Connected to serialport '{self.app_context.config.serial.port}'")
+                        if not self._state.started:
+                            self._state.started = True
+                            logger.info(f"s0pcm-reader v{self.app_context.s0pcm_reader_version} started successfully")
+                        self._read_loop(ser)
+                except Exception as e:
+                    self._state.serialerror += 1
+                    self.app_context.set_error(
+                        f"Serialport connection failed: {type(e).__name__}: '{e}'", category="serial"
+                    )
+                    if self._state.serialerror == 1:
+                        self._log_available_ports()
+                    logger.error(f"Retry in {self.app_context.config.serial.connect_retry} seconds")
+                    time.sleep(self.app_context.config.serial.connect_retry)
         except Exception:
             logger.error("Fatal exception in Serial Task", exc_info=True)
         finally:

@@ -53,7 +53,7 @@ For detailed configuration, advanced settings, and standalone usage (Docker), pl
 - [Configuration Reference](https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/blob/main/DOCS.md#3-configuration)
 - [Home Assistant Integration & Recipes](https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/blob/main/DOCS.md#5-home-assistant-integration-cookbook)
 - [Standalone / Docker Usage](https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/blob/main/DOCS.md#standalone-docker-container-advanced) (available as `ghcr.io/darkrain-nl/s0pcm-reader-standalone`)
-- [Troubleshooting](https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/blob/main/DOCS.md#6-troubleshooting)
+- [Troubleshooting](https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/blob/main/DOCS.md#7-troubleshooting)
 
 ## 🧪 Development & Testing
 

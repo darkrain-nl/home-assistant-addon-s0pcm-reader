@@ -1,13 +1,13 @@
 [project]
 name = "s0pcm-reader"
-version = "4.2.4"
+version = "4.3.0"
 description = "S0PCM Reader Home Assistant App"
 requires-python = ">=3.14"
 dependencies = [
     "pyyaml==6.0.3",
-    "pyserial==3.5",
+    "serialx==1.6.0",
     "paho-mqtt==2.1.0",
-    "pydantic==2.13.1",
+    "pydantic==2.13.3",
 ]
 
 [dependency-groups]

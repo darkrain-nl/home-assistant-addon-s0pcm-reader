@@ -18,20 +18,22 @@ pytest tests/ --cov=rootfs/usr/src --cov-report=term-missing
 
 ### Docker Testing (Recommended)
 This method ensures environment parity with CI/CD without needing Python installed locally.
-```powershell
-# Windows (PowerShell)
-# Note: You may need to bypass execution policy:
-# Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\tests\docker-test.ps1
+```bash
+# Linux / Mac
+./tests/docker-test.sh
 
 # Run coverage in Docker
 docker run --rm s0pcm-reader-test pytest tests/ --cov=rootfs/usr/src --cov-report=term-missing
 
 # Save coverage to file
-docker run --rm s0pcm-reader-test pytest tests/ --cov=rootfs/usr/src --cov-report=term-missing | Out-File -FilePath coverage.txt -Encoding utf8
+docker run --rm s0pcm-reader-test pytest tests/ --cov=rootfs/usr/src --cov-report=term-missing > coverage.txt 2>&1
+```
 
-# Linux / Mac (Bash)
-./tests/docker-test.sh
+```powershell
+# Windows (PowerShell)
+# Note: You may need to bypass execution policy:
+# Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\tests\docker-test.ps1
 ```
 
 ---
@@ -109,7 +111,7 @@ docker compose -f tests/standalone/docker-compose.yml up --build --exit-code-fro
 ```
 
 ### 3. Integrated Test Runners
-The `docker-test.ps1` (Windows) and `docker-test.sh` (Linux) scripts perform the following steps:
+The `docker-test.sh` (Linux) and `docker-test.ps1` (Windows) scripts perform the following steps:
 1. Build and run the **Unit Test** container.
 2. Build and run the **Standalone Verification** stack.
 3. Verify that the app successfully connects to MQTT in the integrated environment.
@@ -136,4 +138,4 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
 
 ---
-*Last updated: 2026-04-16*
+*Last updated: 2026-05-02*

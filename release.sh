@@ -48,7 +48,8 @@ git merge dev --no-edit
 
 # 5. Push Beta
 echo -e "${YELLOW}Pushing to 'beta' to trigger CI release...${NC}"
-git push origin beta
+PUSH_OUTPUT=$(git push origin beta 2>&1)
+echo "$PUSH_OUTPUT"
 
 # 6. Wait for Beta CI
 echo -e "${YELLOW}Waiting for GitHub Actions (Beta) release pipeline to start...${NC}"
@@ -57,9 +58,19 @@ sleep 10 # Give the API a moment to register the new run
 RUN_ID=$(gh run list --branch beta --workflow "Tests" --limit 1 --json databaseId,status --jq 'if .[0].status == "queued" or .[0].status == "in_progress" or .[0].status == "waiting" then .[0].databaseId else empty end')
 
 if [ -z "$RUN_ID" ]; then
-    echo -e "${YELLOW}Could not find an active 'Tests' run for beta. It might have finished very quickly or haven't started yet.${NC}"
-    echo -e "${YELLOW}Attempting to watch the latest run regardless...${NC}"
-    RUN_ID=$(gh run list --branch beta --workflow "Tests" --limit 1 --json databaseId --jq '.[0].databaseId')
+    # No active run — check if the latest run failed (re-run scenario)
+    LATEST_STATUS=$(gh run list --branch beta --workflow "Tests" --limit 1 --json conclusion --jq '.[0].conclusion')
+    LATEST_RUN_ID=$(gh run list --branch beta --workflow "Tests" --limit 1 --json databaseId --jq '.[0].databaseId')
+
+    if [ "$LATEST_STATUS" = "failure" ]; then
+        echo -e "${YELLOW}Latest CI run ($LATEST_RUN_ID) failed. Re-running failed jobs...${NC}"
+        gh run rerun "$LATEST_RUN_ID" --failed
+        sleep 5
+        RUN_ID="$LATEST_RUN_ID"
+    else
+        echo -e "${YELLOW}No active run found. Watching the latest run...${NC}"
+        RUN_ID="$LATEST_RUN_ID"
+    fi
 fi
 
 echo -e "${GREEN}Watching Beta CI Run: https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/actions/runs/$RUN_ID${NC}"
@@ -104,4 +115,5 @@ git pull origin beta
 git checkout dev
 git pull origin dev
 
-echo -e "${GREEN}Release process complete for v$VERSION!${NC}"
+RELEASED_VERSION=$(grep '^version:' config.yaml | sed 's/version: *"\(.*\)"/\1/' | tr -d '\r')
+echo -e "${GREEN}Release process complete for v$RELEASED_VERSION!${NC}"

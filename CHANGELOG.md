@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.0] - 2026-05-02
+### Changed
+- **Dependencies**: Migrated serial communication library from `pyserial` (unmaintained) to `serialx`, the modern successor with native async support, used by the Home Assistant ecosystem.
+- **Serial Connection**: Updated `serialx` usage to use its native context manager for safer resource cleanup, enabled exclusive mode to prevent port conflicts, and added automatic logging of available serial ports on connection failure to aid in debugging.
+### Fixed
+- **Documentation**: Fixed a broken Troubleshooting link in `README.md`, corrected a legacy config key reference in `DOCS.md`, and updated `CONTRIBUTING.md` and `tests/README.md` to show Linux/bash commands as the primary option.
+
 ## [4.2.4] - 2026-04-16
 ### Added
 - **Quality Assurance**: Integrated a new `lint` command into `./tests/docker-test.sh` for easy Docker-based code formatting and linting using Ruff.

@@ -43,12 +43,14 @@ config.yaml              # Home Assistant App manifest
 ### Running Tests
 Tests run in Docker for environment consistency. From the project root:
 
+```bash
+# Linux / Mac
+./tests/docker-test.sh
+```
+
 ```powershell
 # Windows (PowerShell)
 powershell -ExecutionPolicy Bypass -File .\tests\docker-test.ps1
-
-# Linux / Mac
-./tests/docker-test.sh
 ```
 
 For detailed testing instructions (targeted tests, coverage, hardware simulation), see [tests/README.md](tests/README.md).
@@ -56,8 +58,13 @@ For detailed testing instructions (targeted tests, coverage, hardware simulation
 ### Linting
 We use [Ruff](https://docs.astral.sh/ruff/) for linting and formatting. Configuration is in `pyproject.toml`.
 
+```bash
+# Linux / Mac
+./tests/docker-test.sh lint
+```
+
 ```powershell
-# Auto-fix all issues (Windows)
+# Windows (PowerShell)
 powershell -ExecutionPolicy Bypass -File .\tests\fix-lint.ps1
 ```
 
