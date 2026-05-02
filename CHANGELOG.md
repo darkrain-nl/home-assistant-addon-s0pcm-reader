@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.3.0-b5] - 2026-05-01
+## [4.3.0-b6] - 2026-05-02
 ### Changed
 - **Dependencies**: Migrated serial communication library from `pyserial` (unmaintained) to `serialx`, the modern successor with native async support, used by the Home Assistant ecosystem.
 - **Serial Connection**: Updated `serialx` usage to use its native context manager for safer resource cleanup, enabled exclusive mode to prevent port conflicts, and added automatic logging of available serial ports on connection failure to aid in debugging.
