@@ -24,6 +24,7 @@ class SerialTaskState:
     """Internal state for Serial task."""
 
     serialerror: int = 0
+    started: bool = False
 
 
 class TaskReadSerial(threading.Thread):
@@ -225,6 +226,9 @@ class TaskReadSerial(threading.Thread):
                     with ser:
                         self._state.serialerror = 0
                         logger.info(f"Connected to serialport '{self.app_context.config.serial.port}'")
+                        if not self._state.started:
+                            self._state.started = True
+                            logger.info(f"s0pcm-reader v{self.app_context.s0pcm_reader_version} started successfully")
                         self._read_loop(ser)
                 except Exception as e:
                     self._state.serialerror += 1
