@@ -74,6 +74,8 @@ def main() -> None:
     t2 = TaskDoMQTT(context, trigger, stopper)
     t2.start()
 
+    logger.info(f"s0pcm-reader v{version} started successfully")
+
     # Wait for threads to finish
     while t1.is_alive() or t2.is_alive():
         t1.join(1)
