@@ -6,7 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.3.1-b4] - 2026-05-03
 ### Changed
-- **Dependancies**: Dependancy updates.
+- **Dependencies**: Dependency updates.
+- **Code Quality**: Added strict return type annotations to internal MQTT and Serial handler methods for improved reliability.
+
+### Security
+- **Credentials**: Implemented Pydantic `SecretStr` for MQTT credentials to ensure automatic redaction in logs.
 
 ## [4.3.0] - 2026-05-02
 ### Changed
