@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 GLOBAL_DIAGNOSTICS: Final = [
     {"id": "version", "name": "App Version", "icon": "mdi:information-outline"},
     {"id": "firmware", "name": "S0PCM Firmware", "icon": "mdi:chip"},
-    {"id": "startup_time", "name": "Startup Time", "icon": "mdi:clock-outline", "class": "timestamp"},
+    {"id": "startup_time", "name": "Startup Time", "icon": "mdi:clock-start", "class": "uptime"},
     {"id": "port", "name": "Serial Port", "icon": "mdi:serial-port"},
 ]
 

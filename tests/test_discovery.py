@@ -34,6 +34,15 @@ def test_send_global_discovery(mocker):
     assert payload["name"] == "S0PCM Reader Status"
     assert payload["device"]["sw_version"] == "3.0.0"
 
+    # Check startup_time sensor
+    startup_call = [
+        c for c in mock_mqttc.publish.call_args_list if "sensor/s0pcm/s0pcm_s0pcm_startup_time/config" in str(c)
+    ]
+    assert startup_call
+    startup_payload = json.loads(startup_call[0][0][1])
+    assert startup_payload["device_class"] == "uptime"
+    assert startup_payload["icon"] == "mdi:clock-start"
+
 
 def test_send_meter_discovery(mocker):
     """Test meter discovery message publishing."""
