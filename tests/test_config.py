@@ -58,20 +58,24 @@ class TestConfigEdgeCases:
     def test_password_redaction(self, mocker):
         mocker.patch.object(Path, "exists", return_value=True)
         # Test 1: Password set
-        mocker.patch.object(Path, "read_text", return_value=json.dumps({"mqtt": {"password": "secret"}}))
+        mocker.patch.object(
+            Path, "read_text", return_value=json.dumps({"mqtt": {"password": "secret", "username": "admin"}})
+        )
         with patch("logging.Logger.debug") as mock_debug:
             config_module.read_config()
-            assert "********" in str(mock_debug.call_args[0][0])
-            assert "secret" not in str(mock_debug.call_args[0][0])
+            log_str = str(mock_debug.call_args[0][0])
+            assert "**********" in log_str
+            assert "secret" not in log_str
+            assert "admin" not in log_str
 
-        # Test 2: Password None (should still be redacted to hide enabled state)
+        # Test 2: Password None
         mocker.patch.object(Path, "read_text", return_value=json.dumps({}))
         with patch("logging.Logger.debug") as mock_debug:
             config_module.read_config()
             log_str = str(mock_debug.call_args[0][0])
-            # Check for explicit redaction of both fields
-            assert "'password': '********'" in log_str
-            assert "'username': '********'" in log_str
+            # Check for None explicitly
+            assert "'password': None" in log_str
+            assert "'username': None" in log_str
 
 
 class TestErrorHandling:

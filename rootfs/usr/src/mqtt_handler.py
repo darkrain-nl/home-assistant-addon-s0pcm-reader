@@ -194,7 +194,7 @@ class TaskDoMQTT(threading.Thread):
         except Exception as e:
             context.set_error(f"Failed to process MQTT name/set command: {e}", category="mqtt")
 
-    def _setup_mqtt_client(self, use_tls):
+    def _setup_mqtt_client(self, use_tls) -> bool:
         context = self.app_context
         self._state.mqttc = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2,
@@ -206,7 +206,10 @@ class TaskDoMQTT(threading.Thread):
         self._state.mqttc.on_message = self.on_message
 
         if context.config.mqtt.username is not None:
-            self._state.mqttc.username_pw_set(context.config.mqtt.username, context.config.mqtt.password)
+            self._state.mqttc.username_pw_set(
+                context.config.mqtt.username.get_secret_value(),
+                context.config.mqtt.password.get_secret_value() if context.config.mqtt.password else None,
+            )
 
         if use_tls:
             ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -237,7 +240,7 @@ class TaskDoMQTT(threading.Thread):
         )
         return True
 
-    def _connect_loop(self):
+    def _connect_loop(self) -> None:
         context = self.app_context
         use_tls = context.config.mqtt.tls
 
@@ -274,7 +277,7 @@ class TaskDoMQTT(threading.Thread):
                 logger.error(err_str)
                 time.sleep(context.config.mqtt.connect_retry)
 
-    def _publish_diagnostics(self):
+    def _publish_diagnostics(self) -> None:
         context = self.app_context
         try:
             current_diagnostics = {
@@ -303,7 +306,7 @@ class TaskDoMQTT(threading.Thread):
 
     def _publish_measurements(
         self, state_snapshot: state_module.AppState, previous_snapshot: state_module.AppState | None
-    ):
+    ) -> None:
         context = self.app_context
 
         # Date
@@ -360,7 +363,7 @@ class TaskDoMQTT(threading.Thread):
                 self._state.mqttc.publish(topic, json.dumps(jsondata), retain=context.config.mqtt.retain)
                 logger.debug(f"MQTT Publish: topic='{topic}', value='{json.dumps(jsondata)}'")
 
-    def _main_loop(self):
+    def _main_loop(self) -> None:
         context = self.app_context
         previous_snapshot = None
 
@@ -419,7 +422,7 @@ class TaskDoMQTT(threading.Thread):
             self._trigger.wait()
             self._trigger.clear()
 
-    def run(self):
+    def run(self) -> None:
         context = self.app_context
         try:
             while not self._stopper.is_set():
