@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 GLOBAL_DIAGNOSTICS: Final = [
     {"id": "version", "name": "App Version", "icon": "mdi:information-outline"},
     {"id": "firmware", "name": "S0PCM Firmware", "icon": "mdi:chip"},
-    {"id": "startup_time", "name": "Startup Time", "icon": "mdi:clock-start", "class": "uptime"},
+    # TODO: Change to "uptime" device class once HA 2026.6 is the minimum supported version
+    {"id": "startup_time", "name": "Startup Time", "icon": "mdi:clock-outline", "class": "timestamp"},
     {"id": "port", "name": "Serial Port", "icon": "mdi:serial-port"},
 ]
 
