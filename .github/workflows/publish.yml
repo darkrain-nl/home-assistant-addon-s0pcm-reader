@@ -299,8 +299,8 @@ jobs:
           
           if [ -n "$PREV_TAG" ]; then
             echo -e "\n## What's Changed" >> release_notes.md
-            # List all merged PRs between PREV_TAG and current HEAD
-            git log $PREV_TAG..HEAD --oneline --grep="Merge pull request" --grep="(#.*)" | sed 's/^[a-f0-9]* //;s/^/- /' >> release_notes.md
+            # List all merged PRs between PREV_TAG and current HEAD, excluding internal release PRs
+            git log $PREV_TAG..HEAD --oneline --grep="Merge pull request" --grep="(#.*)" | grep -vE "from darkrain-nl/(dev|beta)" | sed 's/^[a-f0-9]* //;s/^/- /' >> release_notes.md
             
             # If no PRs were found, add a fallback note
             if ! grep -q "^- " release_notes.md; then

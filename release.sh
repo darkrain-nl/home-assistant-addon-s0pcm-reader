@@ -48,7 +48,7 @@ if [ -z "$BETA_PR_URL" ]; then
     echo "Automated merge of dev into beta for release v$VERSION." > pr_body.md
     echo "" >> pr_body.md
     echo "### Changes in this release:" >> pr_body.md
-    git log beta..dev --oneline --grep="Merge pull request" --grep="(#.*)" | sed 's/^[a-f0-9]* //;s/^/- /' >> pr_body.md
+    git log beta..dev --oneline --grep="Merge pull request" --grep="(#.*)" | grep -vE "from darkrain-nl/(dev|beta)" | sed 's/^[a-f0-9]* //;s/^/- /' >> pr_body.md
     echo "" >> pr_body.md
     echo "### Changelog entries:" >> pr_body.md
     echo '```markdown' >> pr_body.md
@@ -106,7 +106,7 @@ if [ "$IS_BETA" = false ]; then
         echo "Automated stable release PR for version $VERSION." > pr_body.md
         echo "" >> pr_body.md
         echo "### Changes in this release:" >> pr_body.md
-        git log main..beta --oneline --grep="Merge pull request" --grep="(#.*)" | sed 's/^[a-f0-9]* //;s/^/- /' >> pr_body.md
+        git log main..beta --oneline --grep="Merge pull request" --grep="(#.*)" | grep -vE "from darkrain-nl/(dev|beta)" | sed 's/^[a-f0-9]* //;s/^/- /' >> pr_body.md
         echo "" >> pr_body.md
         echo "### Changelog entries:" >> pr_body.md
         echo '```markdown' >> pr_body.md
