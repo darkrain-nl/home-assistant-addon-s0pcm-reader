@@ -40,16 +40,36 @@ fi
 echo -e "${YELLOW}Pushing latest 'dev' changes to origin...${NC}"
 git push origin dev
 
-# 4. Beta Merge
-echo -e "${YELLOW}Switching to 'beta' and merging 'dev'...${NC}"
+# 4. Beta PR
+echo -e "${YELLOW}Creating/Merging Pull Request from 'dev' to 'beta'...${NC}"
+BETA_PR_URL=$(gh pr list --base beta --head dev --state open --json url --jq '.[0].url')
+if [ -z "$BETA_PR_URL" ]; then
+    echo -e "${YELLOW}Generating PR description from recent merges...${NC}"
+    echo "Automated merge of dev into beta for release v$VERSION." > pr_body.md
+    echo "" >> pr_body.md
+    echo "### Changes in this release:" >> pr_body.md
+    git log beta..dev --oneline --grep="Merge pull request" --grep="(#.*)" | sed 's/^[a-f0-9]* //;s/^/- /' >> pr_body.md
+    echo "" >> pr_body.md
+    echo "### Changelog entries:" >> pr_body.md
+    echo "```markdown" >> pr_body.md
+    awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' >> pr_body.md
+    echo "```" >> pr_body.md
+
+    echo -e "${YELLOW}Creating Pull Request from 'dev' to 'beta'...${NC}"
+    BETA_PR_URL=$(gh pr create --base beta --head dev --title "Release v$VERSION" --body-file pr_body.md)
+    rm pr_body.md
+else
+    echo -e "${YELLOW}Existing open PR found: $BETA_PR_URL${NC}"
+fi
+echo -e "${GREEN}PR Ready: $BETA_PR_URL${NC}"
+
+echo -e "${YELLOW}Merging PR into 'beta'...${NC}"
+gh pr merge "$BETA_PR_URL" --merge
+
+# 5. Sync Local Beta
+echo -e "${YELLOW}Switching to 'beta' and pulling latest changes...${NC}"
 git checkout beta
 git pull origin beta
-git merge dev --no-edit
-
-# 5. Push Beta
-echo -e "${YELLOW}Pushing to 'beta' to trigger CI release...${NC}"
-PUSH_OUTPUT=$(git push origin beta 2>&1)
-echo "$PUSH_OUTPUT"
 
 # 6. Wait for Beta CI
 echo -e "${YELLOW}Waiting for GitHub Actions (Beta) release pipeline to start...${NC}"
@@ -82,8 +102,20 @@ if [ "$IS_BETA" = false ]; then
     
     PR_URL=$(gh pr list --base main --head beta --state open --json url --jq '.[0].url')
     if [ -z "$PR_URL" ]; then
+        echo -e "${YELLOW}Generating PR description from recent merges...${NC}"
+        echo "Automated stable release PR for version $VERSION." > pr_body.md
+        echo "" >> pr_body.md
+        echo "### Changes in this release:" >> pr_body.md
+        git log main..beta --oneline --grep="Merge pull request" --grep="(#.*)" | sed 's/^[a-f0-9]* //;s/^/- /' >> pr_body.md
+        echo "" >> pr_body.md
+        echo "### Changelog entries:" >> pr_body.md
+        echo "```markdown" >> pr_body.md
+        awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' >> pr_body.md
+        echo "```" >> pr_body.md
+
         echo -e "${YELLOW}Creating Pull Request from 'beta' to 'main'...${NC}"
-        PR_URL=$(gh pr create --base main --head beta --title "Release v$VERSION" --body "Automated stable release PR for version $VERSION. Triggered via release.sh")
+        PR_URL=$(gh pr create --base main --head beta --title "Release v$VERSION" --body-file pr_body.md)
+        rm pr_body.md
     else
         echo -e "${YELLOW}Existing open PR found: $PR_URL${NC}"
     fi
