@@ -51,9 +51,9 @@ if [ -z "$BETA_PR_URL" ]; then
     git log beta..dev --oneline --grep="Merge pull request" --grep="(#.*)" | sed 's/^[a-f0-9]* //;s/^/- /' >> pr_body.md
     echo "" >> pr_body.md
     echo "### Changelog entries:" >> pr_body.md
-    echo "```markdown" >> pr_body.md
-    awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' >> pr_body.md
-    echo "```" >> pr_body.md
+    echo '```markdown' >> pr_body.md
+    awk '/^## \['"$VERSION"'\]/{flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba}' >> pr_body.md
+    echo '```' >> pr_body.md
 
     echo -e "${YELLOW}Creating Pull Request from 'dev' to 'beta'...${NC}"
     BETA_PR_URL=$(gh pr create --base beta --head dev --title "Release v$VERSION" --body-file pr_body.md)
@@ -109,9 +109,9 @@ if [ "$IS_BETA" = false ]; then
         git log main..beta --oneline --grep="Merge pull request" --grep="(#.*)" | sed 's/^[a-f0-9]* //;s/^/- /' >> pr_body.md
         echo "" >> pr_body.md
         echo "### Changelog entries:" >> pr_body.md
-        echo "```markdown" >> pr_body.md
-        awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' >> pr_body.md
-        echo "```" >> pr_body.md
+        echo '```markdown' >> pr_body.md
+        awk '/^## \['"$VERSION"'\]/{flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba}' >> pr_body.md
+        echo '```' >> pr_body.md
 
         echo -e "${YELLOW}Creating Pull Request from 'beta' to 'main'...${NC}"
         PR_URL=$(gh pr create --base main --head beta --title "Release v$VERSION" --body-file pr_body.md)
