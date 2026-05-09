@@ -292,9 +292,9 @@ jobs:
           # Beta: Compare against the absolute last tag
           # Stable: Compare against the last STABLE tag (exclude beta tags)
           if [ "${{ needs.check.outputs.is_beta }}" = "true" ]; then
-            PREV_TAG=$(git describe --tags --abbrev=0 ${{ steps.version.outputs.tag }}^ 2>/dev/null || echo "")
+            PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           else
-            PREV_TAG=$(git describe --tags --abbrev=0 --exclude "*-b*" ${{ steps.version.outputs.tag }}^ 2>/dev/null || echo "")
+            PREV_TAG=$(git describe --tags --abbrev=0 --exclude "*-b*" HEAD^ 2>/dev/null || echo "")
           fi
           
           if [ -n "$PREV_TAG" ]; then
