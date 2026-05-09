@@ -261,6 +261,7 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
           fetch-tags: true
+          fetch-depth: 0
 
       - name: Read version from config.yaml
         id: version
