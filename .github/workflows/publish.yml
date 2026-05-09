@@ -285,13 +285,28 @@ jobs:
         id: extract_notes
         run: |
           # Extract the section from CHANGELOG.md for the current version
-          # It looks for "## [version]" and stops at the next "## ["
-          # We use sed to trim leading/trailing empty lines
           awk '/^## \[${{ steps.version.outputs.version }}\]/{flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > release_notes.md
           
-          # If nothing was matched/extracted, provide a fallback
-          if [ ! -s release_notes.md ]; then
-            echo "No specific changelog entry found for version ${{ steps.version.outputs.version }}." > release_notes.md
+          # Manually generate "What's Changed" to avoid GitHub's flawed detection
+          # Beta: Compare against the absolute last tag
+          # Stable: Compare against the last STABLE tag (exclude beta tags)
+          if [ "${{ needs.check.outputs.is_beta }}" = "true" ]; then
+            PREV_TAG=$(git describe --tags --abbrev=0 ${{ steps.version.outputs.tag }}^ 2>/dev/null || echo "")
+          else
+            PREV_TAG=$(git describe --tags --abbrev=0 --exclude "*-b*" ${{ steps.version.outputs.tag }}^ 2>/dev/null || echo "")
+          fi
+          
+          if [ -n "$PREV_TAG" ]; then
+            echo -e "\n## What's Changed" >> release_notes.md
+            # List all merged PRs between PREV_TAG and current HEAD
+            git log $PREV_TAG..HEAD --oneline --grep="Merge pull request" --grep="(#.*)" | sed 's/^[a-f0-9]* //;s/^/- /' >> release_notes.md
+            
+            # If no PRs were found, add a fallback note
+            if ! grep -q "^- " release_notes.md; then
+              echo "Internal maintenance and direct commits." >> release_notes.md
+            fi
+            
+            echo -e "\n**Full Changelog**: https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/compare/$PREV_TAG...${{ steps.version.outputs.tag }}" >> release_notes.md
           fi
 
       - name: Create Stable Release
@@ -303,7 +318,7 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Release ${{ steps.version.outputs.tag }}
           body_path: release_notes.md
-          generate_release_notes: true
+          generate_release_notes: false
           draft: false
           prerelease: false
 
@@ -316,7 +331,7 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Pre-release ${{ steps.version.outputs.tag }}
           body_path: release_notes.md
-          generate_release_notes: true
+          generate_release_notes: false
           draft: false
           prerelease: true
           make_latest: false
