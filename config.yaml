@@ -11,7 +11,6 @@ init: false
 startup: application
 hassio_api: true
 homeassistant_api: true
-homeassistant: "2025.5.0"
 options:
   device: null
   mqtt:
