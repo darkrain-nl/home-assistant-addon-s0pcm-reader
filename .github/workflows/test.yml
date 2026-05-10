@@ -174,7 +174,8 @@ jobs:
     needs: [test, docker-test, standalone-test, validate]
     if: >
       github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta')
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta') &&
+      !startsWith(github.event.head_commit.message, 'ci: bump beta version')
     permissions:
       contents: write
       packages: write
