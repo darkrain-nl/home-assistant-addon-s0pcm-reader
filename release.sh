@@ -138,7 +138,12 @@ if [ "$IS_BETA" = false ]; then
     echo -e "${GREEN}Watching Main CI Run: https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/actions/runs/$MAIN_RUN_ID${NC}"
     gh run watch "$MAIN_RUN_ID"
 
-    # Sync main back to dev to unify history
+    # Sync main back to beta and dev to unify history
+    echo -e "${YELLOW}Merging 'main' back into 'beta' to unify history...${NC}"
+    git checkout beta
+    git merge main --no-edit
+    git push origin beta
+
     echo -e "${YELLOW}Merging 'main' back into 'dev' to unify history...${NC}"
     git checkout dev
     git merge main --no-edit
