@@ -143,6 +143,8 @@ def test_parse_ha_version():
     assert utils.parse_ha_version("2025.5.0") == (2025, 5, 0)
     assert utils.parse_ha_version("2025.5.0b1") == (2025, 5, 0)
     assert utils.parse_ha_version("2025") == (2025,)
+    assert utils.parse_ha_version("2025.5.beta") == (2025, 5, 0)
+    assert utils.parse_ha_version("dev") == (0,)
     assert utils.parse_ha_version(None) == (0, 0, 0)
     assert utils.parse_ha_version("") == (0, 0, 0)
 
