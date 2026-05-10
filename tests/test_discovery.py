@@ -40,8 +40,8 @@ def test_send_global_discovery(mocker):
     ]
     assert startup_call
     startup_payload = json.loads(startup_call[0][0][1])
-    assert startup_payload["device_class"] == "timestamp"
-    assert startup_payload["icon"] == "mdi:clock-outline"
+    assert startup_payload["device_class"] == "uptime"
+    assert startup_payload["icon"] == "mdi:clock-start"
 
 
 def test_send_meter_discovery(mocker):
