@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Dependencies**: Dependency updates.
 - **Code Quality**: Added strict return type annotations to internal MQTT and Serial handler methods for improved reliability.
+- **Home Assistant Integration**: Transitioned the Startup Time diagnostic sensor to use the new `uptime` device class and `mdi:clock-start` icon. **Note**: This requires a minimum Home Assistant version of 2025.5.0.
 
 ### Security
 - **Credentials**: Implemented Pydantic `SecretStr` for MQTT credentials to ensure automatic redaction in logs.
