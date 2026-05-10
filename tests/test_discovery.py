@@ -11,14 +11,16 @@ import state as state_module
 from state import MeterState
 
 
-def test_send_global_discovery(mocker):
-    """Test global discovery message publishing."""
+def test_send_global_discovery_new_ha(mocker):
+    """Test global discovery message publishing with HA >= 2025.5.0."""
     import discovery
 
     mock_mqttc = MagicMock()
     context = state_module.get_context()
     context.config = make_test_config(base_topic="s0pcm")
     context.s0pcm_reader_version = "3.0.0"
+
+    mocker.patch("utils.get_ha_core_version", return_value="2025.5.0")
 
     discovery.send_global_discovery(mock_mqttc, context)
 
@@ -33,6 +35,38 @@ def test_send_global_discovery(mocker):
     payload = json.loads(status_call[0][0][1])
     assert payload["name"] == "S0PCM Reader Status"
     assert payload["device"]["sw_version"] == "3.0.0"
+
+    # Check startup_time sensor
+    startup_call = [
+        c for c in mock_mqttc.publish.call_args_list if "sensor/s0pcm/s0pcm_s0pcm_startup_time/config" in str(c)
+    ]
+    assert startup_call
+    startup_payload = json.loads(startup_call[0][0][1])
+    assert startup_payload["device_class"] == "uptime"
+    assert startup_payload["icon"] == "mdi:clock-start"
+
+
+def test_send_global_discovery_old_ha(mocker):
+    """Test global discovery message publishing with HA < 2025.5.0."""
+    import discovery
+
+    mock_mqttc = MagicMock()
+    context = state_module.get_context()
+    context.config = make_test_config(base_topic="s0pcm")
+    context.s0pcm_reader_version = "3.0.0"
+
+    mocker.patch("utils.get_ha_core_version", return_value="2024.12.0")
+
+    discovery.send_global_discovery(mock_mqttc, context)
+
+    # Check startup_time sensor fallback
+    startup_call = [
+        c for c in mock_mqttc.publish.call_args_list if "sensor/s0pcm/s0pcm_s0pcm_startup_time/config" in str(c)
+    ]
+    assert startup_call
+    startup_payload = json.loads(startup_call[0][0][1])
+    assert startup_payload["device_class"] == "timestamp"
+    assert startup_payload["icon"] == "mdi:clock-outline"
 
 
 def test_send_meter_discovery(mocker):

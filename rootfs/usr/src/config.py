@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import paho.mqtt.client as mqtt
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 import serialx
 
 from constants import ConnectionStatus
@@ -49,8 +49,8 @@ class MqttConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 1883
     tls_port: int = 8883
-    username: str | None = None
-    password: str | None = None
+    username: SecretStr | None = None
+    password: SecretStr | None = None
     base_topic: str = "s0pcmreader"
     client_id: str | None = None
     version: Any = mqtt.MQTTv5
@@ -183,8 +183,6 @@ def read_config(
 
     # Debug logging with redacted sensitive info (mode="json" for clean enum serialization)
     config_log = model.model_dump(mode="json")
-    config_log["mqtt"]["password"] = "********"  # noqa: S105
-    config_log["mqtt"]["username"] = "********"
     logger.debug(f"Config: {config_log!s}")
 
     return model

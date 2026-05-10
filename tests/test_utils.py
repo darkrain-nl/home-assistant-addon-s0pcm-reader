@@ -108,6 +108,48 @@ def test_get_supervisor_config_api_error(mocker):
 
 
 # ------------------------------------------------------------------------------------
+# HA Core Version Tests
+# ------------------------------------------------------------------------------------
+
+
+def test_get_ha_core_version_no_token(mocker):
+    """Test get_ha_core_version when token is missing."""
+    mocker.patch.dict(os.environ, {}, clear=True)
+    assert utils.get_ha_core_version() is None
+
+
+def test_get_ha_core_version_success(mocker):
+    """Test successful HA core version fetch."""
+    mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
+    mock_response = MagicMock()
+    mock_response.status = 200
+    mock_response.read.return_value = json.dumps({"data": {"version": "2025.5.0"}}).encode()
+    mock_response.__enter__ = lambda self: self
+    mock_response.__exit__ = lambda self, *args: None
+    mocker.patch("urllib.request.urlopen", return_value=mock_response)
+
+    assert utils.get_ha_core_version() == "2025.5.0"
+
+
+def test_get_ha_core_version_error(mocker):
+    """Test get_ha_core_version handles errors gracefully."""
+    mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
+    mocker.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("API Error"))
+    assert utils.get_ha_core_version() is None
+
+
+def test_parse_ha_version():
+    """Test HA version string parsing."""
+    assert utils.parse_ha_version("2025.5.0") == (2025, 5, 0)
+    assert utils.parse_ha_version("2025.5.0b1") == (2025, 5, 0)
+    assert utils.parse_ha_version("2025") == (2025,)
+    assert utils.parse_ha_version("2025.5.beta") == (2025, 5, 0)
+    assert utils.parse_ha_version("dev") == (0,)
+    assert utils.parse_ha_version(None) == (0, 0, 0)
+    assert utils.parse_ha_version("") == (0, 0, 0)
+
+
+# ------------------------------------------------------------------------------------
 # Parse Localized Number Tests
 # ------------------------------------------------------------------------------------
 

@@ -11,13 +11,14 @@ from typing import Final
 import paho.mqtt.client as mqtt
 
 from state import AppContext, MeterState
+import utils
 
 logger = logging.getLogger(__name__)
 
 GLOBAL_DIAGNOSTICS: Final = [
     {"id": "version", "name": "App Version", "icon": "mdi:information-outline"},
     {"id": "firmware", "name": "S0PCM Firmware", "icon": "mdi:chip"},
-    {"id": "startup_time", "name": "Startup Time", "icon": "mdi:clock-outline", "class": "timestamp"},
+    {"id": "startup_time", "name": "Startup Time"},
     {"id": "port", "name": "Serial Port", "icon": "mdi:serial-port"},
 ]
 
@@ -80,24 +81,37 @@ def send_global_discovery(mqttc: mqtt.Client, context: AppContext) -> None:
     }
     mqttc.publish(error_topic, json.dumps(error_payload), retain=True)
 
+    ha_version = utils.get_ha_core_version()
+    ha_version_tuple = utils.parse_ha_version(ha_version)
+
     # Diagnostics
     for diag in GLOBAL_DIAGNOSTICS:
         diag_unique_id = f"s0pcm_{base_topic}_{diag['id']}"
         diag_topic = f"{discovery_prefix}/sensor/{base_topic}/{diag_unique_id}/config"
+
+        diag_data = dict(diag)
+        if diag_data["id"] == "startup_time":
+            if ha_version_tuple >= (2025, 5, 0):
+                diag_data["class"] = "uptime"
+                diag_data["icon"] = "mdi:clock-start"
+            else:
+                diag_data["class"] = "timestamp"
+                diag_data["icon"] = "mdi:clock-outline"
+
         diag_payload = {
-            "name": f"S0PCM Reader {diag['name']}",
+            "name": f"S0PCM Reader {diag_data['name']}",
             "unique_id": diag_unique_id,
             "device": device_info,
             "entity_category": "diagnostic",
-            "state_topic": base_topic + "/" + diag["id"],
+            "state_topic": base_topic + "/" + diag_data["id"],
             "value_template": "{{ value }}",
             "force_update": True,
-            "icon": diag["icon"],
+            "icon": diag_data["icon"],
         }
-        if "unit" in diag:
-            diag_payload["unit_of_measurement"] = diag["unit"]
-        if "class" in diag:
-            diag_payload["device_class"] = diag["class"]
+        if "unit" in diag_data:
+            diag_payload["unit_of_measurement"] = diag_data["unit"]
+        if "class" in diag_data:
+            diag_payload["device_class"] = diag_data["class"]
         mqttc.publish(diag_topic, json.dumps(diag_payload), retain=True)
 
     logger.info("Sent global MQTT discovery messages")
