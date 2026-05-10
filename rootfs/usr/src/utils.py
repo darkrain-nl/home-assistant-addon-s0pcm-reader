@@ -8,6 +8,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 from typing import Any
 import urllib.error
 import urllib.parse
@@ -149,3 +150,38 @@ def parse_localized_number(value_str: str) -> float | None:
         return float(clean_state)
     except ValueError, TypeError:
         return None
+
+
+def get_ha_core_version() -> str | None:
+    """Fetch the Home Assistant Core version from the Supervisor API."""
+    token = os.getenv("SUPERVISOR_TOKEN")
+    if not token:
+        return None
+
+    url = "http://supervisor/core/info"
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=5) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode())
+                return data.get("data", {}).get("version")
+    except (urllib.error.URLError, json.JSONDecodeError, OSError) as e:
+        logger.debug(f"Supervisor API /core/info failed: {e}")
+    return None
+
+
+def parse_ha_version(version_str: str | None) -> tuple[int, ...]:
+    """Parse a Home Assistant version string into a comparable tuple."""
+    if not version_str:
+        return (0, 0, 0)
+
+    parts = version_str.split(".")
+    parsed_parts = []
+    for p in parts:
+        match = re.match(r"^(\d+)", p)
+        if match:
+            parsed_parts.append(int(match.group(1)))
+        else:
+            parsed_parts.append(0)
+    return tuple(parsed_parts)

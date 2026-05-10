@@ -18,7 +18,6 @@ An easy-to-use Home Assistant App that reads pulse counters from an **S0PCM-2** 
 
 - An **S0PCM reader** (S0PCM-2 or S0PCM-5) connected via USB.
 - An **MQTT Broker** (e.g., the official Mosquitto broker app).
-- **Home Assistant 2025.5** or newer is recommended for full diagnostic sensor support.
 
 ## 🚀 Installation (Recommended & Supported method)
 
