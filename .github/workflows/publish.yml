@@ -318,6 +318,7 @@ jobs:
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.ref_name }}
           name: Release ${{ steps.version.outputs.tag }}
           body_path: release_notes.md
           generate_release_notes: false
@@ -331,6 +332,7 @@ jobs:
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.ref_name }}
           name: Pre-release ${{ steps.version.outputs.tag }}
           body_path: release_notes.md
           generate_release_notes: false
