@@ -65,6 +65,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-tags: true
+          token: ${{ secrets.BETA_SYNC_TOKEN }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
@@ -128,7 +129,7 @@ jobs:
 
       - name: Get build matrix
         id: matrix
-        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@4d84f5a4d4fc9209c7ebec8183c78bc8f967f093 # master
+        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@b052ae1bb5e7ff6c63ca63a0fd59d2eb7ff715af # master
         with:
           architectures: '["amd64", "aarch64"]'
           image-name: addon-s0pcm_reader
@@ -160,7 +161,7 @@ jobs:
           echo "build_from=$BUILD_FROM" >> "$GITHUB_OUTPUT"
 
       - name: Build image
-        uses: home-assistant/builder/actions/build-image@4d84f5a4d4fc9209c7ebec8183c78bc8f967f093 # master
+        uses: home-assistant/builder/actions/build-image@b052ae1bb5e7ff6c63ca63a0fd59d2eb7ff715af # master
         with:
           arch: ${{ matrix.arch }}
           build-args: |
@@ -194,7 +195,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Publish multi-arch manifest
-        uses: home-assistant/builder/actions/publish-multi-arch-manifest@4d84f5a4d4fc9209c7ebec8183c78bc8f967f093 # master
+        uses: home-assistant/builder/actions/publish-multi-arch-manifest@b052ae1bb5e7ff6c63ca63a0fd59d2eb7ff715af # master
         with:
           architectures: '["amd64", "aarch64"]'
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
@@ -317,6 +318,7 @@ jobs:
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.ref_name }}
           name: Release ${{ steps.version.outputs.tag }}
           body_path: release_notes.md
           generate_release_notes: false
@@ -330,6 +332,7 @@ jobs:
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.ref_name }}
           name: Pre-release ${{ steps.version.outputs.tag }}
           body_path: release_notes.md
           generate_release_notes: false
