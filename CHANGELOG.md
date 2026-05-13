@@ -4,20 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.3.3-b6] - 2026-05-13
+## [4.3.3-b7] - 2026-05-13
 ### Changed
-- **Dependencies**: Dependency updates.
+- **Dependencies**: Dependency updates (serialx v1.8.0).
 
 ## [4.3.2] - 2026-05-11
 ### Changed
-- **Dependencies**: Dependency updates.
+- **Dependencies**: Dependency updates (serialx v1.8.0).
 
 ### Security
 - **SAST**: Resolved security scanning (SAST) warnings to ensure codebase integrity and security.
 
 ## [4.3.1] - 2026-05-10
 ### Changed
-- **Dependencies**: Dependency updates.
+- **Dependencies**: Dependency updates (serialx v1.8.0).
 - **Code Quality**: Added strict return type annotations to internal MQTT and Serial handler methods for improved reliability.
 - **Home Assistant Integration**: Transitioned the Startup Time diagnostic sensor to use the new `uptime` device class and `mdi:clock-start` icon. The add-on now dynamically detects your Home Assistant Core version via the Supervisor API and automatically falls back to the legacy `timestamp` class if you are running a version older than 2025.5.0!
 
