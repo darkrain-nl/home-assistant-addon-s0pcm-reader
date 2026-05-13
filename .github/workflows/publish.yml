@@ -148,9 +148,9 @@ jobs:
 
           echo "Notable dependency updates: $DEPS"
 
-          # Replace the dependency line — matches both the generic placeholder
-          # and an already-enriched line from a previous beta
-          sed -i "s/- \*\*Dependencies\*\*: Dependency updates\( ([^)]*)\)\?\\./- **Dependencies**: Dependency updates ($DEPS)./" CHANGELOG.md
+          # Replace the dependency line (first occurrence only — the current release entry)
+          # Matches both the generic placeholder and an already-enriched line from a previous beta
+          sed -i "0,/- \*\*Dependencies\*\*: Dependency updates\( ([^)]*)\)\?\\./s//- **Dependencies**: Dependency updates ($DEPS)./" CHANGELOG.md
 
       - name: Commit and push bumped version
         if: steps.bump.outputs.did_bump == 'true'
