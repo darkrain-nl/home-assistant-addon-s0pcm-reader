@@ -277,7 +277,7 @@ wheels = [
 
 [[package]]
 name = "s0pcm-reader"
-version = "4.3.3b3"
+version = "4.3.3b4"
 source = { virtual = "." }
 dependencies = [
     { name = "paho-mqtt" },
