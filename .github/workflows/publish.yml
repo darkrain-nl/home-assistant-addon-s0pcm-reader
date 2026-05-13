@@ -121,14 +121,17 @@ jobs:
       - name: Enrich CHANGELOG dependency line
         if: steps.bump.outputs.did_bump == 'true'
         run: |
-          # Find the last tag to scope the commit range
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD 2>/dev/null || echo "")
+          # Find the last STABLE tag to scope the commit range (skip beta tags)
+          # This captures all Renovate commits across the entire beta cycle
+          PREV_TAG=$(git describe --tags --abbrev=0 --exclude "*-b*" HEAD 2>/dev/null || echo "")
           if [ -z "$PREV_TAG" ]; then
-            echo "No previous tag found, skipping dependency enrichment."
+            echo "No previous stable tag found, skipping dependency enrichment."
             exit 0
           fi
 
-          # Collect unique "fix(deps)" packages from Renovate commits since last tag
+          echo "Scanning Renovate commits since stable tag: $PREV_TAG"
+
+          # Collect unique "fix(deps)" packages from Renovate commits since last stable tag
           # Format: "fix(deps): update dependency <name> to <version>"
           # git log outputs newest-first, so sort -u keeps the latest version per package
           DEPS=$(git log "$PREV_TAG"..HEAD --author="renovate" --oneline \
@@ -144,8 +147,9 @@ jobs:
 
           echo "Notable dependency updates: $DEPS"
 
-          # Replace the generic placeholder with the enriched version
-          sed -i "s/- \*\*Dependencies\*\*: Dependency updates\./- **Dependencies**: Dependency updates ($DEPS)./" CHANGELOG.md
+          # Replace the dependency line — matches both the generic placeholder
+          # and an already-enriched line from a previous beta
+          sed -i "s/- \*\*Dependencies\*\*: Dependency updates\( ([^)]*)\)\?\\./- **Dependencies**: Dependency updates ($DEPS)./" CHANGELOG.md
 
       - name: Commit and push bumped version
         if: steps.bump.outputs.did_bump == 'true'
