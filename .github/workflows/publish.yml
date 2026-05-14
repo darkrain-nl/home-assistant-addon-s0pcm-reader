@@ -64,6 +64,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          fetch-depth: 0
           fetch-tags: true
           token: ${{ secrets.BETA_SYNC_TOKEN }}
 
@@ -117,6 +118,39 @@ jobs:
             echo "did_bump=false" >> $GITHUB_OUTPUT
             echo "did_bump=false" >> $GITHUB_ENV
           fi
+
+      - name: Enrich CHANGELOG dependency line
+        if: steps.bump.outputs.did_bump == 'true'
+        run: |
+          # Find the last STABLE tag to scope the commit range (skip beta tags)
+          # This captures all Renovate commits across the entire beta cycle
+          PREV_TAG=$(git describe --tags --abbrev=0 --exclude "*-b*" HEAD 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous stable tag found, skipping dependency enrichment."
+            exit 0
+          fi
+
+          echo "Scanning Renovate commits since stable tag: $PREV_TAG"
+
+          # Collect unique "fix(deps)" packages from Renovate commits since last stable tag
+          # Format: "fix(deps): update dependency <name> to <version>"
+          # git log outputs newest-first, so sort -u keeps the latest version per package
+          DEPS=$(git log "$PREV_TAG"..HEAD --author="renovate" --oneline \
+            | grep "^[a-f0-9]* fix(deps):" \
+            | sed -n 's/.*update dependency \(.*\) to \(.*\)/\1 \2/p' \
+            | sort -u -k1,1 \
+            | awk '{printf "%s%s %s", sep, $1, $2; sep=", "}')
+
+          if [ -z "$DEPS" ]; then
+            echo "No notable dependency updates found, keeping generic line."
+            exit 0
+          fi
+
+          echo "Notable dependency updates: $DEPS"
+
+          # Replace the dependency line (first occurrence only — the current release entry)
+          # Matches both the generic placeholder and an already-enriched line from a previous beta
+          sed -i "0,/- \*\*Dependencies\*\*: Dependency updates\( ([^)]*)\)\?\\./s//- **Dependencies**: Dependency updates ($DEPS)./" CHANGELOG.md
 
       - name: Commit and push bumped version
         if: steps.bump.outputs.did_bump == 'true'
@@ -366,7 +400,7 @@ jobs:
     name: Sync to Beta Repository
     needs: [check, manifest, release]
     runs-on: ubuntu-latest
-    if: github.ref_name == 'beta'
+    if: github.ref_name == 'beta' || github.ref_name == 'main'
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
