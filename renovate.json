@@ -8,6 +8,7 @@
         ":disableDependencyDashboard",
         ":rebaseStalePrs"
     ],
+    "minimumReleaseAge": "3 days",
     "baseBranchPatterns": [
         "dev"
     ],
@@ -41,6 +42,10 @@
         }
     ],
     "packageRules": [
+        {
+            "matchManagers": ["github-actions"],
+            "minimumReleaseAge": "5 days"
+        },
         {
             "matchPackageNames": [
                 "ghcr.io/home-assistant/**"
