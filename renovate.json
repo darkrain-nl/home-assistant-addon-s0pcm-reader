@@ -43,7 +43,9 @@
     ],
     "packageRules": [
         {
-            "matchManagers": ["github-actions"],
+            "matchManagers": [
+                "github-actions"
+            ],
             "minimumReleaseAge": "5 days"
         },
         {
