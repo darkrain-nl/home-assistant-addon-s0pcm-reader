@@ -21,6 +21,7 @@ test = [
 
 [tool.uv]
 index-strategy = "unsafe-best-match"
+exclude-newer = "3 days"
 
 [tool.ruff]
 # Same as Home Assistant
