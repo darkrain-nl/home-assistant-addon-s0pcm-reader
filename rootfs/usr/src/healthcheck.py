@@ -27,7 +27,12 @@ def is_process_running(process_name: str = PROCESS_NAME) -> bool:
                 if process_name in cmdline:
                     return True
             except OSError, PermissionError:
-                continue
+                try:
+                    comm = (entry / "comm").read_text(errors="replace").strip()
+                    if "python" in comm:
+                        return True
+                except OSError, PermissionError:
+                    continue
     except OSError:
         return False
 
