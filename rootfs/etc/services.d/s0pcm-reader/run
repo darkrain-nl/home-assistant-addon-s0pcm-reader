@@ -38,4 +38,5 @@ fi
 
 echo "$(date +'%Y-%m-%d %H:%M:%S,000') INFO: Starting S0PCM Reader..."
 export S0PCM_READER_VERSION=$(bashio::addon.version)
-exec python3 /usr/src/s0pcm_reader.py
+chown -R s0pcm:s0pcm /data
+exec s6-setuidgid s0pcm python3 /usr/src/s0pcm_reader.py
