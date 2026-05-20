@@ -8,9 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Dependencies**: Dependency updates
 
-### Security
-- **AppArmor Profile**: Hardened the AppArmor profile by replacing the global `file,` capability with explicit directory whitelisting for improved container isolation.
-
 ## [4.3.3] - 2026-05-14
 ### Changed
 - **Dependencies**: Dependency updates (serialx v1.8.0).
