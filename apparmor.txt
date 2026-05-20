@@ -3,21 +3,21 @@
 profile s0pcm_reader flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
   
-  # Network and Process Management
-  network,
+  # Capabilities
+  file,
   signal,
+  network,
 
   # S6-Overlay
-  /init rwix,
-  /bin/{,**} rwix,
-  /usr/bin/{,**} rwix,
-  /run/{s6,s6-rc*,service}/{,**} rwix,
-  /package/{,**} rwix,
-  /command/{,**} rwix,
-  /etc/services.d/{,**} rwix,
-  /etc/cont-init.d/{,**} rwix,
-  /etc/cont-finish.d/{,**} rwix,
-  /etc/s6-overlay/{,**} rwix,
+  /init ix,
+  /bin/** ix,
+  /usr/bin/** ix,
+  /run/{s6,s6-rc*,service}/** ix,
+  /package/** ix,
+  /command/** ix,
+  /etc/services.d/** ix,
+  /etc/cont-init.d/** ix,
+  /etc/cont-finish.d/** rwix,
   /run/{,**} rwk,
   /dev/tty rw,
   /dev/tty* rw,
@@ -25,18 +25,9 @@ profile s0pcm_reader flags=(attach_disconnected,mediate_deleted) {
   /dev/serial/by-path/** rw,
 
   # Bashio
-  /usr/lib/bashio/{,**} rwix,
-  /tmp/{,**} rw,
-
-  # Python Runtime (HA base image installs to /usr/local/)
-  /usr/local/bin/{,**} rwix,
-  /usr/local/lib/{,**} r,
-  /usr/lib/{,**} r,
-
-  # Healthcheck (/proc scanning)
-  @{PROC}/{,**} r,
+  /usr/lib/bashio/** ix,
+  /tmp/** rw,
 
   # Access to options.json and other files within your app
-  /data/{,**} rw,
-  /usr/src/{,**} rwix,
+  /data/** rw,
 }
