@@ -20,4 +20,4 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     chown -R s0pcm:s0pcm /usr/src
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python3 /usr/src/healthcheck.py || exit 1
+    CMD s6-setuidgid s0pcm python3 /usr/src/healthcheck.py || exit 1
