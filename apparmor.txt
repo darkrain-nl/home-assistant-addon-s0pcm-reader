@@ -3,20 +3,19 @@
 profile s0pcm_reader flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
   
-  # Networking
-  network inet,
-  network inet6,
-  network unix,
+  # Network and Process Management
+  network,
+  signal,
 
   # S6-Overlay
-  /init ix,
+  /init rwix,
   /bin/** ix,
   /usr/bin/** ix,
   /run/{s6,s6-rc*,service}/** ix,
   /package/** ix,
   /command/** ix,
-  /etc/services.d/** ix,
-  /etc/cont-init.d/** ix,
+  /etc/services.d/** rwix,
+  /etc/cont-init.d/** rwix,
   /etc/cont-finish.d/** rwix,
   /run/{,**} rwk,
   /dev/tty rw,
