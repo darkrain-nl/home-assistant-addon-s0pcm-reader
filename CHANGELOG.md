@@ -9,8 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependencies**: Dependency updates
 
 ### Security
-- **AppArmor Profile**: Hardened the AppArmor profile by stripping the dangerous global `file,` capability, explicitly whitelisting only the required S6-overlay and application directories for maximum container isolation.
-- **Root Privileges**: Hardened the Docker container by executing the main Python application as a restricted, non-root `s0pcm` user (via `s6-setuidgid`) while securely retaining serial port access through the `dialout` group.
+- **AppArmor Profile**: Hardened the AppArmor profile by replacing the global `file,` capability with explicit directory whitelisting for improved container isolation.
 
 ## [4.3.3] - 2026-05-14
 ### Changed
