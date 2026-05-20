@@ -25,10 +25,18 @@ profile s0pcm_reader flags=(attach_disconnected,mediate_deleted) {
   /dev/serial/by-path/** rw,
 
   # Bashio
-  /usr/lib/bashio/** rwix,
-  /tmp/** rw,
+  /usr/lib/bashio/{,**} rwix,
+  /tmp/{,**} rw,
+
+  # Python Runtime (HA base image installs to /usr/local/)
+  /usr/local/bin/{,**} rwix,
+  /usr/local/lib/{,**} r,
+  /usr/lib/{,**} r,
+
+  # Healthcheck (/proc scanning)
+  @{PROC}/{,**} r,
 
   # Access to options.json and other files within your app
-  /data/** rw,
-  /usr/src/** rw,
+  /data/{,**} rw,
+  /usr/src/{,**} rwix,
 }
