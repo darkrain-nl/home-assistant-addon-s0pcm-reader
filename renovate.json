@@ -30,7 +30,7 @@
         "schedule": [
             "before 5am on monday"
         ],
-        "minimumReleaseAge": "0 days"
+        "minimumReleaseAge": null
     },
     "customManagers": [
         {
@@ -67,7 +67,7 @@
             "schedule": [
                 "before 5am on monday"
             ],
-            "minimumReleaseAge": "0 days",
+            "minimumReleaseAge": null,
             "automerge": true,
             "automergeType": "pr"
         }
