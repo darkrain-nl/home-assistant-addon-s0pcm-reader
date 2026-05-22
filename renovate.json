@@ -53,6 +53,17 @@
                 "ghcr.io/home-assistant/**"
             ],
             "groupName": "Home Assistant Base Images"
+        },
+        {
+            "description": "Automerge uv digest updates weekly to prevent perpetual force-push cycles",
+            "matchPackageNames": [
+                "ghcr.io/astral-sh/uv"
+            ],
+            "schedule": [
+                "before 5am on monday"
+            ],
+            "automerge": true,
+            "automergeType": "pr"
         }
     ]
 }
