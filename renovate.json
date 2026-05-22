@@ -8,7 +8,6 @@
         ":disableDependencyDashboard"
     ],
     "rebaseWhen": "conflicted",
-    "minimumReleaseAge": "3 days",
     "baseBranchPatterns": [
         "dev"
     ],
@@ -29,8 +28,7 @@
         "automerge": true,
         "schedule": [
             "before 5am on monday"
-        ],
-        "minimumReleaseAge": null
+        ]
     },
     "customManagers": [
         {
@@ -47,6 +45,12 @@
         }
     ],
     "packageRules": [
+        {
+            "matchDatasources": [
+                "pypi"
+            ],
+            "minimumReleaseAge": "3 days"
+        },
         {
             "matchManagers": [
                 "github-actions"
@@ -67,7 +71,6 @@
             "schedule": [
                 "before 5am on monday"
             ],
-            "minimumReleaseAge": null,
             "automerge": true,
             "automergeType": "pr"
         }
