@@ -66,6 +66,7 @@
             "schedule": [
                 "before 5am on monday"
             ],
+            "minimumReleaseAge": "0 days",
             "automerge": true,
             "automergeType": "pr"
         }
