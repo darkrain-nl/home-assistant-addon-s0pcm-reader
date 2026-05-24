@@ -5,10 +5,9 @@
         "config:recommended",
         ":separateMajorReleases",
         ":combinePatchMinorReleases",
-        ":disableDependencyDashboard",
-        ":rebaseStalePrs"
+        ":disableDependencyDashboard"
     ],
-    "minimumReleaseAge": "3 days",
+    "rebaseWhen": "conflicted",
     "baseBranchPatterns": [
         "dev"
     ],
@@ -25,7 +24,11 @@
         ]
     },
     "lockFileMaintenance": {
-        "enabled": true
+        "enabled": true,
+        "automerge": true,
+        "schedule": [
+            "before 5am on monday"
+        ]
     },
     "customManagers": [
         {
@@ -43,6 +46,12 @@
     ],
     "packageRules": [
         {
+            "matchDatasources": [
+                "pypi"
+            ],
+            "minimumReleaseAge": "3 days"
+        },
+        {
             "matchManagers": [
                 "github-actions"
             ],
@@ -53,6 +62,17 @@
                 "ghcr.io/home-assistant/**"
             ],
             "groupName": "Home Assistant Base Images"
+        },
+        {
+            "description": "Automerge Docker digest updates weekly to prevent perpetual force-push cycles",
+            "matchUpdateTypes": [
+                "digest"
+            ],
+            "schedule": [
+                "before 5am on monday"
+            ],
+            "automerge": true,
+            "automergeType": "pr"
         }
     ]
 }
