@@ -64,7 +64,8 @@
             "matchPackageNames": [
                 "ghcr.io/home-assistant/**"
             ],
-            "groupName": "Home Assistant Base Images"
+            "groupName": "Home Assistant Base Images",
+            "pinDigests": false
         },
         {
             "description": "Automerge Docker digest updates weekly to prevent perpetual force-push cycles",
