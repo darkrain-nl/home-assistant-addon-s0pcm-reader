@@ -5,7 +5,9 @@
         "config:recommended",
         ":separateMajorReleases",
         ":combinePatchMinorReleases",
-        ":disableDependencyDashboard"
+        ":disableDependencyDashboard",
+        "helpers:pinGitHubActionDigests",
+        "docker:pinDigests"
     ],
     "rebaseWhen": "conflicted",
     "baseBranchPatterns": [
