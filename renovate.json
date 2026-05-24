@@ -6,7 +6,8 @@
         ":separateMajorReleases",
         ":combinePatchMinorReleases",
         ":disableDependencyDashboard",
-        "helpers:pinGitHubActionDigests"
+        "helpers:pinGitHubActionDigests",
+        "docker:pinDigests"
     ],
     "rebaseWhen": "conflicted",
     "baseBranchPatterns": [
