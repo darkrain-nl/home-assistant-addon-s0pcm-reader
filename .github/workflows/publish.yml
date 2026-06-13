@@ -438,8 +438,8 @@ jobs:
           cd main-repo
           
           # Setup git config
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
           
           git remote rm origin || true
           git add config.yaml repository.yaml build.yaml README.md

@@ -39,7 +39,7 @@ class SerialConfig(BaseModel):
     parity: serialx.Parity = serialx.PARITY_EVEN
     stopbits: serialx.StopBits = serialx.STOPBITS_ONE
     bytesize: int = serialx.SEVENBITS
-    timeout: float | None = None
+    timeout: float | None = 30.0
     connect_retry: int = 5
 
 

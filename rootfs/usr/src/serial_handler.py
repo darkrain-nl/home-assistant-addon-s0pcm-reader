@@ -168,6 +168,10 @@ class TaskReadSerial(threading.Thread):
             meter.total += delta
             meter.today += delta
 
+        # Clamp to 32-bit signed integer max (matches HA number entity max: 2,147,483,647)
+        meter.total = min(meter.total, 2_147_483_647)
+        meter.today = min(meter.today, 2_147_483_647)
+
     def _read_loop(self, ser: serialx.BaseSerial) -> None:
         """
         Continuous read loop from serial port.

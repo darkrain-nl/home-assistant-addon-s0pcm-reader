@@ -167,10 +167,10 @@ class TaskDoMQTT(threading.Thread):
                 return
 
             new_name = msg.payload.decode("utf-8").strip()
-            # Sanitize MQTT special characters from meter names
+            # Sanitize MQTT special characters and non-printable characters from meter names
             for char in "/+#":
                 new_name = new_name.replace(char, "")
-            new_name = new_name.strip()
+            new_name = "".join(c for c in new_name if c.isprintable())
             if not new_name:
                 new_name = None
 
