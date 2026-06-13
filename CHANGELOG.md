@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.4.0-b0] - 2026-06-13
+## [4.4.0-b1] - 2026-06-13
 ### Security
 - **Integer Overflow Guard**: Added 32-bit signed integer clamping to meter `total` and `today` accumulators, preventing corrupt serial data from exceeding the HA number entity maximum (2,147,483,647).
 - **MQTT Topic Sanitization**: Strengthened meter name sanitization by filtering non-printable characters (control chars, null bytes) in both MQTT command handling and discovery topic construction, preventing log injection and topic corruption.
