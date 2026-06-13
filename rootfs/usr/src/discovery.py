@@ -142,9 +142,10 @@ def send_meter_discovery(mqttc: mqtt.Client, context: AppContext, meter_id: int,
     }  # Link to global device
     raw_name = meter_state.name
     instancename = str(meter_id) if not raw_name or str(raw_name).lower() == "none" else str(raw_name)
-    # Defensive: strip MQTT special characters from topic names
+    # Defensive: strip MQTT special characters and non-printable characters from topic names
     for char in "/+#":
         instancename = instancename.replace(char, "")
+    instancename = "".join(c for c in instancename if c.isprintable())
 
     # Purge obsolete diagnostic sensors (PPS and Activity)
     for p_type, p_key in [("binary_sensor", "activity"), ("sensor", "pps")]:
