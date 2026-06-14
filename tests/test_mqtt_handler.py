@@ -509,6 +509,227 @@ class TestMQTTAdditionalCoverage:
         assert _resolve_meter_id(mqtt_context, "NonExistent") is None
         assert _resolve_meter_id(mqtt_context, "1") == 1  # Numeric ID
 
+    async def test_message_listener(self, mqtt_context, mocker):
+        """Test _message_listener processes set/name commands."""
+        from mqtt_handler import MqttTaskState, _message_listener
+
+        mock_client = AsyncMock()
+        task_state = MqttTaskState()
+
+        # Create mock messages
+        msg1 = MagicMock()
+        msg1.topic = "s0pcmreader/1/total/set"
+        msg1.payload = b"2000"
+
+        msg2 = MagicMock()
+        msg2.topic = "s0pcmreader/2/name/set"
+        msg2.payload = b"Gas"
+
+        async def mock_messages():
+            yield msg1
+            yield msg2
+
+        mock_client.messages = mock_messages()
+
+        mock_handle_set = mocker.patch("mqtt_handler._handle_set_command", new_callable=AsyncMock)
+        mock_handle_name_set = mocker.patch("mqtt_handler._handle_name_set", new_callable=AsyncMock)
+
+        await _message_listener(mqtt_context, mock_client, task_state)
+
+        mock_handle_set.assert_called_once_with(mqtt_context, "s0pcmreader/1/total/set", b"2000")
+        mock_handle_name_set.assert_called_once_with(
+            mqtt_context, mock_client, task_state, "s0pcmreader/2/name/set", b"Gas"
+        )
+
+    async def test_publish_loop_global_discovery(self, mqtt_context, mocker):
+        """Test that _publish_loop sends global discovery and cleans up ghost meters."""
+        from mqtt_handler import MqttTaskState, _publish_loop
+
+        mock_client = AsyncMock()
+        task_state = MqttTaskState()
+
+        mock_send_global = mocker.patch("mqtt_handler.discovery.send_global_discovery", new_callable=AsyncMock)
+        mock_cleanup = mocker.patch("mqtt_handler.discovery.cleanup_meter_discovery", new_callable=AsyncMock)
+        mocker.patch("mqtt_handler.discovery.send_meter_discovery", new_callable=AsyncMock)
+
+        # Make trigger event fire once then cancel
+        call_count = 0
+
+        async def trigger_once():
+            nonlocal call_count
+            call_count += 1
+            if call_count > 1:
+                raise asyncio.CancelledError()
+
+        mqtt_context.trigger_event.wait = trigger_once
+        mqtt_context.trigger_event.set()
+
+        with contextlib.suppress(asyncio.CancelledError):
+            await _publish_loop(mqtt_context, mock_client, task_state)
+
+        assert mock_send_global.call_count == 1
+        assert mock_cleanup.call_count == 5
+        assert task_state.global_discovery_sent is True
+
+    async def test_publish_loop_delayed_clear(self, mqtt_context, mocker):
+        """Test that delayed_clear background task clears the MQTT error."""
+        from mqtt_handler import MqttTaskState, _publish_loop
+
+        mock_client = AsyncMock()
+        task_state = MqttTaskState()
+        task_state.global_discovery_sent = True
+
+        # Set error message on context
+        mqtt_context.set_error("MQTT Connect Fail", category="mqtt", trigger_event=False)
+
+        # Mock asyncio.sleep dynamically using original sleep to yield control properly
+        original_sleep = asyncio.sleep
+
+        async def mock_sleep(delay, result=None):
+            await original_sleep(0)
+
+        mocker.patch("asyncio.sleep", new=mock_sleep)
+
+        # Trigger event once then cancel
+        call_count = 0
+
+        async def trigger_once():
+            nonlocal call_count
+            call_count += 1
+            if call_count > 1:
+                raise asyncio.CancelledError()
+
+        mqtt_context.trigger_event.wait = trigger_once
+        mqtt_context.trigger_event.set()
+
+        with contextlib.suppress(asyncio.CancelledError):
+            await _publish_loop(mqtt_context, mock_client, task_state)
+
+        # Verify the error was published
+        mock_client.publish.assert_any_call("s0pcmreader/error", "MQTT Connect Fail", retain=True)
+
+        # Ensure the background task completed and called set_error(None)
+        await original_sleep(0.05)  # yield control so task executes
+
+        assert mqtt_context.lasterror_mqtt is None
+
+    async def test_publish_loop_publish_error_exception(self, mqtt_context, mocker):
+        """Test that _publish_loop logs an error when publish fails."""
+        from mqtt_handler import MqttTaskState, _publish_loop
+
+        mock_client = AsyncMock()
+
+        async def publish_side_effect(topic, *args, **kwargs):
+            if topic.endswith("/error"):
+                raise Exception("Publish error")
+
+        mock_client.publish = AsyncMock(side_effect=publish_side_effect)
+        task_state = MqttTaskState()
+
+        # Make error_msg different to trigger publish
+        mqtt_context.set_error("Connect fail", category="mqtt", trigger_event=False)
+
+        mocker.patch("mqtt_handler.logger.error")
+
+        # Trigger event once then cancel
+        call_count = 0
+
+        async def trigger_once():
+            nonlocal call_count
+            call_count += 1
+            if call_count > 1:
+                raise asyncio.CancelledError()
+
+        mqtt_context.trigger_event.wait = trigger_once
+        mqtt_context.trigger_event.set()
+
+        with contextlib.suppress(asyncio.CancelledError):
+            await _publish_loop(mqtt_context, mock_client, task_state)
+
+        import mqtt_handler
+
+        mqtt_handler.logger.error.assert_called_with("MQTT Publish Failed for error: Publish error")
+
+    async def test_mqtt_task_tls_build_fail(self, mqtt_context, mocker):
+        """Test that mqtt_task retries and sleeps when TLS configuration fails."""
+        from mqtt_handler import mqtt_task
+
+        mqtt_context.config = make_test_config(tls=True)
+        mocker.patch("mqtt_handler._build_ssl_context", return_value=None)
+        mocker.patch("asyncio.sleep", side_effect=[None, asyncio.CancelledError()])
+
+        # CancelledError is caught internally and logs cancellation
+        await mqtt_task(mqtt_context)
+
+    async def test_mqtt_task_connection_success(self, mqtt_context, mocker):
+        """Test that mqtt_task connects, runs recovery, and sets up TaskGroup listeners successfully on happy path."""
+        from mqtt_handler import mqtt_task
+
+        mock_client = AsyncMock()
+        # Mock the context manager
+        mock_client_cm = MagicMock()
+        mock_client_cm.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_cm.__aexit__ = AsyncMock(return_value=None)
+        mocker.patch("mqtt_handler.aiomqtt.Client", return_value=mock_client_cm)
+
+        # Mock StateRecoverer
+        mock_recoverer = MagicMock()
+        mock_recoverer.run = AsyncMock()
+        mocker.patch("mqtt_handler.StateRecoverer", return_value=mock_recoverer)
+
+        # Mock TaskGroup to instantly raise CancelledError to break out after starting tasks
+        class MockTaskGroup:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                raise asyncio.CancelledError()
+
+            def create_task(self, coro):
+                pass
+
+        mocker.patch("asyncio.TaskGroup", return_value=MockTaskGroup())
+
+        # CancelledError is caught internally and logs cancellation
+        await mqtt_task(mqtt_context)
+
+        # Verify recovery ran, status published, subscriptions made
+        mock_recoverer.run.assert_called_once()
+        mock_client.publish.assert_any_call("s0pcmreader/status", "online", retain=True)
+        mock_client.subscribe.assert_any_call("s0pcmreader/+/total/set")
+        mock_client.subscribe.assert_any_call("s0pcmreader/+/name/set")
+        assert mqtt_context.recovery_event.is_set()
+
+    async def test_mqtt_task_connection_fail(self, mqtt_context, mocker):
+        """Test that mqtt_task sets error state and retries on broker connection failure."""
+        from mqtt_handler import mqtt_task
+
+        mock_client_cm = MagicMock()
+        mock_client_cm.__aenter__ = AsyncMock(side_effect=Exception("Connection Failed"))
+        mocker.patch("mqtt_handler.aiomqtt.Client", return_value=mock_client_cm)
+
+        mocker.patch("asyncio.sleep", side_effect=asyncio.CancelledError)
+
+        # CancelledError is caught internally and logs cancellation
+        await mqtt_task(mqtt_context)
+
+        assert "MQTT connection failed" in mqtt_context.lasterror_mqtt
+
+    async def test_mqtt_task_fatal_exception_outer(self, mocker):
+        """Test outer Exception handler in mqtt_task."""
+        from mqtt_handler import mqtt_task
+
+        context = state_module.get_context()
+        context.config = None  # This will trigger AttributeError when accessing context.config.mqtt.tls
+
+        mocker.patch("mqtt_handler.logger.error")
+
+        await mqtt_task(context)
+
+        import mqtt_handler
+
+        mqtt_handler.logger.error.assert_called_with("Fatal MQTT exception", exc_info=True)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
