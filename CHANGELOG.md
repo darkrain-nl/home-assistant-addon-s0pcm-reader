@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.0.0-b1] - 2026-06-14
+## [5.0.0-b2] - 2026-06-14
 ### Added
 - **Asyncio Architecture**: Complete rewrite of the application core to run on a single-threaded `asyncio` event loop. Replaced `paho-mqtt` with `aiomqtt` and ported the serial read loop to use non-blocking `serialx.AsyncSerial`. This eliminates background threads and locking primitives (`threading.Lock`), resolving potential race conditions and improving system resource utilization.
 - **Improved Reconnection & Error State Syncing**: Added resilient MQTT reconnection logic using `asyncio.TaskGroup`. The connection error state is now safely retained upon connection failure and published to the MQTT broker immediately upon successful reconnection, prior to clearing it via a delayed timer.
