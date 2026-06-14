@@ -28,7 +28,7 @@ options:
     tls_port: 8883
   log_level: info
 schema:
-  device: device(subsystem=tty)
+  device: device(subsystem=tty)?
   mqtt:
     host: str?
     port: port?

@@ -106,7 +106,7 @@ class TestConfigCoverage:
         ):
             config_module.read_config()
             assert mock_logger.called
-            assert "Failed to load" in mock_logger.call_args[0][0]
+            assert any("Failed to load" in str(c) for c in mock_logger.call_args_list)
 
     def test_read_config_mqtt_discovery_log(self, mocker):
         """Test logging when MQTT service discovery is used (line 126)."""
@@ -132,6 +132,72 @@ class TestConfigCoverage:
         model = config_module.read_config()
         assert model.mqtt.version == "5.0"
         assert isinstance(model.mqtt.version, str)
+
+
+class TestAutoDetectSerialPort:
+    def test_auto_detect_no_ports(self, mocker):
+        mocker.patch("serialx.list_serial_ports", return_value=[])
+        with patch("config.logger.warning") as mock_warn:
+            port = config_module._auto_detect_serial_port()
+            assert port == "/dev/ttyACM0"
+            mock_warn.assert_called_once()
+            assert "No serial ports detected" in mock_warn.call_args[0][0]
+
+    def test_auto_detect_ch340_vid(self, mocker):
+        mock_port = mocker.MagicMock()
+        mock_port.device = "/dev/ttyUSB99"
+        mock_port.vid = 0x1A86
+        mock_port.manufacturer = "CH340 Manufacturer"
+        mocker.patch("serialx.list_serial_ports", return_value=[mock_port])
+        port = config_module._auto_detect_serial_port()
+        assert port == "/dev/ttyUSB99"
+
+    def test_auto_detect_ch340_name(self, mocker):
+        mock_port = mocker.MagicMock()
+        mock_port.device = "/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0"
+        mock_port.vid = 0x1234
+        mock_port.manufacturer = None
+        mocker.patch("serialx.list_serial_ports", return_value=[mock_port])
+        port = config_module._auto_detect_serial_port()
+        assert port == "/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0"
+
+    def test_auto_detect_generic_usb(self, mocker):
+        mock_port = mocker.MagicMock()
+        mock_port.device = "/dev/serial/by-id/usb-FTDI_FT232R-if00-port0"
+        mock_port.vid = 0x0403
+        mock_port.manufacturer = "FTDI"
+        mock_port.description = "FTDI USB Serial"
+
+        mocker.patch("serialx.list_serial_ports", return_value=[mock_port])
+        port = config_module._auto_detect_serial_port()
+        assert port == "/dev/serial/by-id/usb-FTDI_FT232R-if00-port0"
+
+    def test_auto_detect_fallback_first(self, mocker):
+        mock_port = mocker.MagicMock()
+        mock_port.device = "/dev/ttyS0"
+        mock_port.vid = None
+        mock_port.manufacturer = None
+        mock_port.description = "Standard Serial Port"
+
+        mocker.patch("serialx.list_serial_ports", return_value=[mock_port])
+        port = config_module._auto_detect_serial_port()
+        assert port == "/dev/ttyS0"
+
+    def test_auto_detect_exception(self, mocker):
+        mocker.patch("serialx.list_serial_ports", side_effect=RuntimeError("Scan error"))
+        with patch("config.logger.error") as mock_error:
+            port = config_module._auto_detect_serial_port()
+            assert port == "/dev/ttyACM0"
+            mock_error.assert_called_once()
+            assert "Exception during port scan" in mock_error.call_args[0][0]
+
+    def test_read_config_triggers_auto_detect(self, mocker):
+        mocker.patch("serialx.list_serial_ports", return_value=[])
+        mocker.patch("pathlib.Path.exists", return_value=True)
+        mocker.patch("pathlib.Path.read_text", return_value=json.dumps({"device": None}))
+
+        model = config_module.read_config()
+        assert model.serial.port == "/dev/ttyACM0"
 
 
 if __name__ == "__main__":

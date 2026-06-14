@@ -45,7 +45,7 @@ services:
 ## 3. Configuration
 
 ### General Options
-- **Device**: Path to the USB device (e.g., `/dev/ttyACM0`).
+- **Device**: (Optional) Path to the USB device (e.g., `/dev/ttyACM0`). If left blank or set to `null` (default), the app will automatically scan and select the connected S0PCM reader (CH340 chip).
 - **Log Level**: (Default: `info`) Set logging verbosity (`debug`, `info`, `warning`, `error`, `critical`).
 
 ### Connection Settings
