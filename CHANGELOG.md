@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.4.0-b1] - 2026-06-13
+## [5.0.0-b0] - 2026-06-14
+### Added
+- **Asyncio Architecture**: Complete rewrite of the application core to run on a single-threaded `asyncio` event loop. Replaced `paho-mqtt` with `aiomqtt` and ported the serial read loop to use non-blocking `serialx.AsyncSerial`. This eliminates background threads and locking primitives (`threading.Lock`), resolving potential race conditions and improving system resource utilization.
+- **Improved Reconnection & Error State Syncing**: Added resilient MQTT reconnection logic using `asyncio.TaskGroup`. The connection error state is now safely retained upon connection failure and published to the MQTT broker immediately upon successful reconnection, prior to clearing it via a delayed timer.
+
 ### Security
 - **Integer Overflow Guard**: Added 32-bit signed integer clamping to meter `total` and `today` accumulators, preventing corrupt serial data from exceeding the HA number entity maximum (2,147,483,647).
 - **MQTT Topic Sanitization**: Strengthened meter name sanitization by filtering non-printable characters (control chars, null bytes) in both MQTT command handling and discovery topic construction, preventing log injection and topic corruption.
@@ -13,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Serial Timeout**: Changed default serial read timeout from infinite (`None`) to 30 seconds, ensuring the serial thread can detect hardware hangs and respond to shutdown signals.
 - **CI/CD**: Fixed `git config --global` scope in the `sync-to-beta-repo` CI job to use local repository scope for consistency and OpenSSF best practices.
-- **Dependencies**: Dependency updates.
+- **Dependencies**: Replaced `paho-mqtt` dependency with `aiomqtt` and updated other dependencies.
 
 ## [4.3.4] - 2026-06-13
 ### Changed
