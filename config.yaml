@@ -11,8 +11,8 @@ init: false
 startup: application
 hassio_api: true
 homeassistant_api: true
+uart: true
 options:
-  device: null
   mqtt:
     base_topic: "s0pcmreader"
     protocol: "5.0"

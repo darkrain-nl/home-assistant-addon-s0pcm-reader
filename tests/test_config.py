@@ -199,6 +199,14 @@ class TestAutoDetectSerialPort:
         model = config_module.read_config()
         assert model.serial.port == "/dev/ttyACM0"
 
+    def test_read_config_triggers_auto_detect_missing_key(self, mocker):
+        mocker.patch("serialx.list_serial_ports", return_value=[])
+        mocker.patch("pathlib.Path.exists", return_value=True)
+        mocker.patch("pathlib.Path.read_text", return_value=json.dumps({}))
+
+        model = config_module.read_config()
+        assert model.serial.port == "/dev/ttyACM0"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

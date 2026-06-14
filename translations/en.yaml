@@ -1,7 +1,7 @@
 configuration:
   device:
     name: "Serial Port"
-    description: "The serial port device where your S0PCM is connected (Default: /dev/ttyACM0)."
+    description: "Optional. The serial port device where your S0PCM is connected (Default: auto-detect). Enable 'Show unused optional configuration options' to manually select a port."
   mqtt:
     name: "Basic MQTT Settings"
     description: "Leave these fields empty if you use Home Assistant OS with the Mosquitto broker App! We will automatically connect."
