@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **USB Port Auto-Detection**: Enumerate and automatically select S0PCM serial ports (CH340 chipset/Vendor ID `0x1a86`) when no device path is manually specified, falling back to any USB serial or standard interface. Made the `device` configuration parameter optional in the Home Assistant configuration schema to allow leaving it empty for auto-detection.
 - **Improved Reconnection & Error State Syncing**: Added resilient MQTT reconnection logic using `asyncio.TaskGroup`. The connection error state is now safely retained upon connection failure and published to the MQTT broker immediately upon successful reconnection, prior to clearing it via a delayed timer.
 
+### Fixed
+- **USB Auto-Detection Schema**: Removed `device: null` default option to prevent voluptuous schema validation errors when saving configuration with an unselected serial port.
+- **Add-on Hardware Access**: Added `uart: true` permission flag to container configuration to allow scanning and mapping host USB serial interfaces inside the container.
+
 ### Security
 - **Integer Overflow Guard**: Added 32-bit signed integer clamping to meter `total` and `today` accumulators, preventing corrupt serial data from exceeding the HA number entity maximum (2,147,483,647).
 - **MQTT Topic Sanitization**: Strengthened meter name sanitization by filtering non-printable characters (control chars, null bytes) in both MQTT command handling and discovery topic construction, preventing log injection and topic corruption.
