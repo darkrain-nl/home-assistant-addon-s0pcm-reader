@@ -2,12 +2,12 @@
 Shared pytest fixtures for S0PCM Reader tests.
 """
 
+import asyncio
 import json
 import os
 import sys
 import tempfile
-import threading
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -21,15 +21,9 @@ import state as state_module
 def setup_s0pcm_globals():
     """Ensure global variables expected by s0pcm_reader are initialized."""
     # Lazy import to avoid coverage issues
-    import s0pcm_reader
 
     # Use the real context from state_module
-    context = state_module.get_context()
-    # Register trigger with context
-    trigger = threading.Event()
-    context.register_trigger(trigger)
-    # Expose trigger on s0pcm_reader module if main tests expect it
-    s0pcm_reader.trigger = trigger
+    state_module.get_context()
 
 
 @pytest.fixture
@@ -39,10 +33,13 @@ def mock_serial(mocker):
 
 
 @pytest.fixture
-def mock_mqtt_client(mocker):
-    """Mock paho.mqtt.client.Client class."""
-    mock = MagicMock()
-    mocker.patch("paho.mqtt.client.Client", return_value=mock)
+def mock_aiomqtt_client():
+    """Create a mock aiomqtt.Client for testing."""
+    mock = AsyncMock()
+    mock.publish = AsyncMock()
+    mock.subscribe = AsyncMock()
+    mock.unsubscribe = AsyncMock()
+    mock.messages = AsyncMock()
     return mock
 
 
@@ -77,33 +74,6 @@ def mock_options_file(temp_config_dir, sample_options):
     with open(options_path, "w") as f:
         json.dump(sample_options, f)
     return options_path
-
-
-@pytest.fixture
-def threading_helpers():
-    """Helper utilities for testing threaded code."""
-
-    class ThreadingHelpers:
-        @staticmethod
-        def create_events():
-            """Create trigger and stopper events."""
-            return threading.Event(), threading.Event()
-
-        @staticmethod
-        def wait_for_thread(thread, timeout=5):
-            """Wait for a thread to finish with timeout."""
-            thread.join(timeout=timeout)
-            return not thread.is_alive()
-
-        @staticmethod
-        def stop_thread(thread, stopper, trigger, timeout=5):
-            """Stop a thread gracefully."""
-            stopper.set()
-            trigger.set()
-            thread.join(timeout=timeout)
-            return not thread.is_alive()
-
-    return ThreadingHelpers()
 
 
 @pytest.fixture
@@ -156,12 +126,13 @@ def reset_global_state():
     """Reset global state before each test."""
     context = state_module.get_context()
     # Use context methods to clear state
-    with context.lock:
-        context.state.reset_state()
-        context.state_share.reset_state()
+    context.state.reset_state()
     context.lasterror_serial = None
     context.lasterror_mqtt = None
     context.lasterror_share = None
     context.config = None
     context.s0pcm_firmware = "Unknown"
+    # Reset asyncio events
+    context.recovery_event = asyncio.Event()
+    context.trigger_event = asyncio.Event()
     yield

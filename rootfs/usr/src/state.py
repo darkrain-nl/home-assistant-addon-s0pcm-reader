@@ -1,12 +1,12 @@
 """
 S0PCM Reader State
 
-Managed global state, threading locks, errors, and measurement data.
+Managed global state, events, errors, and measurement data.
 """
 
+import asyncio
 import datetime
 import logging
-import threading
 from typing import TYPE_CHECKING, Literal, Self
 
 from pydantic import BaseModel, Field
@@ -54,20 +54,19 @@ class AppState(BaseModel):
 
 class AppContext:
     """
-    Application context holding all shared state, locks, and events.
+    Application context holding all shared state and events.
 
-    This class is intended to be passed to components, reducing reliance on global state.
+    In the asyncio architecture, all access happens on the single event loop thread,
+    eliminating the need for locks or deep-copy snapshots.
     """
 
     def __init__(self):
-        # Threading & Events
-        self.lock = threading.RLock()
-        self.recovery_event = threading.Event()
-        self.trigger_event: threading.Event | None = None
+        # Asyncio Events
+        self.recovery_event = asyncio.Event()
+        self.trigger_event = asyncio.Event()
 
-        # Application State
+        # Application State (single copy — no snapshot needed in asyncio)
         self.state = AppState()
-        self.state_share = AppState()  # Snapshot for MQTT
 
         # Configuration
         self.config: ConfigModel | None = None
@@ -81,10 +80,6 @@ class AppContext:
         self.startup_time: str = datetime.datetime.now(datetime.UTC).isoformat()
         self.s0pcm_firmware: str = "Unknown"
         self.s0pcm_reader_version: str = "Unknown"
-
-    def register_trigger(self, event: threading.Event):
-        """Register the main trigger event for MQTT publishing."""
-        self.trigger_event = event
 
     def set_error(
         self,
@@ -120,16 +115,13 @@ class AppContext:
             if self.lasterror_mqtt:
                 errors.append(self.lasterror_mqtt)
 
-            new_error = " | ".join(errors) if errors else None
-
-            with self.lock:
-                self.lasterror_share = new_error
+            self.lasterror_share = " | ".join(errors) if errors else None
 
             if message:
                 log_level = level if level is not None else logging.ERROR
                 logger.log(log_level, f"[{category.upper()}] {message}")
 
-            if trigger_event and self.trigger_event:
+            if trigger_event:
                 self.trigger_event.set()
 
 

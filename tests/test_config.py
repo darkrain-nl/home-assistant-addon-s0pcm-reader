@@ -6,7 +6,6 @@ import json
 import os
 from pathlib import Path
 import sys
-import threading
 from unittest.mock import patch
 
 import pytest
@@ -81,22 +80,20 @@ class TestConfigEdgeCases:
 class TestErrorHandling:
     def test_set_error_behavior(self, mocker):
         """Test SetError sets the shared error and triggers the event, including clearing."""
-        trigger = threading.Event()
         context = state_module.get_context()
-        context.register_trigger(trigger)
         context.lasterror_share = None
-        context.lasterror_serial = None  # Reset internal state too
+        context.lasterror_serial = None
         context.lasterror_mqtt = None
 
         # 1. Set error
         context.set_error("Test Error")
         assert context.lasterror_share == "Test Error"
-        assert trigger.is_set()
+        assert context.trigger_event.is_set()
 
-        trigger.clear()
+        context.trigger_event.clear()
         context.set_error(None)
         assert context.lasterror_share is None
-        assert trigger.is_set()
+        assert context.trigger_event.is_set()
 
 
 class TestConfigCoverage:
@@ -129,6 +126,12 @@ class TestConfigCoverage:
         model = config_module.read_config()
         assert model.mqtt.base_topic == "s0pcmreader"
         assert model.log.level == "INFO"
+
+    def test_read_config_mqtt_version_string(self):
+        """Test that MQTT version is stored as a string."""
+        model = config_module.read_config()
+        assert model.mqtt.version == "5.0"
+        assert isinstance(model.mqtt.version, str)
 
 
 if __name__ == "__main__":

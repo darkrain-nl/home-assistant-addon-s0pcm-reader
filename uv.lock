@@ -3,8 +3,20 @@ revision = 3
 requires-python = ">=3.14"
 
 [options]
-exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
+exclude-newer = "2026-06-11T09:37:23.719466306Z"
 exclude-newer-span = "P3D"
+
+[[package]]
+name = "aiomqtt"
+version = "2.5.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "paho-mqtt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/70/44/cfc58272783a11729462dc6df5adbfeabd084f840f609054ac772ae98c19/aiomqtt-2.5.1.tar.gz", hash = "sha256:25a0a47d157e8f158d2da1110ea4786c0615518751e94f7b04976c977a8ff20d", size = 86641, upload-time = "2026-03-05T18:28:56.421Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/01/9e/5089fa596220bf0dc73deeb23db27904e4b3504986caf08571f6f5cb84a8/aiomqtt-2.5.1-py3-none-any.whl", hash = "sha256:fd58c3593160e4d475d90ce911cdfc4239cd64de96b0ba22edf6c86bd7afa278", size = 16051, upload-time = "2026-03-05T18:28:55.14Z" },
+]
 
 [[package]]
 name = "annotated-types"
@@ -181,6 +193,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-asyncio"
+version = "1.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/43/7c/d36d04db312ecf4298932ef77e6e4a9e8ad017906e24e34f0b0c361a2473/pytest_asyncio-1.4.0.tar.gz", hash = "sha256:c6c0d2259945122819f171a32ecea2c349ead889ee28176caaf492143424be42", size = 58514, upload-time = "2026-05-26T09:56:04.083Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/03/e2/08a497ef684b88559c9cc5f4ad53a37e7b99e727094a86d6ea32536d5d3c/pytest_asyncio-1.4.0-py3-none-any.whl", hash = "sha256:933ca923a23075a87fb7070c0ec272a6848489824d887c85c812670932835aa1", size = 16930, upload-time = "2026-05-26T09:56:02.576Z" },
+]
+
+[[package]]
 name = "pytest-cov"
 version = "7.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -284,10 +308,10 @@ wheels = [
 
 [[package]]
 name = "s0pcm-reader"
-version = "4.4.0b1"
+version = "5.0.0b0"
 source = { virtual = "." }
 dependencies = [
-    { name = "paho-mqtt" },
+    { name = "aiomqtt" },
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "serialx" },
@@ -296,6 +320,7 @@ dependencies = [
 [package.dev-dependencies]
 test = [
     { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
     { name = "pytest-timeout" },
@@ -304,7 +329,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "paho-mqtt", specifier = "==2.1.0" },
+    { name = "aiomqtt", specifier = ">=2.5.1" },
     { name = "pydantic", specifier = "==2.13.4" },
     { name = "pyyaml", specifier = "==6.0.3" },
     { name = "serialx", specifier = "==1.8.1" },
@@ -313,6 +338,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 test = [
     { name = "pytest", specifier = ">=9.0.2" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },

@@ -9,9 +9,7 @@ import argparse
 import json
 import logging
 from pathlib import Path
-from typing import Any
 
-import paho.mqtt.client as mqtt
 from pydantic import BaseModel, Field, SecretStr
 import serialx
 
@@ -53,7 +51,7 @@ class MqttConfig(BaseModel):
     password: SecretStr | None = None
     base_topic: str = "s0pcmreader"
     client_id: str | None = None
-    version: Any = mqtt.MQTTv5
+    version: str = "5.0"
     retain: bool = True
     split_topic: bool = True
     connect_retry: int = 5
@@ -131,8 +129,6 @@ def read_config(
     sec_opts = ha_options.get("security", {})
 
     mqtt_version_str = str(mqtt_opts.get("protocol", "5.0"))
-    version_map = {"3.1": mqtt.MQTTv31, "3.1.1": mqtt.MQTTv311, "5.0": mqtt.MQTTv5}
-    mqtt_version = version_map.get(mqtt_version_str, mqtt.MQTTv5)
 
     tls_ca = sec_opts.get("tls_ca", "")
     if tls_ca:
@@ -151,7 +147,7 @@ def read_config(
             password=mqtt_opts.get("password") or mqtt_service.get("password"),
             base_topic=mqtt_opts.get("base_topic", "s0pcmreader"),
             client_id=mqtt_opts.get("client_id") if mqtt_opts.get("client_id") not in [None, "", "None"] else None,
-            version=mqtt_version,
+            version=mqtt_version_str,
             retain=adv_opts.get("retain", True),
             split_topic=adv_opts.get("split_topic", True),
             discovery=adv_opts.get("discovery", True),
