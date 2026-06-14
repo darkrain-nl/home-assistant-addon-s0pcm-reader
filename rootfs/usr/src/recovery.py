@@ -4,16 +4,16 @@ Recovery Module
 Handles state recovery from MQTT retained messages and Home Assistant REST API.
 """
 
+import asyncio
 import datetime
 import json
 import logging
 import os
 import re
-import time
 from typing import Any
 import urllib.request
 
-import paho.mqtt.client as mqtt
+import aiomqtt
 
 import state as state_module
 import utils
@@ -27,8 +27,8 @@ type EntityStateList = list[dict[str, Any]]
 class StateRecoverer:
     """Helper class to manage the startup state recovery phase."""
 
-    def __init__(self, context: state_module.AppContext, mqttc: mqtt.Client):
-        self.mqttc = mqttc
+    def __init__(self, context: state_module.AppContext, client: aiomqtt.Client):
+        self.client = client
         self.recovered_data = {}  # {identifier: {'total': X}}
         self.recovered_names = {}  # {id: name}
         self.context = context
@@ -70,15 +70,15 @@ class StateRecoverer:
             logger.debug(f"HA API fetch all states failed: {e}")
         return []
 
-    def on_message(self, client, userdata, msg):
-        """Process messages for state recovery."""
+    def _process_message(self, topic: str, payload: bytes) -> None:
+        """Process a single retained message for state recovery."""
         base_topic = self.context.config.mqtt.base_topic
         try:
             # 1. Discovery topics (Name Mapping)
-            if "/config" in msg.topic:
-                payload = json.loads(msg.payload.decode())
-                unique_id = payload.get("unique_id", "")
-                state_topic = payload.get("state_topic", "")
+            if "/config" in topic:
+                decoded = json.loads(payload.decode())
+                unique_id = decoded.get("unique_id", "")
+                state_topic = decoded.get("state_topic", "")
 
                 match_id = re.search(rf"s0pcm_{base_topic}_(\d+)", unique_id)
                 if match_id:
@@ -91,36 +91,31 @@ class StateRecoverer:
                 return
 
             # 2. Data topics
-            topic_parts = msg.topic.split("/")
+            topic_parts = topic.split("/")
             if len(topic_parts) >= 3:
                 suffix = topic_parts[-1]
                 if suffix in ["total", "today", "yesterday", "pulsecount"]:
                     identifier = topic_parts[-2]
                     try:
-                        value = int(float(msg.payload.decode()))
+                        value = int(float(payload.decode()))
                         self.recovered_data.setdefault(identifier, {})[suffix] = value
                     except ValueError:
                         pass
 
-            if msg.topic.endswith("/date"):
+            if topic.endswith("/date"):
                 try:
-                    dt = datetime.date.fromisoformat(msg.payload.decode())
-                    with self.context.lock:
-                        self.context.state.date = dt
+                    dt = datetime.date.fromisoformat(payload.decode())
+                    self.context.state.date = dt
                 except ValueError:
                     pass
         except Exception as e:
             logger.debug(f"Recovery parse error: {e}")
 
-    def run(self):
+    async def run(self):
         """Execute the recovery process."""
         logger.info("Starting State Recovery phase...")
         base_topic = self.context.config.mqtt.base_topic
         discovery_prefix = self.context.config.mqtt.discovery_prefix
-
-        # Temporarily steal on_message
-        original_on_message = self.mqttc.on_message
-        self.mqttc.on_message = self.on_message
 
         # Subscribe to recovery topics
         topics = [
@@ -132,74 +127,76 @@ class StateRecoverer:
             f"{discovery_prefix}/sensor/{base_topic}/#",
         ]
         for t in topics:
-            self.mqttc.subscribe(t)
+            await self.client.subscribe(t)
 
         wait_time = self.context.config.mqtt.recovery_wait
         logger.info(f"Recovery: Waiting {wait_time}s for MQTT retained messages...")
-        time.sleep(wait_time)
+
+        # Collect retained messages during the wait period
+        try:
+            async with asyncio.timeout(wait_time):
+                async for message in self.client.messages:
+                    self._process_message(str(message.topic), message.payload)
+        except TimeoutError:
+            pass
 
         # Cleanup subscriptions
         for t in topics:
-            self.mqttc.unsubscribe(t)
-        self.mqttc.on_message = original_on_message
+            await self.client.unsubscribe(t)
 
         # Sync mapped data
-        with self.context.lock:
-            # First pass: discovered IDs from MQTT
-            for id_str, data in self.recovered_data.items():
-                try:
-                    meter_id = int(id_str)
-                except ValueError:
-                    continue
+        # First pass: discovered IDs from MQTT
+        for id_str, data in self.recovered_data.items():
+            try:
+                meter_id = int(id_str)
+            except ValueError:
+                continue
 
-                # Only initialize if there is actually data beyond zeroes
-                if any(data.get(k, 0) > 0 for k in ["total", "today", "pulsecount", "yesterday"]):
-                    if meter_id not in self.context.state.meters:
-                        self.context.state.meters[meter_id] = state_module.MeterState()
+            # Only initialize if there is actually data beyond zeroes
+            if any(data.get(k, 0) > 0 for k in ["total", "today", "pulsecount", "yesterday"]):
+                if meter_id not in self.context.state.meters:
+                    self.context.state.meters[meter_id] = state_module.MeterState()
 
-                    meter = self.context.state.meters[meter_id]
-                    meter.total = data.get("total", meter.total)
-                    meter.today = data.get("today", meter.today)
-                    meter.yesterday = data.get("yesterday", meter.yesterday)
-                    meter.pulsecount = data.get("pulsecount", meter.pulsecount)
+                meter = self.context.state.meters[meter_id]
+                meter.total = data.get("total", meter.total)
+                meter.today = data.get("today", meter.today)
+                meter.yesterday = data.get("yesterday", meter.yesterday)
+                meter.pulsecount = data.get("pulsecount", meter.pulsecount)
 
-            # Second pass: Names (only if ID was already found or if name is solid)
-            for mid, name in self.recovered_names.items():
-                if mid not in self.context.state.meters:
-                    self.context.state.meters[mid] = state_module.MeterState()
+        # Second pass: Names (only if ID was already found or if name is solid)
+        for mid, name in self.recovered_names.items():
+            if mid not in self.context.state.meters:
+                self.context.state.meters[mid] = state_module.MeterState()
 
-                meter = self.context.state.meters[mid]
-                meter.name = name
+            meter = self.context.state.meters[mid]
+            meter.name = name
 
-                # Check for data under the name topic too (split_topic format)
-                if name in self.recovered_data:
-                    meter.total = max(meter.total, self.recovered_data[name].get("total", 0))
-                    meter.today = max(meter.today, self.recovered_data[name].get("today", 0))
-                    meter.yesterday = max(meter.yesterday, self.recovered_data[name].get("yesterday", 0))
-                    meter.pulsecount = max(meter.pulsecount, self.recovered_data[name].get("pulsecount", 0))
+            # Check for data under the name topic too (split_topic format)
+            if name in self.recovered_data:
+                meter.total = max(meter.total, self.recovered_data[name].get("total", 0))
+                meter.today = max(meter.today, self.recovered_data[name].get("today", 0))
+                meter.yesterday = max(meter.yesterday, self.recovered_data[name].get("yesterday", 0))
+                meter.pulsecount = max(meter.pulsecount, self.recovered_data[name].get("pulsecount", 0))
 
-            # HA API Fallback for missing totals
-            ha_states = None
-            for mid, meter in self.context.state.meters.items():
-                if meter.total == 0:
-                    if ha_states is None:
-                        logger.info(f"Recovery: Meter {mid} not found on MQTT, attempting HA API fallback...")
-                        ha_states = self.fetch_all_ha_states()
+        # HA API Fallback for missing totals (blocking HTTP — run in thread)
+        ha_states = None
+        for mid, meter in self.context.state.meters.items():
+            if meter.total == 0:
+                if ha_states is None:
+                    logger.info(f"Recovery: Meter {mid} not found on MQTT, attempting HA API fallback...")
+                    ha_states = await asyncio.to_thread(self.fetch_all_ha_states)
 
-                    found_val = self._find_total_in_ha(mid, ha_states)
-                    if found_val is not None:
-                        meter.total = found_val
-                        logger.info(f"Recovery: Recovered total for meter {mid} from HA API: {found_val}")
+                found_val = self._find_total_in_ha(mid, ha_states)
+                if found_val is not None:
+                    meter.total = found_val
+                    logger.info(f"Recovery: Recovered total for meter {mid} from HA API: {found_val}")
 
-            # Baseline share
-            self.context.state_share = self.context.state.model_copy(deep=True)
-
-            # Summary logging (Useful for verification)
-            for mid, meter in self.context.state.meters.items():
-                logger.info(f"Recovered total for meter {mid}: {meter.total}")
-                logger.info(f"Recovered pulsecount for meter {mid}: {meter.pulsecount}")
-                logger.info(f"Recovered today for meter {mid}: {meter.today}")
-                logger.info(f"Recovered yesterday for meter {mid}: {meter.yesterday}")
+        # Summary logging (Useful for verification)
+        for mid, meter in self.context.state.meters.items():
+            logger.info(f"Recovered total for meter {mid}: {meter.total}")
+            logger.info(f"Recovered pulsecount for meter {mid}: {meter.pulsecount}")
+            logger.info(f"Recovered today for meter {mid}: {meter.today}")
+            logger.info(f"Recovered yesterday for meter {mid}: {meter.yesterday}")
 
         logger.info("State Recovery complete.")
 

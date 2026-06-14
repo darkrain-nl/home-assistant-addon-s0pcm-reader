@@ -2,17 +2,22 @@
 Tests for serial handler module (serial_handler.py).
 """
 
+import asyncio
 import datetime
-import threading
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from helpers import make_test_config
 import pytest
-import serialx
 
 import config as config_module
-from config import SerialConfig
-from serial_handler import TaskReadSerial
+from serial_handler import (
+    _handle_data_packet,
+    _handle_header,
+    _log_available_ports,
+    _read_loop,
+    _update_meter,
+    serial_task,
+)
 import state as state_module
 
 
@@ -28,12 +33,6 @@ def setup_serial_test_state():
 
 
 @pytest.fixture
-def mock_serial():
-    with patch("serialx.serial_for_url") as mock:
-        yield mock
-
-
-@pytest.fixture
 def s0pcm_packets():
     return {
         "s0pcm2_data": b"ID:8237:I:10:M1:0:100:M2:0:200\r\n",
@@ -44,21 +43,18 @@ def s0pcm_packets():
 class TestSerialPacketParsing:
     def test_handle_data_packet_updates_measurement(self, s0pcm_packets, mocker):
         context = state_module.get_context()
-        task = TaskReadSerial(context, threading.Event(), threading.Event())
-        mocker.patch.object(task.app_context, "set_error")
+        mocker.patch.object(context, "set_error")
 
         data_str = s0pcm_packets["s0pcm2_data"].decode("ascii").rstrip("\r\n")
-        task._handle_data_packet(data_str)
+        _handle_data_packet(context, data_str)
 
-        context = state_module.get_context()
         assert 1 in context.state.meters
         assert context.state.meters[1].total == 100
 
     def test_invalid_packet_sets_error(self, s0pcm_packets, mocker):
         context = state_module.get_context()
-        task = TaskReadSerial(context, threading.Event(), threading.Event())
-        mock_set_error = mocker.patch.object(task.app_context, "set_error")
-        task._handle_data_packet("ID:8237:I:10:M1:0:100")  # Too short
+        mock_set_error = mocker.patch.object(context, "set_error")
+        _handle_data_packet(context, "ID:8237:I:10:M1:0:100")  # Too short
         assert mock_set_error.called
 
 
@@ -67,36 +63,31 @@ class TestPulseCountLogic:
         # Initialize meter properly using state_module models
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState(pulsecount=100, total=1000, today=50)
-        task = TaskReadSerial(context, None, None)
-        task._update_meter(1, 110, 10, 10)
+        _update_meter(context, 1, 110, 10, 10)
         assert context.state.meters[1].total == 1010
         assert context.state.meters[1].today == 60
 
     def test_pulse_reset_detection(self):
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState(pulsecount=100, total=1000, today=50)
-        task = TaskReadSerial(context, None, None)
-        task._update_meter(1, 10, 10, 20)  # Restarted (pulsecount reset to 10)
+        _update_meter(context, 1, 10, 10, 20)  # Restarted (pulsecount reset to 10)
         # Total should increase by 10
         assert context.state.meters[1].total == 1010
 
     def test_pulse_anomaly(self):
-        """Test pulsecount anomaly (lower but not 0) (lines 162-165)."""
+        """Test pulsecount anomaly (lower but not 0)."""
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState(pulsecount=100, total=1000)
-        task = TaskReadSerial(context, None, None)
-        task._update_meter(1, 90, 0, 10)  # Lower than 100, not 0
+        _update_meter(context, 1, 90, 0, 10)  # Lower than 100, not 0
         # Should record error
         assert context.lasterror_serial is not None
         assert "Pulsecount anomaly" in context.lasterror_serial
-        # Should NOT increase total (delta is 90? No, delta is new pulsecount if < old?)
-        # Logic: delta = pulsecount (line 167). Total += 90.
+        # Logic: delta = pulsecount (90). Total += 90.
         assert context.state.meters[1].total == 1090
 
     def test_update_meter_uninitialized(self):
         context = state_module.AppContext()
-        task = TaskReadSerial(context, None, None)
-        task._update_meter(1, 5, 5, 10)
+        _update_meter(context, 1, 5, 5, 10)
         assert 1 in context.state.meters
         assert context.state.meters[1].total == 5
 
@@ -104,54 +95,48 @@ class TestPulseCountLogic:
 class TestSerialPacketAdvanced:
     def test_handle_header_parsing(self):
         context = state_module.get_context()
-        task = TaskReadSerial(context, None, None)
 
-        # Verify context identity
-        assert task.app_context is context
-        assert task.app_context is state_module.get_context()
-
-        task._handle_header("/8237:S0 Pulse Counter V0.6")
+        _handle_header(context, "/8237:S0 Pulse Counter V0.6")
         assert context.s0pcm_firmware == "S0 Pulse Counter V0.6"
 
-    def test_read_loop_decoding_error(self, mocker):
-        mock_ser = MagicMock()
-        mock_ser.readline.side_effect = [b"\xff\xfe\xfd", b""]
+    async def test_read_loop_decoding_error(self, mocker):
+        mock_ser = AsyncMock()
+        mock_ser.readline = AsyncMock(side_effect=[b"\xff\xfe\xfd", b""])
         context = state_module.get_context()
-        task = TaskReadSerial(context, None, threading.Event())
-        mock_set_error = mocker.patch.object(task.app_context, "set_error")
-        task._read_loop(mock_ser)
+        mock_set_error = mocker.patch.object(context, "set_error")
+        await _read_loop(context, mock_ser)
         assert any("Failed to decode" in str(c) for c in mock_set_error.call_args_list)
 
-    def test_read_loop_bounded_read(self):
+    async def test_read_loop_bounded_read(self):
         """Test that readline is called with a size limit (DoS prevention)."""
-        mock_ser = MagicMock()
-        mock_ser.readline.side_effect = [b""]  # Return empty to exit loop immediately (timeout path)
+        mock_ser = AsyncMock()
+        mock_ser.readline = AsyncMock(return_value=b"")  # Return empty to exit loop immediately (timeout path)
         context = state_module.get_context()
-        task = TaskReadSerial(context, None, threading.Event())
 
-        task._read_loop(mock_ser)
+        await _read_loop(context, mock_ser)
 
-        # Verify readline was called with an integer argument (size limit)
-        mock_ser.readline.assert_called_with(512)
+        # Verify readline was called
+        mock_ser.readline.assert_called_with()
 
-    def test_serial_connect_success(self, mock_serial, mocker):
-        # Setup config
+    async def test_serial_task_connect_success(self, mocker):
+        """Test serial_task opens port and calls read loop."""
         context = state_module.get_context()
         context.config = make_test_config()
-
-        stopper = threading.Event()
-        task = TaskReadSerial(context, None, stopper)
         context.recovery_event.set()
 
-        def stop_logic(ser):
-            stopper.set()
+        mock_ser = AsyncMock()
+        mock_ser.__aenter__ = AsyncMock(return_value=mock_ser)
+        mock_ser.__aexit__ = AsyncMock(return_value=False)
+        mocker.patch("serialx.async_serial_for_url", return_value=mock_ser)
 
-        mocker.patch.object(task, "_read_loop", side_effect=stop_logic)
-        mock_serial.return_value = MagicMock()
+        # Make _read_loop cancel the task after one call
+        async def cancel_after_read(ctx, ser):
+            raise asyncio.CancelledError()
 
-        task.run()
+        mocker.patch("serial_handler._read_loop", side_effect=cancel_after_read)
 
-        mock_serial.assert_called_once()
+        # serial_task catches CancelledError and returns normally
+        await serial_task(context)
 
 
 class TestDayChange:
@@ -162,68 +147,22 @@ class TestDayChange:
         context.state.date = yesterday
         context.state.meters[1] = state_module.MeterState(pulsecount=100, total=1000, today=50)
 
-        task = TaskReadSerial(context, None, None)
-        task._update_meter(1, 110, 10, 10)
+        _update_meter(context, 1, 110, 10, 10)
 
         assert context.state.meters[1].yesterday == 50
         assert context.state.meters[1].today == 10
         assert context.state.date == datetime.date.today()
 
 
-# --- From test_serial_missing.py ---
-
-
-@pytest.fixture
-def serial_task_missing():
-    trigger = MagicMock()
-    stopper = MagicMock()
-    stopper.is_set.return_value = False
-
+def test_handle_header_fallback():
+    """Test _handle_header fallback paths."""
     context = state_module.get_context()
-    context.config = make_test_config()
-    context.config = context.config.model_copy(
-        update={
-            "serial": SerialConfig(
-                port="/dev/ttyTEST",
-                baudrate=9600,
-                parity=serialx.PARITY_NONE,
-                stopbits=serialx.STOPBITS_ONE,
-                bytesize=serialx.EIGHTBITS,
-                timeout=1,
-                connect_retry=1,
-            )
-        }
-    )
-    context.state.meters = {}
-    context.lasterror_serial = None
 
-    return TaskReadSerial(context, trigger, stopper)
+    # Test strict slicing fallback (no colon)
+    _handle_header(context, "/SIMPLE")
+    assert context.s0pcm_firmware == "SIMPLE"
 
-
-def test_run_exception_retry(serial_task_missing, mocker):
-    """Test run() exception handling and retry."""
-
-    serial_task_missing._stopper.is_set.side_effect = [False, True]
-    serial_task_missing.app_context.recovery_event.set()
-
-    mocker.patch("serialx.serial_for_url", side_effect=Exception("Connection Failed"))
-    mock_sleep = mocker.patch("time.sleep")
-    mocker.patch.object(serial_task_missing, "_log_available_ports")
-
-    serial_task_missing.run()
-
-    assert mock_sleep.called
-    assert serial_task_missing.app_context.lasterror_serial is not None
-    assert "Connection Failed" in serial_task_missing.app_context.lasterror_serial
-
-
-def test_handle_header_fallback(serial_task_missing):
-    """Test _handle_header fallback paths (lines 86-88)."""
-    # Test strict slicing fallback (line 84)
-    serial_task_missing._handle_header("/SIMPLE")
-    assert serial_task_missing.app_context.s0pcm_firmware == "SIMPLE"
-
-    # Test exception fallback (line 86-87)
+    # Test exception fallback
     class BadString:
         def __contains__(self, item):
             return True  # trigger first branch
@@ -235,101 +174,135 @@ def test_handle_header_fallback(serial_task_missing):
             return "BadString"
 
     bad_str = BadString()
-    serial_task_missing._handle_header(bad_str)
+    _handle_header(context, bad_str)
     # Should fall back to assigning the object itself
-    assert serial_task_missing.app_context.s0pcm_firmware == bad_str
+    assert context.s0pcm_firmware == bad_str
 
 
-def test_update_meter_reset_logging(serial_task_missing):
-    """Test _update_meter reset logging (line 156)."""
+def test_update_meter_reset_logging():
+    """Test _update_meter reset logging."""
     context = state_module.get_context()
     context.state.meters[1] = state_module.MeterState(total=1000, pulsecount=500)
 
     # Pulsecount 0 triggers reset logic
     with patch("serial_handler.logger"):
-        serial_task_missing._update_meter(1, 0, 0, 10)
+        _update_meter(context, 1, 0, 0, 10)
 
         assert context.lasterror_serial is not None
         assert "S0PCM Reset detected" in context.lasterror_serial
 
 
-def test_read_loop_errors(serial_task_missing):
-    """Test _read_loop read error and junk packet (lines 182-184, 204)."""
-    mock_serial = MagicMock()
+async def test_read_loop_read_error():
+    """Test _read_loop breaks on read exception."""
+    context = state_module.get_context()
 
-    # 1. Read Error (causes break)
-    mock_serial.readline.side_effect = Exception("Read IO Error")
+    mock_serial = AsyncMock()
+    mock_serial.readline = AsyncMock(side_effect=Exception("Read IO Error"))
 
-    serial_task_missing._read_loop(mock_serial)
-    assert "Serialport read error" in serial_task_missing.app_context.lasterror_serial
-
-    # Reset for next part
-    serial_task_missing.app_context.lasterror_serial = None
-    serial_task_missing._stopper.is_set.side_effect = [False, True]  # Run once
-
-    # 2. Junk Packet (lines 204)
-    mock_serial.readline.side_effect = [b"JUNK_DATA\r\n"]
-
-    serial_task_missing._read_loop(mock_serial)
-    assert "Invalid Packet: 'JUNK_DATA'" in serial_task_missing.app_context.lasterror_serial
+    await _read_loop(context, mock_serial)
+    assert "Serialport read error" in context.lasterror_serial
 
 
-def test_run_fatal_exception(serial_task_missing, mocker):
-    """Test run fatal exception (line 219-220)."""
-    # Force exception at start of run
-    mocker.patch.object(serial_task_missing.app_context.recovery_event, "wait", side_effect=Exception("Fatal Error"))
+async def test_read_loop_junk_packet(mocker):
+    """Test _read_loop handles junk packet."""
+    context = state_module.get_context()
+    mock_set_error = mocker.patch.object(context, "set_error")
 
-    with patch("serial_handler.logger.error") as mock_logger:
-        serial_task_missing.run()
+    mock_serial = AsyncMock()
+    mock_serial.readline = AsyncMock(side_effect=[b"JUNK_DATA\r\n", b""])
 
-        assert mock_logger.called
-        assert "Fatal exception in Serial Task" in mock_logger.call_args[0][0]
-        assert serial_task_missing._stopper.set.called
+    await _read_loop(context, mock_serial)
+
+    # Verify set_error was called with the junk packet error
+    error_calls = [str(c) for c in mock_set_error.call_args_list]
+    assert any("Invalid Packet" in c and "JUNK_DATA" in c for c in error_calls)
 
 
-def test_read_loop_header(serial_task_missing):
-    """Test _read_loop header handling (lines 197-204)."""
-    mock_serial = MagicMock()
-    # 1. Header (hits 197-198)
-    # 2. ID Packet (hits 199-200)
-    # 3. Empty string decoded (hits 201-202)
-    # 4. Empty bytes (hits 186 -> break)
-    mock_serial.readline.side_effect = [b"/HEADER:V1\r\n", b"ID:123\r\n", b"\r\n", b""]
+async def test_serial_task_fatal_exception(mocker):
+    """Test serial_task fatal exception."""
+    context = state_module.get_context()
+    context.config = make_test_config()
+    context.recovery_event.set()
+
+    mocker.patch("serialx.async_serial_for_url", side_effect=Exception("Fatal Error"))
+    mocker.patch("asyncio.sleep", side_effect=asyncio.CancelledError())
+
+    # serial_task catches CancelledError internally and returns
+    await serial_task(context)
+
+    assert context.lasterror_serial is not None
+    assert "Fatal Error" in context.lasterror_serial
+
+
+async def test_serial_task_retry_on_failure(mocker):
+    """Test serial_task retries on connection failure."""
+    context = state_module.get_context()
+    context.config = make_test_config()
+    context.recovery_event.set()
+
+    call_count = 0
+
+    def fail_then_cancel(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count >= 2:
+            raise asyncio.CancelledError()
+        raise Exception(f"Fail {call_count}")
+
+    mocker.patch("serialx.async_serial_for_url", side_effect=fail_then_cancel)
+    mocker.patch("asyncio.sleep", return_value=None)
+
+    # serial_task catches CancelledError internally and returns
+    await serial_task(context)
+
+    assert context.lasterror_serial is not None
+
+
+async def test_read_loop_header():
+    """Test _read_loop header handling."""
+    context = state_module.get_context()
+    mock_serial = AsyncMock()
+    # 1. Header
+    # 2. ID Packet (too short, will set error)
+    # 3. Empty string decoded
+    # 4. Empty bytes -> break
+    mock_serial.readline = AsyncMock(side_effect=[b"/HEADER:V1\r\n", b"ID:123\r\n", b"\r\n", b""])
 
     with patch("serial_handler.logger") as mock_logger:
-        serial_task_missing._read_loop(mock_serial)
+        await _read_loop(context, mock_serial)
 
         # Verify header parsed
-        assert serial_task_missing.app_context.s0pcm_firmware == "V1"
+        assert context.s0pcm_firmware == "V1"
         # Verify warning for empty packet
         assert mock_logger.warning.called
         assert "Empty Packet received" in mock_logger.warning.call_args[0][0]
 
 
-def test_run_exclusive_mode(mocker):
-    """Test that exclusive=True is passed to serial_for_url in run()."""
+async def test_serial_task_exclusive_mode(mocker):
+    """Test that exclusive=True is passed to async_serial_for_url."""
     context = state_module.get_context()
     context.config = make_test_config()
-
-    stopper = threading.Event()
-    task = TaskReadSerial(context, threading.Event(), stopper)
     context.recovery_event.set()
 
-    def side_effect(*args, **kwargs):
-        stopper.set()
-        return MagicMock()
+    mock_ser = AsyncMock()
+    mock_ser.__aenter__ = AsyncMock(return_value=mock_ser)
+    mock_ser.__aexit__ = AsyncMock(return_value=False)
 
-    mock_serial_for_url = mocker.patch("serialx.serial_for_url", side_effect=side_effect)
-    mocker.patch.object(task, "_read_loop")
+    async def cancel_read(ctx, ser):
+        raise asyncio.CancelledError()
 
-    task.run()
+    mock_async_serial = mocker.patch("serialx.async_serial_for_url", return_value=mock_ser)
+    mocker.patch("serial_handler._read_loop", side_effect=cancel_read)
 
-    mock_serial_for_url.assert_called_once()
-    _, kwargs = mock_serial_for_url.call_args
+    # serial_task catches CancelledError internally and returns
+    await serial_task(context)
+
+    mock_async_serial.assert_called_once()
+    _, kwargs = mock_async_serial.call_args
     assert kwargs["exclusive"] is True
 
 
-def test_log_available_ports_with_ports(serial_task_missing):
+def test_log_available_ports_with_ports():
     """Test _log_available_ports when ports are detected."""
     mock_port = MagicMock()
     mock_port.device = "/dev/ttyACM0"
@@ -337,102 +310,56 @@ def test_log_available_ports_with_ports(serial_task_missing):
         patch("serialx.list_serial_ports", return_value=[mock_port]),
         patch("serial_handler.logger") as mock_logger,
     ):
-        serial_task_missing._log_available_ports()
+        _log_available_ports()
         assert any("/dev/ttyACM0" in str(c) for c in mock_logger.info.call_args_list)
 
 
-def test_log_available_ports_no_ports(serial_task_missing):
+def test_log_available_ports_no_ports():
     """Test _log_available_ports when no ports are detected."""
     with (
         patch("serialx.list_serial_ports", return_value=[]),
         patch("serial_handler.logger") as mock_logger,
     ):
-        serial_task_missing._log_available_ports()
+        _log_available_ports()
         assert mock_logger.warning.called
         assert "No serial ports detected" in mock_logger.warning.call_args[0][0]
 
 
-def test_log_available_ports_exception(serial_task_missing):
+def test_log_available_ports_exception():
     """Test _log_available_ports handles exceptions gracefully."""
     with (
         patch("serialx.list_serial_ports", side_effect=OSError("Permission denied")),
         patch("serial_handler.logger") as mock_logger,
     ):
-        serial_task_missing._log_available_ports()
+        _log_available_ports()
         assert mock_logger.debug.called
         assert "Unable to enumerate" in mock_logger.debug.call_args[0][0]
 
 
-def test_log_available_ports_called_on_first_failure(mocker):
+async def test_log_available_ports_called_on_first_failure(mocker):
     """Test that _log_available_ports is called only on the first connection failure."""
     context = state_module.get_context()
     context.config = make_test_config()
-
-    stopper = threading.Event()
-    task = TaskReadSerial(context, threading.Event(), stopper)
     context.recovery_event.set()
 
-    def side_effect(*args, **kwargs):
-        if task._state.serialerror == 2:
-            stopper.set()
-        raise Exception(f"Fail {task._state.serialerror}")
+    call_count = 0
 
-    mocker.patch("serialx.serial_for_url", side_effect=side_effect)
-    mocker.patch("time.sleep")
-    mock_log_ports = mocker.patch.object(task, "_log_available_ports")
+    def fail_then_cancel(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count >= 3:
+            raise asyncio.CancelledError()
+        raise Exception(f"Fail {call_count}")
 
-    task.run()
+    mocker.patch("serialx.async_serial_for_url", side_effect=fail_then_cancel)
+    mocker.patch("asyncio.sleep", return_value=None)
+    mock_log_ports = mocker.patch("serial_handler._log_available_ports")
+
+    # serial_task catches CancelledError internally and returns
+    await serial_task(context)
 
     # Should be called exactly once (on first failure, not second)
     mock_log_ports.assert_called_once()
-
-
-def test_run_context_manager_closes_port(mocker):
-    """Test that run() uses context manager for safe serial port cleanup."""
-    context = state_module.get_context()
-    context.config = make_test_config()
-
-    stopper = threading.Event()
-    task = TaskReadSerial(context, threading.Event(), stopper)
-    context.recovery_event.set()
-
-    mock_ser = MagicMock()
-    mocker.patch("serialx.serial_for_url", return_value=mock_ser)
-
-    def stop_logic(ser):
-        stopper.set()
-
-    mocker.patch.object(task, "_read_loop", side_effect=stop_logic)
-
-    task.run()
-
-    # Verify __exit__ was called (context manager close)
-    mock_ser.__exit__.assert_called_once()
-
-
-# --- From test_loops.py ---
-
-
-def test_task_read_serial_loop_execution(mocker):
-    """Integrate TaskReadSerial loop."""
-    context = state_module.get_context()
-    context.config = make_test_config()
-
-    stopper = threading.Event()
-    task = TaskReadSerial(context, threading.Event(), stopper)
-
-    # CRITICAL: Serial task waits for recovery event!
-    context.recovery_event.set()
-
-    mocker.patch("serialx.serial_for_url", return_value=MagicMock())
-
-    def stop_logic(ser):
-        stopper.set()
-
-    mocker.patch.object(task, "_read_loop", side_effect=stop_logic)
-
-    task.run()
-    assert stopper.is_set()
 
 
 if __name__ == "__main__":

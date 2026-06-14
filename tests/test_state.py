@@ -2,6 +2,7 @@
 Tests for state management (state.py).
 """
 
+import asyncio
 import datetime
 
 import pytest
@@ -50,38 +51,23 @@ def test_app_context_initialization():
     """Test AppContext initialization."""
     context = state_module.AppContext()
 
-    assert context.lock is not None
     assert context.recovery_event is not None
+    assert isinstance(context.recovery_event, asyncio.Event)
+    assert context.trigger_event is not None
+    assert isinstance(context.trigger_event, asyncio.Event)
     assert isinstance(context.state, state_module.AppState)
-    assert isinstance(context.state_share, state_module.AppState)
     assert context.lasterror_serial is None
     assert context.lasterror_mqtt is None
     assert context.s0pcm_firmware == "Unknown"
 
 
-def test_app_context_register_trigger():
-    """Test AppContext register_trigger method."""
-    import threading
-
-    context = state_module.AppContext()
-    trigger = threading.Event()
-
-    context.register_trigger(trigger)
-
-    assert context.trigger_event is trigger
-
-
 def test_app_context_set_error_with_trigger():
     """Test AppContext set_error triggers event."""
-    import threading
-
     context = state_module.AppContext()
-    trigger = threading.Event()
-    context.register_trigger(trigger)
 
     context.set_error("Test Error", category="serial")
 
-    assert trigger.is_set()
+    assert context.trigger_event.is_set()
     assert context.lasterror_serial == "Test Error"
 
 

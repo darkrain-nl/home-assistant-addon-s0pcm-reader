@@ -8,7 +8,7 @@ import json
 import logging
 from typing import Final
 
-import paho.mqtt.client as mqtt
+import aiomqtt
 
 from state import AppContext, MeterState
 import utils
@@ -23,12 +23,12 @@ GLOBAL_DIAGNOSTICS: Final = [
 ]
 
 
-def send_global_discovery(mqttc: mqtt.Client, context: AppContext) -> None:
+async def send_global_discovery(client: aiomqtt.Client, context: AppContext) -> None:
     """
     Send discovery for global entities (Status, Error, Version, etc.)
 
     Args:
-        mqttc: The connected MQTT client.
+        client: The connected aiomqtt client.
         context: Application context.
     """
     if not context.config.mqtt.discovery:
@@ -58,11 +58,11 @@ def send_global_discovery(mqttc: mqtt.Client, context: AppContext) -> None:
         "payload_on": context.config.mqtt.online,
         "payload_off": context.config.mqtt.offline,
     }
-    mqttc.publish(status_topic, json.dumps(status_payload), retain=True)
+    await client.publish(status_topic, json.dumps(status_payload), retain=True)
 
     # Cleanup legacy
-    mqttc.publish(f"{discovery_prefix}/sensor/{base_topic}/s0pcm_{base_topic}_info/config", "", retain=True)
-    mqttc.publish(f"{discovery_prefix}/sensor/{base_topic}/s0pcm_{base_topic}_uptime/config", "", retain=True)
+    await client.publish(f"{discovery_prefix}/sensor/{base_topic}/s0pcm_{base_topic}_info/config", "", retain=True)
+    await client.publish(f"{discovery_prefix}/sensor/{base_topic}/s0pcm_{base_topic}_uptime/config", "", retain=True)
 
     # Error Sensor
     error_unique_id = f"s0pcm_{base_topic}_error"
@@ -79,7 +79,7 @@ def send_global_discovery(mqttc: mqtt.Client, context: AppContext) -> None:
             {"topic": base_topic + "/status", "value_template": "{{ 'online' }}", "payload_available": "online"}
         ],
     }
-    mqttc.publish(error_topic, json.dumps(error_payload), retain=True)
+    await client.publish(error_topic, json.dumps(error_payload), retain=True)
 
     ha_version = utils.get_ha_core_version()
     ha_version_tuple = utils.parse_ha_version(ha_version)
@@ -112,17 +112,19 @@ def send_global_discovery(mqttc: mqtt.Client, context: AppContext) -> None:
             diag_payload["unit_of_measurement"] = diag_data["unit"]
         if "class" in diag_data:
             diag_payload["device_class"] = diag_data["class"]
-        mqttc.publish(diag_topic, json.dumps(diag_payload), retain=True)
+        await client.publish(diag_topic, json.dumps(diag_payload), retain=True)
 
     logger.info("Sent global MQTT discovery messages")
 
 
-def send_meter_discovery(mqttc: mqtt.Client, context: AppContext, meter_id: int, meter_state: MeterState) -> str | None:
+async def send_meter_discovery(
+    client: aiomqtt.Client, context: AppContext, meter_id: int, meter_state: MeterState
+) -> str | None:
     """
     Send discovery for a specific meter.
 
     Args:
-        mqttc: The connected MQTT client.
+        client: The connected aiomqtt client.
         context: Application context.
         meter_id: The unique ID of the meter.
         meter_state: The MeterState object for this meter.
@@ -151,7 +153,7 @@ def send_meter_discovery(mqttc: mqtt.Client, context: AppContext, meter_id: int,
     for p_type, p_key in [("binary_sensor", "activity"), ("sensor", "pps")]:
         p_uid = f"s0pcm_{base_topic}_{meter_id}_{p_key}"
         p_topic = f"{discovery_prefix}/{p_type}/{base_topic}/{p_uid}/config"
-        mqttc.publish(p_topic, "", retain=True)
+        await client.publish(p_topic, "", retain=True)
 
     for subkey in ["total", "today", "yesterday"]:
         unique_id = f"s0pcm_{base_topic}_{meter_id}_{subkey}"
@@ -176,8 +178,8 @@ def send_meter_discovery(mqttc: mqtt.Client, context: AppContext, meter_id: int,
             payload["value_template"] = f"{{{{ value_json.{subkey} }}}}"
 
         # Force refresh
-        mqttc.publish(topic, "", retain=True)
-        mqttc.publish(topic, json.dumps(payload), retain=True)
+        await client.publish(topic, "", retain=True)
+        await client.publish(topic, json.dumps(payload), retain=True)
 
         if subkey == "total":
             # Text Entity (Name)
@@ -192,8 +194,8 @@ def send_meter_discovery(mqttc: mqtt.Client, context: AppContext, meter_id: int,
                 "state_topic": f"{base_topic}/{meter_id}/name",
                 "icon": "mdi:tag-text-outline",
             }
-            mqttc.publish(text_topic, "", retain=True)
-            mqttc.publish(text_topic, json.dumps(text_payload), retain=True)
+            await client.publish(text_topic, "", retain=True)
+            await client.publish(text_topic, json.dumps(text_payload), retain=True)
 
             # Number Entity (Total Correction)
             num_uid = f"s0pcm_{base_topic}_{meter_id}_total_config"
@@ -211,19 +213,19 @@ def send_meter_discovery(mqttc: mqtt.Client, context: AppContext, meter_id: int,
                 "mode": "box",
                 "icon": "mdi:counter",
             }
-            mqttc.publish(num_topic, "", retain=True)
-            mqttc.publish(num_topic, json.dumps(num_payload), retain=True)
+            await client.publish(num_topic, "", retain=True)
+            await client.publish(num_topic, json.dumps(num_payload), retain=True)
 
     logger.info(f"Sent discovery for Meter {meter_id} ({instancename})")
     return instancename
 
 
-def cleanup_meter_discovery(mqttc: mqtt.Client, context: AppContext, meter_id: int) -> None:
+async def cleanup_meter_discovery(client: aiomqtt.Client, context: AppContext, meter_id: int) -> None:
     """
     Clear discovery for a specific meter ID (useful for purging ghost sensors).
 
     Args:
-        mqttc: The connected MQTT client.
+        client: The connected aiomqtt client.
         context: Application context.
         meter_id: The ID of the meter to clear.
     """
@@ -237,21 +239,21 @@ def cleanup_meter_discovery(mqttc: mqtt.Client, context: AppContext, meter_id: i
     for subkey in ["total", "today", "yesterday"]:
         unique_id = f"s0pcm_{base_topic}_{meter_id}_{subkey}"
         topic = f"{discovery_prefix}/sensor/{base_topic}/{unique_id}/config"
-        mqttc.publish(topic, "", retain=True)
+        await client.publish(topic, "", retain=True)
 
     # Clear configuration entities
     text_uid = f"s0pcm_{base_topic}_{meter_id}_name_config"
     text_topic = f"{discovery_prefix}/text/{base_topic}/{text_uid}/config"
-    mqttc.publish(text_topic, "", retain=True)
+    await client.publish(text_topic, "", retain=True)
 
     num_uid = f"s0pcm_{base_topic}_{meter_id}_total_config"
     num_topic = f"{discovery_prefix}/number/{base_topic}/{num_uid}/config"
-    mqttc.publish(num_topic, "", retain=True)
+    await client.publish(num_topic, "", retain=True)
 
     # Clear obsolete diagnostic sensors
     for p_type, p_key in [("binary_sensor", "activity"), ("sensor", "pps")]:
         p_uid = f"s0pcm_{base_topic}_{meter_id}_{p_key}"
         p_topic = f"{discovery_prefix}/{p_type}/{base_topic}/{p_uid}/config"
-        mqttc.publish(p_topic, "", retain=True)
+        await client.publish(p_topic, "", retain=True)
 
     logger.debug(f"Cleared MQTT discovery for Meter {meter_id}")

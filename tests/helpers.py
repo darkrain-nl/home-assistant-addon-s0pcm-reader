@@ -17,7 +17,7 @@ def make_test_config(**mqtt_overrides) -> ConfigModel:
         "password": "test_pass",
         "base_topic": "s0pcmreader",
         "client_id": None,
-        "version": 5,
+        "version": "5.0",
         "retain": True,
         "split_topic": True,
         "connect_retry": 1,
