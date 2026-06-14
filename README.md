@@ -25,9 +25,7 @@ An easy-to-use Home Assistant App that reads pulse counters from an **S0PCM-2** 
 1. Add this repository to your Home Assistant App Store:
    `https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader`
 2. Search for **S0PCM Reader** and click **Install**.
-3. Navigate to the **Configuration** tab.
-4. Select your **S0PCM USB device** (e.g., `/dev/ttyACM0`).
-5. **Start** the app.
+3. **Start** the app. By default, it will auto-detect your connected S0PCM USB device. (Optional: To customize settings or manually configure the port, open the **Configuration** tab).
 
 ### Beta version
 If you want to help test upcoming features, you can install the Beta version. You can install both the Beta and Stable versions at the same time without conflicts.
@@ -39,7 +37,7 @@ If you want to help test upcoming features, you can install the Beta version. Yo
    `https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader-beta`
 2. Search for **S0PCM Reader (Beta)** and click **Install**.
 3. Go to your Stable **S0PCM Reader**, **Stop** it, and disable **Start on boot**.
-4. Go to **S0PCM Reader (Beta)**, configure your USB device, and **Start** it.
+4. Go to **S0PCM Reader (Beta)** and click **Start** (it will auto-detect your USB device by default).
 
 ## 📖 Documentation
 
