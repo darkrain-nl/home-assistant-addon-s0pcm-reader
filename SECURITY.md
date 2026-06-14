@@ -7,7 +7,7 @@ Only the latest version of the app is supported with security updates.
 | Version | Supported          |
 | ------- | ------------------ |
 | Latest  | :white_check_mark: |
-| < 4.0.0 | :x:                |
+| < 5.0.0 | :x:                |
 
 ## Reporting a Vulnerability
 
