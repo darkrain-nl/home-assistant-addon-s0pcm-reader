@@ -362,5 +362,36 @@ async def test_log_available_ports_called_on_first_failure(mocker):
     mock_log_ports.assert_called_once()
 
 
+async def test_read_loop_cancelled_error():
+    """Test _read_loop raises CancelledError on cancellation."""
+    from serial_handler import _read_loop
+
+    context = state_module.get_context()
+    mock_serial = AsyncMock()
+    mock_serial.readline = AsyncMock(side_effect=asyncio.CancelledError())
+
+    with pytest.raises(asyncio.CancelledError):
+        await _read_loop(context, mock_serial)
+
+
+async def test_serial_task_fatal_exception_outer(mocker):
+    """Test outer Exception block in serial_task."""
+    from serial_handler import serial_task
+
+    context = state_module.get_context()
+    context.config = make_test_config()
+
+    # Mock recovery_event.wait to raise an exception
+    mocker.patch.object(context.recovery_event, "wait", side_effect=ValueError("Fatal Wait Error"))
+    mocker.patch("serial_handler.logger.error")
+
+    await serial_task(context)
+
+    # Verify logger.error was called with fatal exception info
+    import serial_handler
+
+    serial_handler.logger.error.assert_called_with("Fatal exception in Serial Task", exc_info=True)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

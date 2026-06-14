@@ -9,6 +9,7 @@ Tests cover:
 - Complete recovery flow and edge cases
 """
 
+import asyncio
 import datetime
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -329,6 +330,34 @@ class TestRecoveryFlow:
 
         # Verify unsubscriptions
         assert recoverer.client.unsubscribe.call_count == 6
+
+    async def test_run_receives_retained_messages_and_timeouts(self, recoverer, mocker):
+        """Test that run() successfully processes received messages and handles TimeoutError gracefully."""
+
+        # Yield a couple of messages, then wait to trigger TimeoutError
+        async def message_generator():
+            msg1 = MagicMock()
+            msg1.topic = "s0pcmreader/1/total"
+            msg1.payload = b"12345"
+            yield msg1
+
+            msg2 = MagicMock()
+            msg2.topic = "s0pcmreader/Water/name"
+            msg2.payload = b"Water"
+            yield msg2
+
+            await asyncio.sleep(0.05)  # sleep to let timeout happen
+
+        recoverer.client.messages = message_generator()
+
+        # Set recovery wait to a very small value so timeout is quick
+        recoverer.context.config.mqtt.recovery_wait = 0.01
+
+        await recoverer.run()
+
+        # Check that the messages were processed and saved to recovered_data
+        assert "1" in recoverer.recovered_data
+        assert recoverer.recovered_data["1"]["total"] == 12345
 
     async def test_run_initializes_meters_from_mqtt_data(self, recoverer, mocker):
         """Test that run() initializes meters from recovered MQTT data."""
