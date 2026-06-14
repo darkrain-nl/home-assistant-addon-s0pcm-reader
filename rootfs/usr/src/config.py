@@ -93,6 +93,43 @@ def init_args() -> Path:
     return config_path
 
 
+def _auto_detect_serial_port() -> str:
+    """
+    Auto-detect the S0PCM serial port on the system.
+
+    Looks for typical CH340 USB-serial chips first, then any USB-serial device.
+    """
+    try:
+        ports = serialx.list_serial_ports()
+        if not ports:
+            logger.warning("Auto-detect: No serial ports detected. Defaulting to /dev/ttyACM0")
+            return "/dev/ttyACM0"
+
+        # 1. Look for known S0PCM CH340 USB-serial chip (Vendor ID 0x1a86 or "1a86" in device name)
+        for p in ports:
+            is_ch340_vid = p.vid == 0x1A86
+            is_ch340_str = "1a86" in p.device.lower() or (
+                p.manufacturer is not None and "1a86" in p.manufacturer.lower()
+            )
+            if is_ch340_vid or is_ch340_str:
+                logger.info(f"Auto-detect: Found S0PCM candidate device at '{p.device}' (CH340)")
+                return p.device
+
+        # 2. Look for any other USB serial port (has "usb" in path or description)
+        for p in ports:
+            if "usb" in p.device.lower() or (p.description is not None and "usb" in p.description.lower()):
+                logger.info(f"Auto-detect: Selecting first available USB serial port '{p.device}' ({p.description})")
+                return p.device
+
+        # 3. Fallback to the first available port
+        first_port = ports[0].device
+        logger.info(f"Auto-detect: No USB-serial candidate found. Selecting first port '{first_port}'")
+        return first_port
+    except Exception as e:
+        logger.error(f"Auto-detect: Exception during port scan: {e}. Defaulting to /dev/ttyACM0")
+        return "/dev/ttyACM0"
+
+
 def read_config(
     version: str = "Unknown",
     config_dir: Path = Path("./"),
@@ -136,9 +173,12 @@ def read_config(
         if not tls_ca_path.is_absolute():
             tls_ca = str(config_dir / tls_ca)
 
+    device_opt = ha_options.get("device")
+    resolved_port = _auto_detect_serial_port() if device_opt in [None, "", "null"] else device_opt
+
     model = ConfigModel(
         log=LogConfig(level=(ha_options.get("log_level") or "INFO").upper()),
-        serial=SerialConfig(port=ha_options.get("device", "/dev/ttyACM0")),
+        serial=SerialConfig(port=resolved_port),
         mqtt=MqttConfig(
             host=mqtt_opts.get("host") or mqtt_service.get("host", "127.0.0.1"),
             port=mqtt_opts.get("port") or mqtt_service.get("port", 1883),
