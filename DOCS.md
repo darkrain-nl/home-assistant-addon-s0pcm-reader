@@ -160,7 +160,7 @@ The app uses a dual-layer recovery system:
 **Note**: If you wipe both MQTT and restart HA simultaneously, data may be lost. **Always backup your MQTT broker.**
 
 ## 8. Technical Details
-- **Architecture**: Multithreaded Python app.
+- **Architecture**: Asynchronous Python application running on a single-threaded asyncio event loop.
 - **Discovery**: Follows Home Assistant MQTT Discovery standard.
 - **Topics**:
     - Data: `s0pcmreader/<ID>/total`

@@ -124,12 +124,10 @@ The `docker-test.sh` (Linux) and `docker-test.ps1` (Windows) scripts perform the
 If running in a strictly read-only environment, the cache provider is disabled via `pytest.ini` (`-p no:cacheprovider`) to prevent `PytestCacheWarning`.
 
 ### Tests Hanging
-Hanging tests usually indicate an unstopped thread. Ensure all `threading.Event` objects (like `stopper`) are set during cleanup:
-```python
-stopper.set()
-trigger.set()
-thread.join(timeout=5)
-```
+Hanging tests usually indicate an unstopped asynchronous task or a coroutine that is running indefinitely (e.g., an infinite loop in a background task). Ensure:
+1. Any background loop has a clean exit condition or handles `asyncio.CancelledError` properly.
+2. Background tasks created on the event loop (e.g., via `asyncio.create_task` or within a `TaskGroup`) are cancelled and awaited during test cleanup.
+3. Tests use `pytest-timeout` to fail automatically if they exceed a specific duration, rather than hanging indefinitely.
 
 ### Script Execution Policy (Windows)
 If `.ps1` scripts are blocked, run:
@@ -138,4 +136,4 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
 
 ---
-*Last updated: 2026-05-02*
+*Last updated: 2026-06-14*
