@@ -12,7 +12,8 @@ async def test_main_initialization(mocker):
     """Test that main() initializes config and starts tasks."""
     import s0pcm_reader
 
-    mocker.patch("config.read_config")
+    mocker.patch("s0pcm_reader.get_version", new_callable=AsyncMock)
+    mocker.patch("s0pcm_reader.config_module.read_config", new_callable=AsyncMock)
 
     # Mock serial_task and mqtt_task as async functions
     mock_serial_task = mocker.patch("s0pcm_reader.serial_task", new_callable=AsyncMock)
@@ -23,9 +24,7 @@ async def test_main_initialization(mocker):
     await s0pcm_reader.main()
 
     # Verify read_config was called
-    import config as config_module_imp
-
-    config_module_imp.read_config.assert_called_once()
+    s0pcm_reader.config_module.read_config.assert_called_once()
 
     # Verify tasks were started (called as coroutines in TaskGroup)
     mock_serial_task.assert_called_once()
@@ -36,7 +35,10 @@ async def test_main_config_exception_exit(mocker):
     """Test main exit on config exception."""
     import s0pcm_reader
 
-    mocker.patch("s0pcm_reader.config_module.read_config", side_effect=Exception("Config Error"))
+    mocker.patch("s0pcm_reader.get_version", new_callable=AsyncMock)
+    mocker.patch(
+        "s0pcm_reader.config_module.read_config", new_callable=AsyncMock, side_effect=Exception("Config Error")
+    )
     mocker.patch("s0pcm_reader.logger")
 
     with pytest.raises(SystemExit) as excinfo:
@@ -59,7 +61,8 @@ async def test_main_signal_handler(mocker):
     """Test signal handler registration and execution."""
     import s0pcm_reader
 
-    mocker.patch("config.read_config")
+    mocker.patch("s0pcm_reader.get_version", new_callable=AsyncMock)
+    mocker.patch("s0pcm_reader.config_module.read_config", new_callable=AsyncMock)
     mocker.patch("s0pcm_reader.serial_task", new_callable=AsyncMock)
     mocker.patch("s0pcm_reader.mqtt_task", new_callable=AsyncMock)
     mocker.patch("s0pcm_reader.logger")
@@ -89,7 +92,8 @@ async def test_main_cancellation_handling(mocker):
     """Test that main() handles CancelledError ExceptionGroup gracefully."""
     import s0pcm_reader
 
-    mocker.patch("config.read_config")
+    mocker.patch("s0pcm_reader.get_version", new_callable=AsyncMock)
+    mocker.patch("s0pcm_reader.config_module.read_config", new_callable=AsyncMock)
     mocker.patch("s0pcm_reader.logger")
 
     # Mock TaskGroup to raise BaseExceptionGroup containing CancelledError

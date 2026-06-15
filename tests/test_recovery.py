@@ -125,7 +125,7 @@ class TestMQTTMessageParsing:
 class TestHAAPIFallback:
     """Test Home Assistant API fallback methods."""
 
-    def test_fetch_ha_state_success(self, recoverer, mocker):
+    async def test_fetch_ha_state_success(self, recoverer, mocker):
         """Test successful HA API state fetch."""
         mocker.patch.dict("os.environ", {"SUPERVISOR_TOKEN": "test_token"})
 
@@ -139,19 +139,19 @@ class TestHAAPIFallback:
 
         mocker.patch("urllib.request.urlopen", return_value=mock_response)
 
-        result = recoverer.fetch_ha_state("sensor.s0pcmreader_1_total")
+        result = await recoverer.fetch_ha_state("sensor.s0pcmreader_1_total")
 
         assert result == "1234567"
 
-    def test_fetch_ha_state_no_token(self, recoverer, mocker):
+    async def test_fetch_ha_state_no_token(self, recoverer, mocker):
         """Test HA API fetch returns None when no token available."""
         mocker.patch.dict("os.environ", {}, clear=True)
 
-        result = recoverer.fetch_ha_state("sensor.s0pcmreader_1_total")
+        result = await recoverer.fetch_ha_state("sensor.s0pcmreader_1_total")
 
         assert result is None
 
-    def test_fetch_ha_state_unknown_state(self, recoverer, mocker):
+    async def test_fetch_ha_state_unknown_state(self, recoverer, mocker):
         """Test HA API fetch returns None for unknown/unavailable states."""
         mocker.patch.dict("os.environ", {"SUPERVISOR_TOKEN": "test_token"})
         mock_response = MagicMock()
@@ -163,11 +163,23 @@ class TestHAAPIFallback:
         mock_response.__exit__ = lambda self, *args: None
         mocker.patch("urllib.request.urlopen", return_value=mock_response)
 
-        result = recoverer.fetch_ha_state("sensor.s0pcmreader_1_total")
+        result = await recoverer.fetch_ha_state("sensor.s0pcmreader_1_total")
 
         assert result is None
 
-    def test_fetch_all_ha_states_success(self, recoverer, mocker):
+    async def test_fetch_ha_state_status_not_200(self, recoverer, mocker):
+        """Test fetch HA state returns None when response status is not 200."""
+        mocker.patch.dict("os.environ", {"SUPERVISOR_TOKEN": "test_token"})
+        mock_response = MagicMock()
+        mock_response.status = 204
+        mock_response.__enter__ = lambda self: self
+        mock_response.__exit__ = lambda self, *args: None
+        mocker.patch("urllib.request.urlopen", return_value=mock_response)
+
+        result = await recoverer.fetch_ha_state("sensor.s0pcmreader_1_total")
+        assert result is None
+
+    async def test_fetch_all_ha_states_success(self, recoverer, mocker):
         """Test successful fetch of all HA states."""
         mocker.patch.dict("os.environ", {"SUPERVISOR_TOKEN": "test_token"})
 
@@ -184,18 +196,30 @@ class TestHAAPIFallback:
 
         mocker.patch("urllib.request.urlopen", return_value=mock_response)
 
-        result = recoverer.fetch_all_ha_states()
+        result = await recoverer.fetch_all_ha_states()
 
         assert len(result) == 2
         assert result[0]["entity_id"] == "sensor.s0pcmreader_1_total"
         assert result[1]["state"] == "5000"
 
-    def test_fetch_all_ha_states_no_token(self, recoverer, mocker):
+    async def test_fetch_all_ha_states_no_token(self, recoverer, mocker):
         """Test fetch all states returns empty list when no token."""
         mocker.patch.dict("os.environ", {}, clear=True)
 
-        result = recoverer.fetch_all_ha_states()
+        result = await recoverer.fetch_all_ha_states()
 
+        assert result == []
+
+    async def test_fetch_all_ha_states_status_not_200(self, recoverer, mocker):
+        """Test fetch all states returns empty list when response status is not 200."""
+        mocker.patch.dict("os.environ", {"SUPERVISOR_TOKEN": "test_token"})
+        mock_response = MagicMock()
+        mock_response.status = 204
+        mock_response.__enter__ = lambda self: self
+        mock_response.__exit__ = lambda self, *args: None
+        mocker.patch("urllib.request.urlopen", return_value=mock_response)
+
+        result = await recoverer.fetch_all_ha_states()
         assert result == []
 
 
@@ -410,6 +434,7 @@ class TestRecoveryFlow:
         mocker.patch.object(
             recoverer,
             "fetch_all_ha_states",
+            new_callable=AsyncMock,
             return_value=[{"entity_id": "sensor.s0pcmreader_1_total", "state": "5000"}],
         )
 
@@ -428,22 +453,22 @@ class TestRecoveryFlow:
 
 
 class TestRecoveryExceptions:
-    def test_fetch_ha_state_exception(self, recoverer):
+    async def test_fetch_ha_state_exception(self, recoverer):
         """Test fetch_ha_state exception handling."""
         with (
             patch("os.getenv", return_value="TOKEN"),
             patch("urllib.request.urlopen", side_effect=Exception("API Error")),
         ):
-            res = recoverer.fetch_ha_state("sensor.test")
+            res = await recoverer.fetch_ha_state("sensor.test")
             assert res is None
 
-    def test_fetch_all_ha_states_exception(self, recoverer):
+    async def test_fetch_all_ha_states_exception(self, recoverer):
         """Test fetch_all_ha_states exception handling."""
         with (
             patch("os.getenv", return_value="TOKEN"),
             patch("urllib.request.urlopen", side_effect=Exception("API Error")),
         ):
-            res = recoverer.fetch_all_ha_states()
+            res = await recoverer.fetch_all_ha_states()
             assert res == []
 
     async def test_run_recover_named_meter_gap(self, recoverer):
