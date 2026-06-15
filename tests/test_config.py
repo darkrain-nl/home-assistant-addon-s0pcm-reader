@@ -161,6 +161,26 @@ class TestAutoDetectSerialPort:
         port = await config_module._auto_detect_serial_port()
         assert port == "/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0"
 
+    async def test_auto_detect_arduino_vid(self, mocker):
+        mock_port = mocker.MagicMock()
+        mock_port.device = "/dev/ttyACM99"
+        mock_port.vid = 0x2341
+        mock_port.manufacturer = "Arduino LLC"
+        mock_port.description = "Arduino Leonardo"
+        mocker.patch("serialx.list_serial_ports", return_value=[mock_port])
+        port = await config_module._auto_detect_serial_port()
+        assert port == "/dev/ttyACM99"
+
+    async def test_auto_detect_arduino_name(self, mocker):
+        mock_port = mocker.MagicMock()
+        mock_port.device = "/dev/serial/by-id/usb-Arduino_LLC_Arduino_Leonardo-if00-port0"
+        mock_port.vid = 0x1234
+        mock_port.manufacturer = None
+        mock_port.description = None
+        mocker.patch("serialx.list_serial_ports", return_value=[mock_port])
+        port = await config_module._auto_detect_serial_port()
+        assert port == "/dev/serial/by-id/usb-Arduino_LLC_Arduino_Leonardo-if00-port0"
+
     async def test_auto_detect_generic_usb(self, mocker):
         mock_port = mocker.MagicMock()
         mock_port.device = "/dev/serial/by-id/usb-FTDI_FT232R-if00-port0"
