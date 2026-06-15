@@ -20,7 +20,7 @@ async def test_send_global_discovery_new_ha(mocker):
     context.config = make_test_config(base_topic="s0pcm")
     context.s0pcm_reader_version = "3.0.0"
 
-    mocker.patch("utils.get_ha_core_version", return_value="2025.5.0")
+    mocker.patch("utils.get_ha_core_version", new_callable=AsyncMock, return_value="2025.5.0")
 
     await discovery.send_global_discovery(mock_client, context)
 
@@ -55,7 +55,7 @@ async def test_send_global_discovery_old_ha(mocker):
     context.config = make_test_config(base_topic="s0pcm")
     context.s0pcm_reader_version = "3.0.0"
 
-    mocker.patch("utils.get_ha_core_version", return_value="2024.12.0")
+    mocker.patch("utils.get_ha_core_version", new_callable=AsyncMock, return_value="2024.12.0")
 
     await discovery.send_global_discovery(mock_client, context)
 

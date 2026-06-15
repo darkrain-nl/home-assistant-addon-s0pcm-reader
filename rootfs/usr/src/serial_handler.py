@@ -26,10 +26,10 @@ class SerialTaskState:
     started: bool = False
 
 
-def _log_available_ports() -> None:
+async def _log_available_ports() -> None:
     """Log available serial ports for debugging on connection failure."""
     try:
-        ports = serialx.list_serial_ports()
+        ports = await asyncio.to_thread(serialx.list_serial_ports)
         if ports:
             port_list = ", ".join(p.device for p in ports)
             logger.info(f"Available serial ports: {port_list}")
@@ -225,7 +225,7 @@ async def serial_task(context: state_module.AppContext) -> None:
                 task_state.serialerror += 1
                 context.set_error(f"Serialport connection failed: {type(e).__name__}: '{e}'", category="serial")
                 if task_state.serialerror == 1:
-                    _log_available_ports()
+                    await _log_available_ports()
                 logger.error(f"Retry in {context.config.serial.connect_retry} seconds")
                 await asyncio.sleep(context.config.serial.connect_retry)
     except asyncio.CancelledError:

@@ -4,6 +4,7 @@ S0PCM Reader Utilities
 Helper functions for version detection and Home Assistant Supervisor API access.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 type JsonDict = dict[str, Any]
 
 
-def get_version() -> str:
+async def get_version() -> str:
     """
     Get the S0PCM Reader version.
 
@@ -49,19 +50,25 @@ def get_version() -> str:
         Path("./config.yaml"),
     ]
 
-    for path in search_paths:
-        if path.exists():
-            try:
-                with path.open() as f:
-                    if (config_yaml := yaml.safe_load(f)) and "version" in config_yaml:
-                        return f"{config_yaml['version']} (local)"
-            except OSError, yaml.YAMLError:
-                pass
+    def _read_version():
+        for path in search_paths:
+            if path.exists():
+                try:
+                    with path.open() as f:
+                        if (config_yaml := yaml.safe_load(f)) and "version" in config_yaml:
+                            return f"{config_yaml['version']} (local)"
+                except OSError, yaml.YAMLError:
+                    pass
+        return None
+
+    res = await asyncio.to_thread(_read_version)
+    if res:
+        return res
 
     return "dev"
 
 
-def get_supervisor_config(service: str) -> JsonDict:
+async def get_supervisor_config(service: str) -> JsonDict:
     """
     Fetch service configuration from the Home Assistant Supervisor API.
 
@@ -79,10 +86,15 @@ def get_supervisor_config(service: str) -> JsonDict:
     headers = {"Authorization": f"Bearer {token}"}
     try:
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=5) as response:
-            if response.status == 200:
-                data = json.loads(response.read().decode())
-                return data.get("data", {})
+
+        def _fetch():
+            with urllib.request.urlopen(req, timeout=5) as response:
+                if response.status == 200:
+                    data = json.loads(response.read().decode())
+                    return data.get("data", {})
+            return {}
+
+        return await asyncio.to_thread(_fetch)
     except (urllib.error.URLError, json.JSONDecodeError, OSError) as e:
         logger.debug(f"Supervisor API discovery for {service} failed: {e}")
     return {}
@@ -152,7 +164,7 @@ def parse_localized_number(value_str: str) -> float | None:
         return None
 
 
-def get_ha_core_version() -> str | None:
+async def get_ha_core_version() -> str | None:
     """Fetch the Home Assistant Core version from the Supervisor API."""
     token = os.getenv("SUPERVISOR_TOKEN")
     if not token:
@@ -162,10 +174,15 @@ def get_ha_core_version() -> str | None:
     headers = {"Authorization": f"Bearer {token}"}
     try:
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=5) as response:
-            if response.status == 200:
-                data = json.loads(response.read().decode())
-                return data.get("data", {}).get("version")
+
+        def _fetch():
+            with urllib.request.urlopen(req, timeout=5) as response:
+                if response.status == 200:
+                    data = json.loads(response.read().decode())
+                    return data.get("data", {}).get("version")
+            return None
+
+        return await asyncio.to_thread(_fetch)
     except (urllib.error.URLError, json.JSONDecodeError, OSError) as e:
         logger.debug(f"Supervisor API /core/info failed: {e}")
     return None

@@ -81,7 +81,7 @@ async def send_global_discovery(client: aiomqtt.Client, context: AppContext) -> 
     }
     await client.publish(error_topic, json.dumps(error_payload), retain=True)
 
-    ha_version = utils.get_ha_core_version()
+    ha_version = await utils.get_ha_core_version()
     ha_version_tuple = utils.parse_ha_version(ha_version)
 
     # Diagnostics

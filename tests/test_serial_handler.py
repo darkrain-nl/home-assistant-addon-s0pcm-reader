@@ -22,11 +22,11 @@ import state as state_module
 
 
 @pytest.fixture(autouse=True)
-def setup_serial_test_state():
+async def setup_serial_test_state():
     """Ensure a clean state for every test."""
     context = state_module.get_context()
     # Initialize basic config using standard logic
-    context.config = config_module.read_config(version="test")
+    context.config = await config_module.read_config(version="test")
     context.s0pcm_firmware = "Unknown"
     context.state.reset_state()
     context.lasterror_serial = None
@@ -41,7 +41,7 @@ def s0pcm_packets():
 
 
 class TestSerialPacketParsing:
-    def test_handle_data_packet_updates_measurement(self, s0pcm_packets, mocker):
+    async def test_handle_data_packet_updates_measurement(self, s0pcm_packets, mocker):
         context = state_module.get_context()
         mocker.patch.object(context, "set_error")
 
@@ -51,7 +51,7 @@ class TestSerialPacketParsing:
         assert 1 in context.state.meters
         assert context.state.meters[1].total == 100
 
-    def test_invalid_packet_sets_error(self, s0pcm_packets, mocker):
+    async def test_invalid_packet_sets_error(self, s0pcm_packets, mocker):
         context = state_module.get_context()
         mock_set_error = mocker.patch.object(context, "set_error")
         _handle_data_packet(context, "ID:8237:I:10:M1:0:100")  # Too short
@@ -59,7 +59,7 @@ class TestSerialPacketParsing:
 
 
 class TestPulseCountLogic:
-    def test_pulse_increment(self):
+    async def test_pulse_increment(self):
         # Initialize meter properly using state_module models
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState(pulsecount=100, total=1000, today=50)
@@ -67,14 +67,14 @@ class TestPulseCountLogic:
         assert context.state.meters[1].total == 1010
         assert context.state.meters[1].today == 60
 
-    def test_pulse_reset_detection(self):
+    async def test_pulse_reset_detection(self):
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState(pulsecount=100, total=1000, today=50)
         _update_meter(context, 1, 10, 10, 20)  # Restarted (pulsecount reset to 10)
         # Total should increase by 10
         assert context.state.meters[1].total == 1010
 
-    def test_pulse_anomaly(self):
+    async def test_pulse_anomaly(self):
         """Test pulsecount anomaly (lower but not 0)."""
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState(pulsecount=100, total=1000)
@@ -85,7 +85,7 @@ class TestPulseCountLogic:
         # Logic: delta = pulsecount (90). Total += 90.
         assert context.state.meters[1].total == 1090
 
-    def test_update_meter_uninitialized(self):
+    async def test_update_meter_uninitialized(self):
         context = state_module.AppContext()
         _update_meter(context, 1, 5, 5, 10)
         assert 1 in context.state.meters
@@ -93,7 +93,7 @@ class TestPulseCountLogic:
 
 
 class TestSerialPacketAdvanced:
-    def test_handle_header_parsing(self):
+    async def test_handle_header_parsing(self):
         context = state_module.get_context()
 
         _handle_header(context, "/8237:S0 Pulse Counter V0.6")
@@ -140,7 +140,7 @@ class TestSerialPacketAdvanced:
 
 
 class TestDayChange:
-    def test_day_change_resets_today(self):
+    async def test_day_change_resets_today(self):
         context = state_module.get_context()
         yesterday = datetime.date.today() - datetime.timedelta(days=1)
         # Set date in state
@@ -154,7 +154,7 @@ class TestDayChange:
         assert context.state.date == datetime.date.today()
 
 
-def test_handle_header_fallback():
+async def test_handle_header_fallback():
     """Test _handle_header fallback paths."""
     context = state_module.get_context()
 
@@ -179,7 +179,7 @@ def test_handle_header_fallback():
     assert context.s0pcm_firmware == bad_str
 
 
-def test_update_meter_reset_logging():
+async def test_update_meter_reset_logging():
     """Test _update_meter reset logging."""
     context = state_module.get_context()
     context.state.meters[1] = state_module.MeterState(total=1000, pulsecount=500)
@@ -302,7 +302,7 @@ async def test_serial_task_exclusive_mode(mocker):
     assert kwargs["exclusive"] is True
 
 
-def test_log_available_ports_with_ports():
+async def test_log_available_ports_with_ports():
     """Test _log_available_ports when ports are detected."""
     mock_port = MagicMock()
     mock_port.device = "/dev/ttyACM0"
@@ -310,28 +310,28 @@ def test_log_available_ports_with_ports():
         patch("serialx.list_serial_ports", return_value=[mock_port]),
         patch("serial_handler.logger") as mock_logger,
     ):
-        _log_available_ports()
+        await _log_available_ports()
         assert any("/dev/ttyACM0" in str(c) for c in mock_logger.info.call_args_list)
 
 
-def test_log_available_ports_no_ports():
+async def test_log_available_ports_no_ports():
     """Test _log_available_ports when no ports are detected."""
     with (
         patch("serialx.list_serial_ports", return_value=[]),
         patch("serial_handler.logger") as mock_logger,
     ):
-        _log_available_ports()
+        await _log_available_ports()
         assert mock_logger.warning.called
         assert "No serial ports detected" in mock_logger.warning.call_args[0][0]
 
 
-def test_log_available_ports_exception():
+async def test_log_available_ports_exception():
     """Test _log_available_ports handles exceptions gracefully."""
     with (
         patch("serialx.list_serial_ports", side_effect=OSError("Permission denied")),
         patch("serial_handler.logger") as mock_logger,
     ):
-        _log_available_ports()
+        await _log_available_ports()
         assert mock_logger.debug.called
         assert "Unable to enumerate" in mock_logger.debug.call_args[0][0]
 
@@ -353,7 +353,7 @@ async def test_log_available_ports_called_on_first_failure(mocker):
 
     mocker.patch("serialx.async_serial_for_url", side_effect=fail_then_cancel)
     mocker.patch("asyncio.sleep", return_value=None)
-    mock_log_ports = mocker.patch("serial_handler._log_available_ports")
+    mock_log_ports = mocker.patch("serial_handler._log_available_ports", new_callable=AsyncMock)
 
     # serial_task catches CancelledError internally and returns
     await serial_task(context)

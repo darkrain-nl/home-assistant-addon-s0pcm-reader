@@ -33,7 +33,7 @@ class StateRecoverer:
         self.recovered_names = {}  # {id: name}
         self.context = context
 
-    def fetch_ha_state(self, entity_id: str) -> str | None:
+    async def fetch_ha_state(self, entity_id: str) -> str | None:
         """Fetch the current state of an entity from Home Assistant."""
         token = os.getenv("SUPERVISOR_TOKEN")
         if not token:
@@ -43,17 +43,22 @@ class StateRecoverer:
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         try:
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=5) as response:
-                if response.status == 200:
-                    data = json.loads(response.read().decode())
-                    state = data.get("state")
-                    if state not in [None, "unknown", "unavailable"]:
-                        return state
+
+            def _fetch():
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    if response.status == 200:
+                        data = json.loads(response.read().decode())
+                        state = data.get("state")
+                        if state not in [None, "unknown", "unavailable"]:
+                            return state
+                return None
+
+            return await asyncio.to_thread(_fetch)
         except Exception as e:
             logger.debug(f"HA API state fetch for {entity_id} failed: {e}")
         return None
 
-    def fetch_all_ha_states(self) -> EntityStateList:
+    async def fetch_all_ha_states(self) -> EntityStateList:
         """Fetch all entity states from Home Assistant."""
         token = os.getenv("SUPERVISOR_TOKEN")
         if not token:
@@ -63,9 +68,14 @@ class StateRecoverer:
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         try:
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=5) as response:
-                if response.status == 200:
-                    return json.loads(response.read().decode())
+
+            def _fetch():
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    if response.status == 200:
+                        return json.loads(response.read().decode())
+                return []
+
+            return await asyncio.to_thread(_fetch)
         except Exception as e:
             logger.debug(f"HA API fetch all states failed: {e}")
         return []
@@ -184,7 +194,7 @@ class StateRecoverer:
             if meter.total == 0:
                 if ha_states is None:
                     logger.info(f"Recovery: Meter {mid} not found on MQTT, attempting HA API fallback...")
-                    ha_states = await asyncio.to_thread(self.fetch_all_ha_states)
+                    ha_states = await self.fetch_all_ha_states()
 
                 found_val = self._find_total_in_ha(mid, ha_states)
                 if found_val is not None:

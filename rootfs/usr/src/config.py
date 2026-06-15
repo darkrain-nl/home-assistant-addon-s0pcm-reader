@@ -6,6 +6,7 @@ Home Assistant options.json and Supervisor API.
 """
 
 import argparse
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -93,14 +94,14 @@ def init_args() -> Path:
     return config_path
 
 
-def _auto_detect_serial_port() -> str:
+async def _auto_detect_serial_port() -> str:
     """
     Auto-detect the S0PCM serial port on the system.
 
     Looks for typical CH340 USB-serial chips first, then any USB-serial device.
     """
     try:
-        ports = serialx.list_serial_ports()
+        ports = await asyncio.to_thread(serialx.list_serial_ports)
         if not ports:
             logger.warning("Auto-detect: No serial ports detected. Defaulting to /dev/ttyACM0")
             return "/dev/ttyACM0"
@@ -130,7 +131,7 @@ def _auto_detect_serial_port() -> str:
         return "/dev/ttyACM0"
 
 
-def read_config(
+async def read_config(
     version: str = "Unknown",
     config_dir: Path = Path("./"),
 ) -> ConfigModel:
@@ -147,16 +148,21 @@ def read_config(
     # 1. Load Home Assistant Options
     options_path = Path("/data/options.json")
     ha_options = {}
-    if options_path.exists():
-        try:
-            ha_options = json.loads(options_path.read_text())
-        except Exception as e:
-            logger.error(f"Failed to load {options_path}: {e}")
+
+    def _read_options():
+        if options_path.exists():
+            try:
+                return json.loads(options_path.read_text())
+            except Exception as e:
+                logger.error(f"Failed to load {options_path}: {e}")
+        return {}
+
+    ha_options = await asyncio.to_thread(_read_options)
 
     # 2. MQTT Service Discovery
     mqtt_service = {}
     if not ha_options.get("mqtt_host"):
-        mqtt_service = get_supervisor_config("mqtt")
+        mqtt_service = await get_supervisor_config("mqtt")
         if mqtt_service:
             logger.info("Using MQTT service discovery for connection settings.")
 
@@ -174,7 +180,7 @@ def read_config(
             tls_ca = str(config_dir / tls_ca)
 
     device_opt = ha_options.get("device")
-    resolved_port = _auto_detect_serial_port() if device_opt in [None, "", "null"] else device_opt
+    resolved_port = await _auto_detect_serial_port() if device_opt in [None, "", "null"] else device_opt
 
     model = ConfigModel(
         log=LogConfig(level=(ha_options.get("log_level") or "INFO").upper()),
