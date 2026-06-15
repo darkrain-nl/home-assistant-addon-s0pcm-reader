@@ -106,14 +106,25 @@ async def _auto_detect_serial_port() -> str:
             logger.warning("Auto-detect: No serial ports detected. Defaulting to /dev/ttyACM0")
             return "/dev/ttyACM0"
 
-        # 1. Look for known S0PCM CH340 USB-serial chip (Vendor ID 0x1a86 or "1a86" in device name)
+        # 1. Look for known S0PCM candidates: CH340 (Vendor ID 0x1a86) or Arduino/Leonardo (Vendor IDs 0x2341, 0x2a03)
         for p in ports:
-            is_ch340_vid = p.vid == 0x1A86
-            is_ch340_str = "1a86" in p.device.lower() or (
-                p.manufacturer is not None and "1a86" in p.manufacturer.lower()
+            is_candidate_vid = p.vid in (0x1A86, 0x2341, 0x2A03)
+
+            # Check string indicators (device name, description, or manufacturer)
+            dev_str = p.device.lower()
+            desc_str = p.description.lower() if p.description is not None else ""
+            mfg_str = p.manufacturer.lower() if p.manufacturer is not None else ""
+
+            is_candidate_str = any(
+                keyword in dev_str or keyword in desc_str or keyword in mfg_str
+                for keyword in ("1a86", "arduino", "leonardo")
             )
-            if is_ch340_vid or is_ch340_str:
-                logger.info(f"Auto-detect: Found S0PCM candidate device at '{p.device}' (CH340)")
+
+            if is_candidate_vid or is_candidate_str:
+                chip_info = (
+                    "CH340" if (p.vid == 0x1A86 or "1a86" in mfg_str or "1a86" in dev_str) else "Arduino/Leonardo"
+                )
+                logger.info(f"Auto-detect: Found S0PCM candidate device at '{p.device}' ({chip_info})")
                 return p.device
 
         # 2. Look for any other USB serial port (has "usb" in path or description)

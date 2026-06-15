@@ -83,7 +83,7 @@ def test_app_state_iter():
     state.meters[1] = state_module.MeterState(total=100)
 
     assert 1 in state.meters
-    assert "date" in state.model_fields
+    assert "date" in state_module.AppState.model_fields
 
 
 def test_meter_state_initial_values():
