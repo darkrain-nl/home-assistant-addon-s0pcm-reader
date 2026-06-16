@@ -5,7 +5,7 @@ description = "S0PCM Reader Home Assistant App"
 requires-python = ">=3.14"
 dependencies = [
     "pyyaml==6.0.3",
-    "serialx==1.8.1",
+    "serialx==1.8.2",
     "aiomqtt>=2.5.1",
     "pydantic==2.13.4",
 ]
