@@ -43,7 +43,7 @@
                 "(?<arch>aarch64|amd64):\\s+(?<depName>ghcr\\.io/home-assistant/[^:]+):(?<currentValue>[^@\\s]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?"
             ],
             "datasourceTemplate": "docker",
-            "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)-alpine(?<patch>\\d+)\\.(?<build>\\d+)$",
+            "versioningTemplate": "regex:^(?<compatibility>\\d+\\.\\d+-alpine)(?<major>\\d+)\\.(?<minor>\\d+)(?:\\.(?<patch>\\d+))?$",
             "autoReplaceStringTemplate": "{{{arch}}}: {{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}"
         }
     ],
