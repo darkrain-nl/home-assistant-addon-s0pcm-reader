@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.0.0-b7] - 2026-06-15
+## [5.0.0-b8] - 2026-06-16
 ### Added
 - **Asyncio Architecture**: Complete rewrite of the application core to run on a single-threaded `asyncio` event loop. Replaced `paho-mqtt` with `aiomqtt` and ported the serial read loop to use non-blocking `serialx.AsyncSerial`. This eliminates background threads and locking primitives (`threading.Lock`), resolving potential race conditions and improving system resource utilization. This transition dramatically reduces CPU overhead and memory footprint, making internal state updates **~90x more efficient** in benchmarks.
 - **USB Port Auto-Detection**: Enumerate and automatically select S0PCM serial ports (CH340 chipset/Vendor ID `0x1a86`) when no device path is manually specified, falling back to any USB serial or standard interface. Made the `device` configuration parameter optional in the Home Assistant configuration schema to allow leaving it empty for auto-detection.
@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.3.4] - 2026-06-13
 ### Changed
-- **Dependencies**: Dependency updates (serialx v1.8.1).
+- **Dependencies**: Dependency updates (serialx v1.8.2).
 
 ## [4.3.3] - 2026-05-14
 ### Changed
