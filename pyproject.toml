@@ -1,6 +1,6 @@
 [project]
 name = "s0pcm-reader"
-version = "5.0.0-b8"
+version = "5.0.0"
 description = "S0PCM Reader Home Assistant App"
 requires-python = ">=3.14"
 dependencies = [

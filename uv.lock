@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.14"
 
 [options]
-exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
+exclude-newer = "2026-06-13T08:31:27.822077864Z"
 exclude-newer-span = "P3D"
 
 [[package]]
@@ -308,7 +308,7 @@ wheels = [
 
 [[package]]
 name = "s0pcm-reader"
-version = "5.0.0b8"
+version = "5.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiomqtt" },
