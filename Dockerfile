@@ -3,6 +3,8 @@
 ARG BUILD_FROM="scratch"
 FROM ${BUILD_FROM}
 
+ENV LD_PRELOAD="/usr/local/lib/libjemalloc.so.2"
+
 WORKDIR /
 COPY pyproject.toml uv.lock /tmp/uv/
 COPY rootfs /
