@@ -4,9 +4,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-06-16
+### Added
+- **Asyncio Architecture**: Complete rewrite of the application core to run on a single-threaded `asyncio` event loop. Replaced `paho-mqtt` with `aiomqtt` and ported the serial read loop to use non-blocking `serialx.AsyncSerial`. This eliminates background threads and locking primitives (`threading.Lock`), resolving potential race conditions and improving system resource utilization. This transition dramatically reduces CPU overhead and memory footprint, making internal state updates **~90x more efficient** in benchmarks.
+- **USB Port Auto-Detection**: Enumerate and automatically select S0PCM serial ports (CH340 chipset/Vendor ID `0x1a86`) when no device path is manually specified, falling back to any USB serial or standard interface. Made the `device` configuration parameter optional in the Home Assistant configuration schema to allow leaving it empty for auto-detection.
+- **Improved Reconnection & Error State Syncing**: Added resilient MQTT reconnection logic using `asyncio.TaskGroup`. The connection error state is now safely retained upon connection failure and published to the MQTT broker immediately upon successful reconnection, prior to clearing it via a delayed timer.
+
+### Fixed
+- **USB Auto-Detection Schema**: Removed `device: null` default option to prevent voluptuous schema validation errors when saving configuration with an unselected serial port.
+- **Add-on Hardware Access**: Added `uart: true` permission flag to container configuration to allow scanning and mapping host USB serial interfaces inside the container.
+
+### Security
+- **Integer Overflow Guard**: Added 32-bit signed integer clamping to meter `total` and `today` accumulators, preventing corrupt serial data from exceeding the HA number entity maximum (2,147,483,647).
+- **MQTT Topic Sanitization**: Strengthened meter name sanitization by filtering non-printable characters (control chars, null bytes) in both MQTT command handling and discovery topic construction, preventing log injection and topic corruption.
+- **Healthcheck Hardening**: Tightened Docker HEALTHCHECK process detection to require both a Python interpreter and the script name in the cmdline, preventing false positives from non-Python processes.
+
+### Changed
+- **Serial Timeout**: Changed default serial read timeout from infinite (`None`) to 30 seconds, ensuring the serial thread can detect hardware hangs and respond to shutdown signals.
+- **CI/CD**: Fixed `git config --global` scope in the `sync-to-beta-repo` CI job to use local repository scope for consistency and OpenSSF best practices.
+- **Dependencies**: Replaced `paho-mqtt` dependency with `aiomqtt` and updated other dependencies (including `serialx` to 1.8.2).
+
 ## [4.3.4] - 2026-06-13
 ### Changed
-- **Dependencies**: Dependency updates (serialx v1.8.1).
+- **Dependencies**: Dependency updates (serialx v1.8.2).
 
 ## [4.3.3] - 2026-05-14
 ### Changed

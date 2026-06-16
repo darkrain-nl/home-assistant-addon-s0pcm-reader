@@ -6,12 +6,11 @@ Home Assistant options.json and Supervisor API.
 """
 
 import argparse
+import asyncio
 import json
 import logging
 from pathlib import Path
-from typing import Any
 
-import paho.mqtt.client as mqtt
 from pydantic import BaseModel, Field, SecretStr
 import serialx
 
@@ -39,7 +38,7 @@ class SerialConfig(BaseModel):
     parity: serialx.Parity = serialx.PARITY_EVEN
     stopbits: serialx.StopBits = serialx.STOPBITS_ONE
     bytesize: int = serialx.SEVENBITS
-    timeout: float | None = None
+    timeout: float | None = 30.0
     connect_retry: int = 5
 
 
@@ -53,7 +52,7 @@ class MqttConfig(BaseModel):
     password: SecretStr | None = None
     base_topic: str = "s0pcmreader"
     client_id: str | None = None
-    version: Any = mqtt.MQTTv5
+    version: str = "5.0"
     retain: bool = True
     split_topic: bool = True
     connect_retry: int = 5
@@ -95,7 +94,55 @@ def init_args() -> Path:
     return config_path
 
 
-def read_config(
+async def _auto_detect_serial_port() -> str:
+    """
+    Auto-detect the S0PCM serial port on the system.
+
+    Looks for typical CH340 USB-serial chips first, then any USB-serial device.
+    """
+    try:
+        ports = await asyncio.to_thread(serialx.list_serial_ports)
+        if not ports:
+            logger.warning("Auto-detect: No serial ports detected. Defaulting to /dev/ttyACM0")
+            return "/dev/ttyACM0"
+
+        # 1. Look for known S0PCM candidates: CH340 (Vendor ID 0x1a86) or Arduino/Leonardo (Vendor IDs 0x2341, 0x2a03)
+        for p in ports:
+            is_candidate_vid = p.vid in (0x1A86, 0x2341, 0x2A03)
+
+            # Check string indicators (device name, description, or manufacturer)
+            dev_str = p.device.lower()
+            desc_str = p.description.lower() if p.description is not None else ""
+            mfg_str = p.manufacturer.lower() if p.manufacturer is not None else ""
+
+            is_candidate_str = any(
+                keyword in dev_str or keyword in desc_str or keyword in mfg_str
+                for keyword in ("1a86", "arduino", "leonardo")
+            )
+
+            if is_candidate_vid or is_candidate_str:
+                chip_info = (
+                    "CH340" if (p.vid == 0x1A86 or "1a86" in mfg_str or "1a86" in dev_str) else "Arduino/Leonardo"
+                )
+                logger.info(f"Auto-detect: Found S0PCM candidate device at '{p.device}' ({chip_info})")
+                return p.device
+
+        # 2. Look for any other USB serial port (has "usb" in path or description)
+        for p in ports:
+            if "usb" in p.device.lower() or (p.description is not None and "usb" in p.description.lower()):
+                logger.info(f"Auto-detect: Selecting first available USB serial port '{p.device}' ({p.description})")
+                return p.device
+
+        # 3. Fallback to the first available port
+        first_port = ports[0].device
+        logger.info(f"Auto-detect: No USB-serial candidate found. Selecting first port '{first_port}'")
+        return first_port
+    except Exception as e:
+        logger.error(f"Auto-detect: Exception during port scan: {e}. Defaulting to /dev/ttyACM0")
+        return "/dev/ttyACM0"
+
+
+async def read_config(
     version: str = "Unknown",
     config_dir: Path = Path("./"),
 ) -> ConfigModel:
@@ -112,16 +159,21 @@ def read_config(
     # 1. Load Home Assistant Options
     options_path = Path("/data/options.json")
     ha_options = {}
-    if options_path.exists():
-        try:
-            ha_options = json.loads(options_path.read_text())
-        except Exception as e:
-            logger.error(f"Failed to load {options_path}: {e}")
+
+    def _read_options():
+        if options_path.exists():
+            try:
+                return json.loads(options_path.read_text())
+            except Exception as e:
+                logger.error(f"Failed to load {options_path}: {e}")
+        return {}
+
+    ha_options = await asyncio.to_thread(_read_options)
 
     # 2. MQTT Service Discovery
     mqtt_service = {}
     if not ha_options.get("mqtt_host"):
-        mqtt_service = get_supervisor_config("mqtt")
+        mqtt_service = await get_supervisor_config("mqtt")
         if mqtt_service:
             logger.info("Using MQTT service discovery for connection settings.")
 
@@ -131,8 +183,6 @@ def read_config(
     sec_opts = ha_options.get("security", {})
 
     mqtt_version_str = str(mqtt_opts.get("protocol", "5.0"))
-    version_map = {"3.1": mqtt.MQTTv31, "3.1.1": mqtt.MQTTv311, "5.0": mqtt.MQTTv5}
-    mqtt_version = version_map.get(mqtt_version_str, mqtt.MQTTv5)
 
     tls_ca = sec_opts.get("tls_ca", "")
     if tls_ca:
@@ -140,9 +190,12 @@ def read_config(
         if not tls_ca_path.is_absolute():
             tls_ca = str(config_dir / tls_ca)
 
+    device_opt = ha_options.get("device")
+    resolved_port = await _auto_detect_serial_port() if device_opt in [None, "", "null"] else device_opt
+
     model = ConfigModel(
         log=LogConfig(level=(ha_options.get("log_level") or "INFO").upper()),
-        serial=SerialConfig(port=ha_options.get("device", "/dev/ttyACM0")),
+        serial=SerialConfig(port=resolved_port),
         mqtt=MqttConfig(
             host=mqtt_opts.get("host") or mqtt_service.get("host", "127.0.0.1"),
             port=mqtt_opts.get("port") or mqtt_service.get("port", 1883),
@@ -151,7 +204,7 @@ def read_config(
             password=mqtt_opts.get("password") or mqtt_service.get("password"),
             base_topic=mqtt_opts.get("base_topic", "s0pcmreader"),
             client_id=mqtt_opts.get("client_id") if mqtt_opts.get("client_id") not in [None, "", "None"] else None,
-            version=mqtt_version,
+            version=mqtt_version_str,
             retain=adv_opts.get("retain", True),
             split_topic=adv_opts.get("split_topic", True),
             discovery=adv_opts.get("discovery", True),

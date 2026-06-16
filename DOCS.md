@@ -9,8 +9,7 @@ This application reads pulse counts from S0PCM-2 (2-channel) or S0PCM-5 (5-chann
 ### Home Assistant App (Recommended)
 1. Add the repository: `https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader`
 2. Install **S0PCM Reader** from the App Store.
-3. Configure the **Device** (e.g., `/dev/ttyACM0`) in the Configuration tab.
-4. Start the app.
+3. Start the app. By default, it will auto-detect your connected S0PCM reader. (Optional: To manually select a port, enable "Show unused optional configuration options" in the Configuration tab).
 
 ### Standalone Docker Container (Advanced)
 If you are not using Home Assistant OS/Supervisor, you can run this as a standalone container.
@@ -45,7 +44,7 @@ services:
 ## 3. Configuration
 
 ### General Options
-- **Device**: Path to the USB device (e.g., `/dev/ttyACM0`).
+- **Device**: (Optional) Path to the USB device (e.g., `/dev/ttyACM0`). If left unconfigured (default), the app will automatically scan and select the connected S0PCM reader (CH340 chip). In the Home Assistant UI, this field is hidden under the "Show unused optional configuration options" toggle by default.
 - **Log Level**: (Default: `info`) Set logging verbosity (`debug`, `info`, `warning`, `error`, `critical`).
 
 ### Connection Settings
@@ -160,7 +159,7 @@ The app uses a dual-layer recovery system:
 **Note**: If you wipe both MQTT and restart HA simultaneously, data may be lost. **Always backup your MQTT broker.**
 
 ## 8. Technical Details
-- **Architecture**: Multithreaded Python app.
+- **Architecture**: Asynchronous Python application running on a single-threaded asyncio event loop.
 - **Discovery**: Follows Home Assistant MQTT Discovery standard.
 - **Topics**:
     - Data: `s0pcmreader/<ID>/total`

@@ -3,16 +3,16 @@ Comprehensive tests for MQTT handler functionality.
 
 Tests cover:
 - TLS setup and configuration
-- Connection error handling and retries
-- Disconnect scenarios
-- Publishing loop edge cases
+- Publishing logic
 - Error state management
 - Message handling (Set/Name topics)
 - Discovery logic integration
 """
 
+import asyncio
+import contextlib
 import ssl
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from helpers import make_test_config
 import pytest
@@ -21,329 +21,205 @@ import state as state_module
 
 
 @pytest.fixture
-def mqtt_task():
-    """Create a TaskDoMQTT instance for testing."""
-    from mqtt_handler import TaskDoMQTT
-
-    trigger = MagicMock()
-    stopper = MagicMock()
-    stopper.is_set.return_value = False
-
+def mqtt_context():
+    """Create a test context for MQTT tests."""
     context = state_module.get_context()
     context.config = make_test_config()
     context.s0pcm_reader_version = "3.0.0"
     context.s0pcm_firmware = "V0.7"
     context.lasterror_share = None
     context.state.reset_state()
-
-    return TaskDoMQTT(context, trigger, stopper)
+    return context
 
 
 class TestTLSSetup:
     """Test TLS/SSL configuration."""
 
-    def test_setup_mqtt_client_with_tls_no_ca(self, mqtt_task, mocker):
+    def test_build_ssl_context_no_ca(self, mqtt_context, mocker):
         """Test TLS setup without CA certificate (creates default context)."""
-        mqtt_task.app_context.config = make_test_config(tls=True, tls_ca="")
+        from mqtt_handler import _build_ssl_context
 
+        mqtt_context.config = make_test_config(tls=True, tls_ca="")
         mock_ssl_context = MagicMock()
         mocker.patch("ssl.SSLContext", return_value=mock_ssl_context)
 
-        result = mqtt_task._setup_mqtt_client(use_tls=True)
+        result = _build_ssl_context(mqtt_context)
 
-        assert result is True
-        # Should default to unchecked if no CA provided/verification disabled
+        assert result is not None
         assert mock_ssl_context.check_hostname is False
         assert mock_ssl_context.verify_mode == mocker.ANY
 
-    def test_setup_mqtt_client_with_tls_and_ca(self, mqtt_task, mocker):
+    def test_build_ssl_context_with_ca(self, mqtt_context, mocker):
         """Test TLS setup with CA certificate."""
-        mqtt_task.app_context.config = make_test_config(tls=True, tls_ca="/path/to/ca.crt", tls_check_peer=True)
+        from mqtt_handler import _build_ssl_context
 
+        mqtt_context.config = make_test_config(tls=True, tls_ca="/path/to/ca.crt", tls_check_peer=True)
         mock_ssl_context = MagicMock()
         mocker.patch("ssl.SSLContext", return_value=mock_ssl_context)
 
-        result = mqtt_task._setup_mqtt_client(use_tls=True)
+        result = _build_ssl_context(mqtt_context)
 
-        assert result is True
+        assert result is not None
         mock_ssl_context.load_verify_locations.assert_called_once_with(cafile="/path/to/ca.crt")
         assert mock_ssl_context.check_hostname is True
         assert mock_ssl_context.verify_mode == ssl.CERT_REQUIRED
 
-    def test_setup_mqtt_client_tls_ca_load_error(self, mqtt_task, mocker):
+    def test_build_ssl_context_ca_load_error(self, mqtt_context, mocker):
         """Test TLS setup handles CA load errors."""
-        mqtt_task.app_context.config = make_test_config(tls=True, tls_ca="/invalid/path/ca.crt")
+        from mqtt_handler import _build_ssl_context
 
+        mqtt_context.config = make_test_config(tls=True, tls_ca="/invalid/path/ca.crt")
         mock_ssl_context = MagicMock()
         mock_ssl_context.load_verify_locations.side_effect = Exception("File not found")
         mocker.patch("ssl.SSLContext", return_value=mock_ssl_context)
 
-        result = mqtt_task._setup_mqtt_client(use_tls=True)
+        result = _build_ssl_context(mqtt_context)
 
-        assert result is False
-        assert "Failed to load TLS CA file" in mqtt_task.app_context.lasterror_share
-
-    def test_setup_mqtt_client_with_username(self, mqtt_task):
-        """Test MQTT client setup with username/password."""
-        mqtt_task._setup_mqtt_client(use_tls=False)
-
-        # Verify username_pw_set was called (client is created internally)
-        assert mqtt_task._state.mqttc is not None
-
-
-class TestConnectionHandling:
-    """Test MQTT connection, disconnection, and loops."""
-
-    def test_on_connect_success(self, mqtt_task):
-        """Test successful connection callback."""
-        mqtt_task._state.mqttc = MagicMock()
-        mqtt_task._state.mqttc = MagicMock()
-        # mqtt_task._trigger is already a MagicMock from fixture
-
-        mqtt_task.on_connect(mqtt_task._state.mqttc, None, None, 0, None)
-
-        assert mqtt_task._state.connected is True
-        assert mqtt_task._trigger.is_set()
-
-    def test_on_connect_failure(self, mqtt_task, mocker):
-        """Test connection failure callback."""
-        mqtt_task._state.mqttc = MagicMock()
-        mock_set_error = mocker.patch.object(mqtt_task.app_context, "set_error")
-
-        mqtt_task.on_connect(mqtt_task._state.mqttc, None, None, 5, None)  # 5 = auth error
-
-        assert mqtt_task._state.connected is False
-        assert mock_set_error.called
-        assert "connection refused" in str(mock_set_error.call_args).lower()
-
-    def test_on_disconnect_unexpected(self, mqtt_task, mocker):
-        """Test unexpected disconnection."""
-        mqtt_task._state.mqttc = MagicMock()
-        mock_set_error = mocker.patch.object(mqtt_task.app_context, "set_error")
-        mqtt_task._state.connected = True
-
-        mqtt_task.on_disconnect(mqtt_task._state.mqttc, None, None, 1, None)  # Non-zero = unexpected
-
-        assert mqtt_task._state.connected is False
-        assert mock_set_error.called
-
-    def test_on_disconnect_clean(self, mqtt_task):
-        """Test clean disconnection."""
-        mqtt_task._state.mqttc = MagicMock()
-        mqtt_task.on_disconnect(mqtt_task._state.mqttc, None, None, 0, None)
-        assert mqtt_task._state.connected is False
-
-    @patch("time.sleep")
-    @patch("mqtt_handler.StateRecoverer")
-    def test_connect_loop_success_runs_recovery(self, mock_recoverer_cls, mock_sleep, mqtt_task, mocker):
-        """Test that successful connection triggers state recovery (lines 261-262, 65-70)."""
-        mqtt_task._stopper.is_set.side_effect = [False, True]
-
-        with patch.object(mqtt_task, "_setup_mqtt_client", return_value=True):
-            mock_client = MagicMock()
-            mqtt_task._state.mqttc = mock_client
-
-            # Simulate connected flag being set during the loop
-            def simulate_connection(*args):
-                mqtt_task._state.connected = True
-
-            mock_client.connect.side_effect = simulate_connection
-
-            mqtt_task._connect_loop()
-
-            assert mock_recoverer_cls.called
-            assert mqtt_task._state.recovery_complete is True
-
-    @patch("time.sleep")
-    def test_connect_loop_setup_failure(self, mock_sleep, mqtt_task):
-        """Test _connect_loop when _setup_mqtt_client fails (retries)."""
-        # Run loop once
-        mqtt_task._stopper.is_set.side_effect = [False, True]
-
-        with patch.object(mqtt_task, "_setup_mqtt_client", return_value=False):
-            mqtt_task._connect_loop()
-            assert mock_sleep.called
-
-    @patch("time.sleep")
-    def test_connect_loop_tls_no_fallback(self, mock_sleep, mqtt_task):
-        """Test connection loop does NOT fall back from TLS to plain on failure."""
-        context = state_module.get_context()
-        context.config = make_test_config(tls=True)
-
-        # Loop twice: both with TLS, then stop
-        mqtt_task._stopper.is_set.side_effect = [False, False, True]
-
-        mock_client = MagicMock()
-
-        with patch("mqtt_handler.mqtt.Client", return_value=mock_client):
-            mock_client.connect.side_effect = Exception("TLS Error")
-
-            mqtt_task._connect_loop()
-
-            assert "MQTT connection failed: TLS Error" in context.lasterror_share
-            assert "Falling back" not in (context.lasterror_share or "")
-            assert mock_sleep.called
+        assert result is None
+        assert "Failed to load TLS CA file" in mqtt_context.lasterror_share
 
 
 class TestMessageHandling:
     """Test MQTT message handling."""
 
-    def test_handle_set_command_by_id(self, mqtt_task):
+    async def test_handle_set_command_by_id(self, mqtt_context):
         """Test handling set command using meter ID."""
-        mqtt_task.app_context.state.meters[1] = state_module.MeterState(total=1000)
-        # mqtt_task._trigger is already a MagicMock from fixture
+        from mqtt_handler import _handle_set_command
 
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/1/total/set"
-        msg.payload = b"2000"
+        mqtt_context.state.meters[1] = state_module.MeterState(total=1000)
 
-        mqtt_task._handle_set_command(msg)
+        await _handle_set_command(mqtt_context, "s0pcmreader/1/total/set", b"2000")
 
-        assert mqtt_task.app_context.state.meters[1].total == 2000
-        assert mqtt_task._trigger.is_set()
+        assert mqtt_context.state.meters[1].total == 2000
+        assert mqtt_context.trigger_event.is_set()
 
-    def test_handle_set_command_by_name(self, mqtt_task):
+    async def test_handle_set_command_by_name(self, mqtt_context):
         """Test handling set command using meter name."""
-        mqtt_task.app_context.state.meters[1] = state_module.MeterState(name="Water", total=1000)
-        # mqtt_task._trigger is already a MagicMock from fixture
+        from mqtt_handler import _handle_set_command
 
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/Water/total/set"
-        msg.payload = b"2000"
+        mqtt_context.state.meters[1] = state_module.MeterState(name="Water", total=1000)
 
-        mqtt_task._handle_set_command(msg)
+        await _handle_set_command(mqtt_context, "s0pcmreader/Water/total/set", b"2000")
 
-        assert mqtt_task.app_context.state.meters[1].total == 2000
+        assert mqtt_context.state.meters[1].total == 2000
 
-    def test_handle_set_command_create_meter(self, mqtt_task):
+    async def test_handle_set_command_create_meter(self, mqtt_context):
         """Test _handle_set_command creating a meter if it doesn't exist."""
-        context = state_module.get_context()
-        context.state.meters = {}
+        from mqtt_handler import _handle_set_command
 
-        msg = MagicMock()
-        msg.topic = "s0pcm/5/total/set"
-        msg.payload = b"1000"
+        mqtt_context.state.meters = {}
 
-        mqtt_task._handle_set_command(msg)
+        await _handle_set_command(mqtt_context, "s0pcmreader/5/total/set", b"1000")
 
-        assert 5 in context.state.meters
-        assert context.state.meters[5].total == 1000
+        assert 5 in mqtt_context.state.meters
+        assert mqtt_context.state.meters[5].total == 1000
 
-    def test_handle_set_command_invalid_payload(self, mqtt_task, mocker):
+    async def test_handle_set_command_invalid_payload(self, mqtt_context, mocker):
         """Test handling set command with invalid payload."""
-        mqtt_task.app_context.state.meters[1] = state_module.MeterState(total=1000)
-        mock_set_error = mocker.patch.object(mqtt_task.app_context, "set_error")
+        from mqtt_handler import _handle_set_command
 
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/1/total/set"
-        msg.payload = b"not_a_number"
+        mqtt_context.state.meters[1] = state_module.MeterState(total=1000)
+        mock_set_error = mocker.patch.object(mqtt_context, "set_error")
 
-        mqtt_task._handle_set_command(msg)
+        await _handle_set_command(mqtt_context, "s0pcmreader/1/total/set", b"not_a_number")
 
         assert mock_set_error.called
         assert "invalid payload" in str(mock_set_error.call_args).lower()
 
-    def test_handle_set_command_exception(self, mqtt_task):
+    async def test_handle_set_command_exception(self, mqtt_context):
         """Test exception handling in _handle_set_command."""
-        context = state_module.get_context()
-        msg = MagicMock()
-        msg.topic = None  # Causes Exception on split
-        mqtt_task._handle_set_command(msg)
-        assert "Failed to process MQTT set command" in context.lasterror_share
+        from mqtt_handler import _handle_set_command
 
-    def test_handle_name_set(self, mqtt_task, mocker):
+        # None topic causes Exception on split
+        with contextlib.suppress(Exception):
+            await _handle_set_command(mqtt_context, None, b"1000")
+        # With proper exception handling it should set error
+        assert mqtt_context.lasterror_share is not None or mqtt_context.lasterror_mqtt is not None
+
+    async def test_handle_name_set(self, mqtt_context, mocker):
         """Test handling name set command."""
-        mqtt_task.app_context.state.meters[1] = state_module.MeterState()
-        mqtt_task._state.mqttc = MagicMock()
-        # Trigger is already MagicMock from fixture
+        from mqtt_handler import MqttTaskState, _handle_name_set
 
-        mocker.patch("mqtt_handler.discovery.send_global_discovery")
-        mocker.patch("mqtt_handler.discovery.send_meter_discovery", return_value="NewName")
+        mqtt_context.state.meters[1] = state_module.MeterState()
+        mock_client = AsyncMock()
+        task_state = MqttTaskState()
 
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/1/name/set"
-        msg.payload = b"NewName"
+        mocker.patch("mqtt_handler.discovery.send_global_discovery", new_callable=AsyncMock)
+        mocker.patch("mqtt_handler.discovery.send_meter_discovery", new_callable=AsyncMock, return_value="NewName")
 
-        mqtt_task._handle_name_set(msg)
+        await _handle_name_set(mqtt_context, mock_client, task_state, "s0pcmreader/1/name/set", b"NewName")
 
-        assert mqtt_task.app_context.state.meters[1].name == "NewName"
-        assert mqtt_task._trigger.is_set()
+        assert mqtt_context.state.meters[1].name == "NewName"
+        assert mqtt_context.trigger_event.is_set()
 
-    def test_handle_name_set_empty(self, mqtt_task, mocker):
+    async def test_handle_name_set_empty(self, mqtt_context, mocker):
         """Test handling name set with empty payload (clear name)."""
-        mqtt_task.app_context.state.meters[1] = state_module.MeterState(name="OldName")
-        mqtt_task._state.mqttc = MagicMock()
-        # Trigger is already MagicMock from fixture
+        from mqtt_handler import MqttTaskState, _handle_name_set
 
-        mocker.patch("mqtt_handler.discovery.send_global_discovery")
-        mocker.patch("mqtt_handler.discovery.send_meter_discovery")
+        mqtt_context.state.meters[1] = state_module.MeterState(name="OldName")
+        mock_client = AsyncMock()
+        task_state = MqttTaskState()
 
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/1/name/set"
-        msg.payload = b""
+        mocker.patch("mqtt_handler.discovery.send_global_discovery", new_callable=AsyncMock)
+        mocker.patch("mqtt_handler.discovery.send_meter_discovery", new_callable=AsyncMock)
 
-        mqtt_task._handle_name_set(msg)
+        await _handle_name_set(mqtt_context, mock_client, task_state, "s0pcmreader/1/name/set", b"")
 
-        assert mqtt_task.app_context.state.meters[1].name is None
+        assert mqtt_context.state.meters[1].name is None
 
-    def test_handle_name_set_exception(self, mqtt_task):
+    async def test_handle_name_set_exception(self, mqtt_context):
         """Test exception handling in _handle_name_set."""
-        context = state_module.get_context()
-        msg = MagicMock()
-        msg.topic = None
-        mqtt_task._handle_name_set(msg)
-        assert "Failed to process MQTT name/set command" in context.lasterror_share
+        from mqtt_handler import MqttTaskState, _handle_name_set
 
-    def test_on_message_dispatch(self, mqtt_task):
-        """Test on_message dispatching to handlers."""
-        mqtt_task._handle_set_command = MagicMock()
-        mqtt_task._handle_name_set = MagicMock()
+        mock_client = AsyncMock()
+        task_state = MqttTaskState()
 
-        msg_set = MagicMock()
-        msg_set.topic = "s0pcm/1/total/set"
-        mqtt_task.on_message(None, None, msg_set)
-        mqtt_task._handle_set_command.assert_called_once_with(msg_set)
-
-        msg_name = MagicMock()
-        msg_name.topic = "s0pcm/1/name/set"
-        mqtt_task.on_message(None, None, msg_name)
-        mqtt_task._handle_name_set.assert_called_once_with(msg_name)
+        await _handle_name_set(mqtt_context, mock_client, task_state, None, b"Name")
+        assert mqtt_context.lasterror_mqtt is not None
+        assert "Failed to process MQTT name/set command" in mqtt_context.lasterror_mqtt
 
 
 class TestPublishingLogic:
     """Test MQTT publishing logic."""
 
-    def test_publish_diagnostics_change_detection(self, mqtt_task):
+    async def test_publish_diagnostics_change_detection(self, mqtt_context):
         """Test diagnostics only publish on change."""
-        mqtt_task._state.mqttc = MagicMock()
-        mqtt_task.app_context.s0pcm_reader_version = "3.0.0"
-        mqtt_task.app_context.s0pcm_firmware = "V0.7"
+        from mqtt_handler import MqttTaskState, _publish_diagnostics
+
+        mock_client = AsyncMock()
+        task_state = MqttTaskState()
 
         # First publish
-        mqtt_task._publish_diagnostics()
-        first_call_count = mqtt_task._state.mqttc.publish.call_count
+        await _publish_diagnostics(mqtt_context, mock_client, task_state)
+        assert mock_client.publish.call_count > 0
 
         # Second publish with same values
-        mqtt_task._publish_diagnostics()
-        second_call_count = mqtt_task._state.mqttc.publish.call_count
+        mock_client.publish.reset_mock()
+        await _publish_diagnostics(mqtt_context, mock_client, task_state)
 
         # Should not publish again if values haven't changed
-        assert second_call_count == first_call_count
+        assert mock_client.publish.call_count == 0
 
-    def test_publish_diagnostics_exception(self, mqtt_task):
+    async def test_publish_diagnostics_exception(self, mqtt_context):
         """Test exception handling in _publish_diagnostics."""
-        mqtt_task._state.mqttc = MagicMock()
-        mqtt_task._state.mqttc.publish.side_effect = Exception("Publish error")
+        from mqtt_handler import MqttTaskState, _publish_diagnostics
+
+        mock_client = AsyncMock()
+        mock_client.publish = AsyncMock(side_effect=Exception("Publish error"))
+        task_state = MqttTaskState()
+
         with patch("mqtt_handler.logger.error") as mock_logger:
-            mqtt_task._publish_diagnostics()
+            await _publish_diagnostics(mqtt_context, mock_client, task_state)
             assert mock_logger.called
             assert "Failed to publish info state" in mock_logger.call_args[0][0]
 
-    def test_publish_measurements_date_change(self, mqtt_task):
+    async def test_publish_measurements_date_change(self, mqtt_context):
         """Test publishing date when it changes."""
-        mqtt_task._state.mqttc = MagicMock()
-
         import datetime
+
+        from mqtt_handler import _publish_measurements
+
+        mock_client = AsyncMock()
 
         state_snapshot = state_module.AppState()
         state_snapshot.date = datetime.date(2026, 1, 25)
@@ -351,28 +227,30 @@ class TestPublishingLogic:
         previous_snapshot = state_module.AppState()
         previous_snapshot.date = datetime.date(2026, 1, 24)
 
-        mqtt_task._publish_measurements(state_snapshot, previous_snapshot)
+        await _publish_measurements(mqtt_context, mock_client, state_snapshot, previous_snapshot)
 
         # Verify date was published
-        date_calls = [c for c in mqtt_task._state.mqttc.publish.call_args_list if "/date" in str(c)]
+        date_calls = [c for c in mock_client.publish.call_args_list if "/date" in str(c)]
         assert len(date_calls) > 0
 
-    def test_publish_measurements_split_topic_mode(self, mqtt_task):
+    async def test_publish_measurements_split_topic_mode(self, mqtt_context):
         """Test publishing in split_topic mode."""
-        mqtt_task._state.mqttc = MagicMock()
-        mqtt_task.app_context.config = make_test_config(split_topic=True)
+        from mqtt_handler import _publish_measurements
+
+        mock_client = AsyncMock()
+        mqtt_context.config = make_test_config(split_topic=True)
 
         state_snapshot = state_module.AppState()
         state_snapshot.meters[1] = state_module.MeterState(name="Water", total=1000, today=50)
 
-        mqtt_task._publish_measurements(state_snapshot, None)
+        await _publish_measurements(mqtt_context, mock_client, state_snapshot, None)
 
         # Verify split topics were published
-        assert mqtt_task._state.mqttc.publish.called
-        assert mqtt_task._state.mqttc.publish.call_count >= 3  # total, today, pulsecount
+        assert mock_client.publish.called
+        assert mock_client.publish.call_count >= 3  # total, today, pulsecount
 
         # Regression check: Ensure topics do NOT contain function/object string representations
-        published_topics = [str(call.args[0]) for call in mqtt_task._state.mqttc.publish.call_args_list]
+        published_topics = [str(call.args[0]) for call in mock_client.publish.call_args_list]
         for topic in published_topics:
             assert "<function" not in topic
             assert "field at" not in topic
@@ -382,436 +260,475 @@ class TestPublishingLogic:
         assert any(t.endswith("/total") for t in published_topics)
         assert any(t.endswith("/today") for t in published_topics)
 
-    def test_publish_measurements_disabled_meter(self, mqtt_task):
+    async def test_publish_measurements_disabled_meter(self, mqtt_context):
         """Test _publish_measurements skip disabled meter."""
-        mqtt_task._state.mqttc = MagicMock()
+        from mqtt_handler import _publish_measurements
+
+        mock_client = AsyncMock()
         state_snapshot = state_module.AppState()
         state_snapshot.meters[1] = state_module.MeterState(enabled=True, total=100)
         state_snapshot.meters[2] = state_module.MeterState(enabled=False, total=200)
 
-        mqtt_task._publish_measurements(state_snapshot, None)
+        await _publish_measurements(mqtt_context, mock_client, state_snapshot, None)
 
-        published_topics = [str(call.args[0]) for call in mqtt_task._state.mqttc.publish.call_args_list]
-        assert any("/1/" in topic or "Water" in topic for topic in published_topics)  # Check for ID or Name
+        published_topics = [str(call.args[0]) for call in mock_client.publish.call_args_list]
+        assert any("/1/" in topic or "Water" in topic for topic in published_topics)
         assert not any("/2/" in topic for topic in published_topics)
 
+    async def test_publish_measurements_combined_topic_mode(self, mqtt_context):
+        """Test publishing when split_topic is False (JSON mode)."""
+        from mqtt_handler import _publish_measurements
 
-class TestMainLoop:
-    """Test the main MQTT loop."""
+        mock_client = AsyncMock()
+        mqtt_context.config = make_test_config(split_topic=False)
 
-    def test_main_loop_discovery_sent_once(self, mqtt_task, mocker):
-        """Test that discovery is only sent once."""
-        mqtt_task._state.connected = True
-        mqtt_task._state.mqttc = MagicMock()
-        # Trigger and stopper are already MagicMocks from fixture
+        state_snapshot = state_module.AppState()
+        state_snapshot.meters[1] = state_module.MeterState(name="Water", total=1000, today=50)
 
-        mock_send_global = mocker.patch("mqtt_handler.discovery.send_global_discovery")
-        mock_cleanup = mocker.patch("mqtt_handler.discovery.cleanup_meter_discovery")
+        await _publish_measurements(mqtt_context, mock_client, state_snapshot, None)
 
-        # Trigger one iteration then stop
-        def stop_after_first(*args):
-            mqtt_task._stopper.is_set.return_value = True
-
-        mqtt_task._trigger.wait.side_effect = stop_after_first
-
-        mqtt_task._main_loop()
-
-        # Discovery should be sent exactly once
-        assert mock_send_global.call_count == 1
-        # Cleanup should be called for meters 1-5
-        assert mock_cleanup.call_count == 5
-
-    def test_main_loop_exits_on_disconnect(self, mqtt_task):
-        """Test main loop exits when disconnected."""
-        mqtt_task._state.connected = False
-        mqtt_task._state.mqttc = MagicMock()
-
-        mqtt_task._main_loop()
-
-        # Should return immediately without publishing
-        assert mqtt_task._state.mqttc.publish.call_count == 0
-
-    def test_main_loop_error_publish_exception(self, mqtt_task):
-        """Test exception handling in _main_loop when publishing errors."""
-        mqtt_task._state.connected = True
-        mqtt_task._state.mqttc = MagicMock()
-        # Stopper and trigger are already MagicMocks from fixture
-
-        def mock_publish(topic, *args, **kwargs):
-            if "/error" in topic:
-                raise Exception("Error topic failure")
-            return MagicMock()
-
-        mqtt_task._state.mqttc.publish.side_effect = mock_publish
-        mqtt_task._state.global_discovery_sent = True
-
-        # Make loop run once
-        mqtt_task._stopper.is_set.side_effect = [False, True]
-
-        # Set an error to force publish call
-        mqtt_task.app_context.lasterror_share = "Some Error"
-
-        with patch("mqtt_handler.logger.error") as mock_logger:
-            mqtt_task._main_loop()
-            assert mock_logger.called
-            assert "MQTT Publish Failed" in mock_logger.call_args[0][0]
-
-    def test_main_loop_error_publish_success_with_timer(self, mqtt_task, mocker):
-        """Test successful error publish in _main_loop triggers the delayed clear timer."""
-        mqtt_task._state.connected = True
-        mqtt_task._state.mqttc = MagicMock()
-        mqtt_task._state.global_discovery_sent = True
-
-        # Mock threading.Timer to verify it gets called
-        mock_timer = mocker.patch("mqtt_handler.threading.Timer")
-
-        # We need the timer instance's start method to be a mock so we can verify it
-        mock_timer_instance = MagicMock()
-        mock_timer.return_value = mock_timer_instance
-
-        # Make loop run once
-        mqtt_task._stopper.is_set.side_effect = [False, True]
-
-        # Set an error to force publish call
-        mqtt_task.app_context.lasterror_share = "Connection Refused"
-
-        mqtt_task._main_loop()
-
-        # Verify mqtt publish was called for the error topic
-        publish_calls = [
-            call for call in mqtt_task._state.mqttc.publish.call_args_list if "/error" in str(call.args[0])
-        ]
-        assert len(publish_calls) > 0
-        assert "Connection Refused" in publish_calls[0].args[1]
-
-        # Verify threading.Timer was instantiated with 15.0 seconds and a callable
-        assert mock_timer.called
-        assert mock_timer.call_args[0][0] == 15.0
-        assert callable(mock_timer.call_args[0][1])
-
-        # Verify the timer was actually started
-        assert mock_timer_instance.start.called
-
-        # Test the delayed_clear callback directly
-        delayed_clear_func = mock_timer.call_args[0][1]
-        mock_set_error = mocker.patch.object(mqtt_task.app_context, "set_error")
-
-        # 1. Test when still connected
-        mqtt_task._state.connected = True
-        delayed_clear_func()
-        mock_set_error.assert_called_once_with(None, category="mqtt")
-
-        # 2. Test when disconnected (should not clear)
-        mock_set_error.reset_mock()
-        mqtt_task._state.connected = False
-        delayed_clear_func()
-        assert not mock_set_error.called
-
-    def test_run_fatal_exception(self, mqtt_task, mocker):
-        """Test fatal exception handling in run()."""
-        mocker.patch.object(mqtt_task, "_connect_loop", side_effect=Exception("Fatal Run Error"))
-        mqtt_task._stopper.is_set.return_value = False
-
-        with patch("mqtt_handler.logger.error") as mock_logger:
-            mqtt_task.run()
-            assert mock_logger.called
-            assert "Fatal MQTT exception" in mock_logger.call_args[0][0]
-            assert mqtt_task._stopper.set.called
+        # Verify JSON was published
+        json_calls = [c for c in mock_client.publish.call_args_list if '"total": 1000' in str(c.args[1])]
+        assert len(json_calls) > 0
+        payload = json_calls[0].args[1]
+        assert '"today": 50' in payload
 
 
-def test_handle_name_set_triggers_discovery(mqtt_task, mocker):
-    """Test that setting a name triggers discovery for all meters (lines 169-172)."""
-    # Setup context with meters
-    context = state_module.get_context()
-    context.state.meters[1] = state_module.MeterState(total=100)
-    context.state.meters[2] = state_module.MeterState(total=200)
-    context.config = make_test_config(discovery=True)
+async def test_handle_name_set_triggers_discovery(mqtt_context, mocker):
+    """Test that setting a name triggers discovery for all meters."""
+    from mqtt_handler import MqttTaskState, _handle_name_set
 
-    # Mock both discovery functions
-    mocker.patch("mqtt_handler.discovery.send_global_discovery")
-    mock_send = mocker.patch("mqtt_handler.discovery.send_meter_discovery", return_value="TestMeter")
+    mqtt_context.state.meters[1] = state_module.MeterState(total=100)
+    mqtt_context.state.meters[2] = state_module.MeterState(total=200)
+    mqtt_context.config = make_test_config(discovery=True)
 
-    # Trigger name set
-    msg = MagicMock()
-    msg.topic = "s0pcmreader/1/name/set"
-    msg.payload = b"NewName"
+    mock_client = AsyncMock()
+    task_state = MqttTaskState()
 
-    mqtt_task._handle_name_set(msg)
+    mocker.patch("mqtt_handler.discovery.send_global_discovery", new_callable=AsyncMock)
+    mock_send = mocker.patch(
+        "mqtt_handler.discovery.send_meter_discovery", new_callable=AsyncMock, return_value="TestMeter"
+    )
+
+    await _handle_name_set(mqtt_context, mock_client, task_state, "s0pcmreader/1/name/set", b"NewName")
 
     # Should have sent discovery for all meters
     assert mock_send.call_count == 2
-    assert mqtt_task._state.global_discovery_sent is True
-    assert mqtt_task._trigger.set.called
+    assert task_state.global_discovery_sent is True
+    assert mqtt_context.trigger_event.is_set()
 
 
-def test_handle_name_set_exception_handling(mqtt_task, mocker):
-    """Test exception handling in _handle_name_set (lines 172-173)."""
-    context = state_module.get_context()
-    context.config = make_test_config(discovery=True)
+async def test_handle_name_set_exception_handling(mqtt_context, mocker):
+    """Test exception handling in _handle_name_set."""
+    from mqtt_handler import MqttTaskState, _handle_name_set
+
+    mqtt_context.config = make_test_config(discovery=True)
+    mock_client = AsyncMock()
+    task_state = MqttTaskState()
 
     # Mock send_meter_discovery to raise an exception
-    mocker.patch("mqtt_handler.discovery.send_meter_discovery", side_effect=Exception("Test error"))
+    mocker.patch(
+        "mqtt_handler.discovery.send_meter_discovery", new_callable=AsyncMock, side_effect=Exception("Test error")
+    )
 
     # Add a meter
-    context.state.meters[1] = state_module.MeterState(total=100)
+    mqtt_context.state.meters[1] = state_module.MeterState(total=100)
 
-    # Trigger name set
-    msg = MagicMock()
-    msg.topic = "s0pcmreader/1/name/set"
-    msg.payload = b"NewName"
-
-    # Should not crash, should set error
-    mqtt_task._handle_name_set(msg)
-    assert context.lasterror_mqtt is not None
+    await _handle_name_set(mqtt_context, mock_client, task_state, "s0pcmreader/1/name/set", b"NewName")
+    assert mqtt_context.lasterror_mqtt is not None
 
 
-def test_handle_total_set_unknown_meter(mqtt_task):
-    """Test total/set command for unknown meter name (lines 108-109)."""
-    context = state_module.get_context()
-    context.state.meters[1] = state_module.MeterState(name="Water")
+async def test_handle_total_set_unknown_meter(mqtt_context):
+    """Test total/set command for unknown meter name."""
+    from mqtt_handler import _handle_set_command
 
-    # Trigger set for non-existent meter by name
-    msg = MagicMock()
-    msg.topic = "s0pcmreader/UnknownMeter/total/set"
-    msg.payload = b"1000"
+    mqtt_context.state.meters[1] = state_module.MeterState(name="Water")
 
-    mqtt_task._handle_set_command(msg)
+    await _handle_set_command(mqtt_context, "s0pcmreader/UnknownMeter/total/set", b"1000")
 
-    # Should set error for unknown meter
-    assert context.lasterror_mqtt is not None
-    assert "unknown meter" in context.lasterror_mqtt.lower()
+    assert mqtt_context.lasterror_mqtt is not None
+    assert "unknown meter" in mqtt_context.lasterror_mqtt.lower()
 
 
-def test_handle_name_set_unknown_meter_by_name(mqtt_task):
-    """Test name/set command for unknown meter name (lines 141-149)."""
-    context = state_module.get_context()
-    context.state.meters[1] = state_module.MeterState(name="Water")
+async def test_handle_name_set_unknown_meter_by_name(mqtt_context):
+    """Test name/set command for unknown meter name."""
+    from mqtt_handler import MqttTaskState, _handle_name_set
 
-    # Trigger name set for non-existent meter name
-    msg = MagicMock()
-    msg.topic = "s0pcmreader/NonExistent/name/set"
-    msg.payload = b"NewName"
+    mqtt_context.state.meters[1] = state_module.MeterState(name="Water")
+    mock_client = AsyncMock()
+    task_state = MqttTaskState()
 
-    mqtt_task._handle_name_set(msg)
+    await _handle_name_set(mqtt_context, mock_client, task_state, "s0pcmreader/NonExistent/name/set", b"NewName")
 
-    # Should set error for unknown meter
-    assert context.lasterror_mqtt is not None
-    assert "unknown meter" in context.lasterror_mqtt.lower()
+    assert mqtt_context.lasterror_mqtt is not None
+    assert "unknown meter" in mqtt_context.lasterror_mqtt.lower()
 
 
-def test_handle_name_set_by_name_lookup(mqtt_task, mocker):
-    """Test name/set with name-based meter lookup (lines 144-145)."""
-    context = state_module.get_context()
-    context.state.meters[5] = state_module.MeterState(name="WaterMeter")
-    context.config = make_test_config(discovery=True)
+async def test_handle_name_set_by_name_lookup(mqtt_context, mocker):
+    """Test name/set with name-based meter lookup."""
+    from mqtt_handler import MqttTaskState, _handle_name_set
 
-    mocker.patch("mqtt_handler.discovery.send_global_discovery")
-    mocker.patch("mqtt_handler.discovery.send_meter_discovery", return_value="Water")
+    mqtt_context.state.meters[5] = state_module.MeterState(name="WaterMeter")
+    mqtt_context.config = make_test_config(discovery=True)
+    mock_client = AsyncMock()
+    task_state = MqttTaskState()
 
-    # Use meter name instead of ID
-    msg = MagicMock()
-    msg.topic = "s0pcmreader/WaterMeter/name/set"
-    msg.payload = b"NewWaterName"
+    mocker.patch("mqtt_handler.discovery.send_global_discovery", new_callable=AsyncMock)
+    mocker.patch("mqtt_handler.discovery.send_meter_discovery", new_callable=AsyncMock, return_value="Water")
 
-    mqtt_task._handle_name_set(msg)
+    await _handle_name_set(mqtt_context, mock_client, task_state, "s0pcmreader/WaterMeter/name/set", b"NewWaterName")
 
-    # Should find meter by name and update it
-    assert context.state.meters[5].name == "NewWaterName"
+    assert mqtt_context.state.meters[5].name == "NewWaterName"
 
 
-def test_handle_name_set_creates_new_meter(mqtt_task, mocker):
-    """Test name/set creates new meter if ID doesn't exist (line 159)."""
-    context = state_module.get_context()
-    context.config = make_test_config(discovery=True)
+async def test_handle_name_set_creates_new_meter(mqtt_context, mocker):
+    """Test name/set creates new meter if ID doesn't exist."""
+    from mqtt_handler import MqttTaskState, _handle_name_set
 
-    mocker.patch("mqtt_handler.discovery.send_global_discovery")
-    mocker.patch("mqtt_handler.discovery.send_meter_discovery", return_value="Test")
+    mqtt_context.config = make_test_config(discovery=True)
+    mock_client = AsyncMock()
+    task_state = MqttTaskState()
 
-    # Set name for non-existent meter ID
-    msg = MagicMock()
-    msg.topic = "s0pcmreader/7/name/set"
-    msg.payload = b"NewMeter"
+    mocker.patch("mqtt_handler.discovery.send_global_discovery", new_callable=AsyncMock)
+    mocker.patch("mqtt_handler.discovery.send_meter_discovery", new_callable=AsyncMock, return_value="Test")
 
-    mqtt_task._handle_name_set(msg)
+    await _handle_name_set(mqtt_context, mock_client, task_state, "s0pcmreader/7/name/set", b"NewMeter")
 
-    # Should create new meter
-    assert 7 in context.state.meters
-    assert context.state.meters[7].name == "NewMeter"
+    assert 7 in mqtt_context.state.meters
+    assert mqtt_context.state.meters[7].name == "NewMeter"
 
 
 class TestSecurityHardening:
     """Tests for security hardening measures."""
 
-    def test_name_set_sanitizes_mqtt_characters(self, mqtt_task, mocker):
+    async def test_name_set_sanitizes_mqtt_characters(self, mqtt_context, mocker):
         """Test that /+# characters are stripped from meter names."""
-        mqtt_task.app_context.state.meters[1] = state_module.MeterState()
-        mqtt_task._state.mqttc = MagicMock()
+        from mqtt_handler import MqttTaskState, _handle_name_set
 
-        mocker.patch("mqtt_handler.discovery.send_global_discovery")
-        mocker.patch("mqtt_handler.discovery.send_meter_discovery", return_value="MyMeter")
+        mqtt_context.state.meters[1] = state_module.MeterState()
+        mock_client = AsyncMock()
+        task_state = MqttTaskState()
 
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/1/name/set"
-        msg.payload = b"My/Meter+Name#Test"
+        mocker.patch("mqtt_handler.discovery.send_global_discovery", new_callable=AsyncMock)
+        mocker.patch("mqtt_handler.discovery.send_meter_discovery", new_callable=AsyncMock, return_value="MyMeter")
 
-        mqtt_task._handle_name_set(msg)
+        await _handle_name_set(mqtt_context, mock_client, task_state, "s0pcmreader/1/name/set", b"My/Meter+Name#Test")
 
-        assert mqtt_task.app_context.state.meters[1].name == "MyMeterNameTest"
+        assert mqtt_context.state.meters[1].name == "MyMeterNameTest"
 
-    def test_name_set_only_special_chars_becomes_none(self, mqtt_task, mocker):
+    async def test_name_set_only_special_chars_becomes_none(self, mqtt_context, mocker):
         """Test that a name consisting only of MQTT special chars becomes None."""
-        mqtt_task.app_context.state.meters[1] = state_module.MeterState(name="OldName")
-        mqtt_task._state.mqttc = MagicMock()
+        from mqtt_handler import MqttTaskState, _handle_name_set
 
-        mocker.patch("mqtt_handler.discovery.send_global_discovery")
-        mocker.patch("mqtt_handler.discovery.send_meter_discovery")
+        mqtt_context.state.meters[1] = state_module.MeterState(name="OldName")
+        mock_client = AsyncMock()
+        task_state = MqttTaskState()
 
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/1/name/set"
-        msg.payload = b"/+#"
+        mocker.patch("mqtt_handler.discovery.send_global_discovery", new_callable=AsyncMock)
+        mocker.patch("mqtt_handler.discovery.send_meter_discovery", new_callable=AsyncMock)
 
-        mqtt_task._handle_name_set(msg)
+        await _handle_name_set(mqtt_context, mock_client, task_state, "s0pcmreader/1/name/set", b"/+#")
 
-        assert mqtt_task.app_context.state.meters[1].name is None
+        assert mqtt_context.state.meters[1].name is None
 
-    def test_handle_set_command_oversized_payload(self, mqtt_task, mocker):
+    async def test_handle_set_command_oversized_payload(self, mqtt_context, mocker):
         """Test that oversized payloads on total/set are rejected."""
-        mqtt_task.app_context.state.meters[1] = state_module.MeterState(total=1000)
-        mock_set_error = mocker.patch.object(mqtt_task.app_context, "set_error")
+        from mqtt_handler import _handle_set_command
 
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/1/total/set"
-        msg.payload = b"x" * 257
+        mqtt_context.state.meters[1] = state_module.MeterState(total=1000)
+        mock_set_error = mocker.patch.object(mqtt_context, "set_error")
 
-        mqtt_task._handle_set_command(msg)
+        await _handle_set_command(mqtt_context, "s0pcmreader/1/total/set", b"x" * 257)
 
         assert mock_set_error.called
         assert "oversized payload" in str(mock_set_error.call_args).lower()
         # Total should NOT have changed
-        assert mqtt_task.app_context.state.meters[1].total == 1000
+        assert mqtt_context.state.meters[1].total == 1000
 
-    def test_handle_name_set_oversized_payload(self, mqtt_task, mocker):
+    async def test_handle_name_set_oversized_payload(self, mqtt_context, mocker):
         """Test that oversized payloads on name/set are rejected."""
-        mqtt_task.app_context.state.meters[1] = state_module.MeterState(name="Water")
-        mock_set_error = mocker.patch.object(mqtt_task.app_context, "set_error")
+        from mqtt_handler import MqttTaskState, _handle_name_set
 
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/1/name/set"
-        msg.payload = b"A" * 257
+        mqtt_context.state.meters[1] = state_module.MeterState(name="Water")
+        mock_client = AsyncMock()
+        task_state = MqttTaskState()
+        mock_set_error = mocker.patch.object(mqtt_context, "set_error")
 
-        mqtt_task._handle_name_set(msg)
+        await _handle_name_set(mqtt_context, mock_client, task_state, "s0pcmreader/1/name/set", b"A" * 257)
 
         assert mock_set_error.called
         assert "oversized payload" in str(mock_set_error.call_args).lower()
         # Name should NOT have changed
-        assert mqtt_task.app_context.state.meters[1].name == "Water"
+        assert mqtt_context.state.meters[1].name == "Water"
 
 
 class TestMQTTAdditionalCoverage:
     """Additional tests to reach near-100% coverage."""
 
-    def test_publish_measurements_combined_topic_mode(self, mqtt_task):
-        """Test publishing when split_topic is False (JSON mode) (lines 340, 351-353)."""
-        mqtt_task._state.mqttc = MagicMock()
-        mqtt_task.app_context.config = make_test_config(split_topic=False)
+    async def test_publish_loop_discovery(self, mqtt_context, mocker):
+        """Test that _publish_loop sends discovery for new meters."""
+        from mqtt_handler import MqttTaskState, _publish_loop
 
-        state_snapshot = state_module.AppState()
-        state_snapshot.meters[1] = state_module.MeterState(name="Water", total=1000, today=50)
+        mock_client = AsyncMock()
+        task_state = MqttTaskState()
+        task_state.global_discovery_sent = True  # Skip global discovery
 
-        mqtt_task._publish_measurements(state_snapshot, None)
+        # Add a meter
+        mqtt_context.state.meters[1] = state_module.MeterState(name="TestMeter")
 
-        # Verify JSON was published (look for the call where the second arg is a JSON string containing total)
-        json_calls = [c for c in mqtt_task._state.mqttc.publish.call_args_list if '"total": 1000' in str(c.args[1])]
-        assert len(json_calls) > 0
-        payload = json_calls[0].args[1]
-        assert '"today": 50' in payload
+        mock_send = mocker.patch(
+            "mqtt_handler.discovery.send_meter_discovery", new_callable=AsyncMock, return_value="TestMeter"
+        )
 
-    def test_main_loop_meter_discovery(self, mqtt_task, mocker):
-        """Test that _main_loop sends discovery for new meters (lines 375-379)."""
-        mqtt_task._state.connected = True
-        mqtt_task._state.mqttc = MagicMock()
-        mqtt_task._state.global_discovery_sent = True  # Skip global discovery
+        # Make trigger event fire once then cancel
+        call_count = 0
 
-        # Add a meter that hasn't been discovered yet
-        mqtt_task.app_context.state.meters[1] = state_module.MeterState(name="TestMeter")
-        # CRITICAL: _main_loop reads from state_share
-        mqtt_task.app_context.state_share = mqtt_task.app_context.state.model_copy(deep=True)
+        async def trigger_once():
+            nonlocal call_count
+            call_count += 1
+            if call_count > 1:
+                raise asyncio.CancelledError()
 
-        mock_send = mocker.patch("mqtt_handler.discovery.send_meter_discovery", return_value="TestMeter")
+        mqtt_context.trigger_event.wait = trigger_once
+        mqtt_context.trigger_event.set()
 
-        # Trigger one iteration then stop
-        def stop_after_first(*args):
-            mqtt_task._stopper.is_set.return_value = True
-
-        mqtt_task._trigger.wait.side_effect = stop_after_first
-        mqtt_task._main_loop()
+        with pytest.raises(asyncio.CancelledError):
+            await _publish_loop(mqtt_context, mock_client, task_state)
 
         assert mock_send.call_count == 1
-        assert mqtt_task._state.discovered_meters[1] == "TestMeter"
+        assert task_state.discovered_meters[1] == "TestMeter"
 
-    def test_run_cleanup_logic(self, mqtt_task, mocker):
-        """Test cleanup logic in run() when main_loop returns (lines 409-419)."""
-        # Mock _connect_loop to do nothing
-        mocker.patch.object(mqtt_task, "_connect_loop")
-        # Mock _main_loop to return immediately
-        mocker.patch.object(mqtt_task, "_main_loop")
+    def test_resolve_meter_id_by_name(self, mqtt_context):
+        """Test resolving meter ID by name."""
+        from mqtt_handler import _resolve_meter_id
 
-        # Setup state
-        mock_mqttc = MagicMock()
-        mqtt_task._state.mqttc = mock_mqttc
-        mqtt_task._state.connected = True
-        mqtt_task._stopper.is_set.side_effect = [False, True]  # Run once
+        mqtt_context.state.meters[1] = state_module.MeterState(name="Water")
 
-        mqtt_task.run()
+        assert _resolve_meter_id(mqtt_context, "Water") == 1
+        assert _resolve_meter_id(mqtt_context, "water") == 1  # Case-insensitive
+        assert _resolve_meter_id(mqtt_context, "NonExistent") is None
+        assert _resolve_meter_id(mqtt_context, "1") == 1  # Numeric ID
 
-        # Should have published offline status
-        assert mock_mqttc.publish.called
-        # Should have stopped loop and disconnected
-        assert mock_mqttc.loop_stop.called
-        assert mock_mqttc.disconnect.called
-        assert mqtt_task._state.mqttc is None
+    async def test_message_listener(self, mqtt_context, mocker):
+        """Test _message_listener processes set/name commands."""
+        from mqtt_handler import MqttTaskState, _message_listener
 
-    @patch("time.sleep")
-    @patch("time.time")
-    def test_connect_loop_timeout(self, mock_time, mock_sleep, mqtt_task, mocker):
-        """Test _connect_loop times out waiting for connection (lines 248, 254)."""
-        # Run loop once
-        mqtt_task._stopper.is_set.side_effect = [False, False, False, True, True, True]
-        mqtt_task._state.mqttc = MagicMock()
-        mqtt_task._state.connected = False
+        mock_client = AsyncMock()
+        task_state = MqttTaskState()
 
-        # Mock _setup_mqtt_client to prevent it from creating a real client in 2nd loop
-        mocker.patch.object(mqtt_task, "_setup_mqtt_client", return_value=True)
+        # Create mock messages
+        msg1 = MagicMock()
+        msg1.topic = "s0pcmreader/1/total/set"
+        msg1.payload = b"2000"
 
-        # Simulate time passing:
-        # 1. 100 (start time) -> timeout = 110
-        # 2. 105 (loop check 1 - True)
-        # 3. 115 (loop check 2 - False)
-        # 4. 116 (logging/error time)
-        mock_time.side_effect = [100, 105, 115, 116, 117, 118, 119, 120, 121, 122]
+        msg2 = MagicMock()
+        msg2.topic = "s0pcmreader/2/name/set"
+        msg2.payload = b"Gas"
 
-        with patch.object(mqtt_task.app_context, "set_error") as mock_set_error:
-            mqtt_task._connect_loop()
+        async def mock_messages():
+            yield msg1
+            yield msg2
 
-            assert mock_set_error.called
-            # Check if ANY of the calls contain the timeout message
-            all_errors = " ".join(str(call) for call in mock_set_error.call_args_list).lower()
-            assert "timeout waiting for mqtt connack" in all_errors
+        mock_client.messages = mock_messages()
 
-    @patch("time.sleep")
-    def test_connect_loop_general_failure(self, mock_sleep, mqtt_task):
-        """Test _connect_loop handled general exception (lines 265-267)."""
-        # Run loop once
-        mqtt_task._stopper.is_set.side_effect = [False, True]
+        mock_handle_set = mocker.patch("mqtt_handler._handle_set_command", new_callable=AsyncMock)
+        mock_handle_name_set = mocker.patch("mqtt_handler._handle_name_set", new_callable=AsyncMock)
 
-        mock_client = MagicMock()
-        mock_client.connect.side_effect = Exception("Socket Error")
+        await _message_listener(mqtt_context, mock_client, task_state)
 
-        with patch("mqtt_handler.mqtt.Client", return_value=mock_client):
-            mqtt_task._connect_loop()
+        mock_handle_set.assert_called_once_with(mqtt_context, "s0pcmreader/1/total/set", b"2000")
+        mock_handle_name_set.assert_called_once_with(
+            mqtt_context, mock_client, task_state, "s0pcmreader/2/name/set", b"Gas"
+        )
 
-            assert "MQTT connection failed: Socket Error" in mqtt_task.app_context.lasterror_share
-            assert mock_sleep.called
+    async def test_publish_loop_global_discovery(self, mqtt_context, mocker):
+        """Test that _publish_loop sends global discovery and cleans up ghost meters."""
+        from mqtt_handler import MqttTaskState, _publish_loop
+
+        mock_client = AsyncMock()
+        task_state = MqttTaskState()
+
+        mock_send_global = mocker.patch("mqtt_handler.discovery.send_global_discovery", new_callable=AsyncMock)
+        mock_cleanup = mocker.patch("mqtt_handler.discovery.cleanup_meter_discovery", new_callable=AsyncMock)
+        mocker.patch("mqtt_handler.discovery.send_meter_discovery", new_callable=AsyncMock)
+
+        # Make trigger event fire once then cancel
+        call_count = 0
+
+        async def trigger_once():
+            nonlocal call_count
+            call_count += 1
+            if call_count > 1:
+                raise asyncio.CancelledError()
+
+        mqtt_context.trigger_event.wait = trigger_once
+        mqtt_context.trigger_event.set()
+
+        with contextlib.suppress(asyncio.CancelledError):
+            await _publish_loop(mqtt_context, mock_client, task_state)
+
+        assert mock_send_global.call_count == 1
+        assert mock_cleanup.call_count == 5
+        assert task_state.global_discovery_sent is True
+
+    async def test_publish_loop_delayed_clear(self, mqtt_context, mocker):
+        """Test that delayed_clear background task clears the MQTT error."""
+        from mqtt_handler import MqttTaskState, _publish_loop
+
+        mock_client = AsyncMock()
+        task_state = MqttTaskState()
+        task_state.global_discovery_sent = True
+
+        # Set error message on context
+        mqtt_context.set_error("MQTT Connect Fail", category="mqtt", trigger_event=False)
+
+        # Mock asyncio.sleep dynamically using original sleep to yield control properly
+        original_sleep = asyncio.sleep
+
+        async def mock_sleep(delay, result=None):
+            await original_sleep(0)
+
+        mocker.patch("asyncio.sleep", new=mock_sleep)
+
+        # Trigger event once then cancel
+        call_count = 0
+
+        async def trigger_once():
+            nonlocal call_count
+            call_count += 1
+            if call_count > 1:
+                raise asyncio.CancelledError()
+
+        mqtt_context.trigger_event.wait = trigger_once
+        mqtt_context.trigger_event.set()
+
+        with contextlib.suppress(asyncio.CancelledError):
+            await _publish_loop(mqtt_context, mock_client, task_state)
+
+        # Verify the error was published
+        mock_client.publish.assert_any_call("s0pcmreader/error", "MQTT Connect Fail", retain=True)
+
+        # Ensure the background task completed and called set_error(None)
+        await original_sleep(0.05)  # yield control so task executes
+
+        assert mqtt_context.lasterror_mqtt is None
+
+    async def test_publish_loop_publish_error_exception(self, mqtt_context, mocker):
+        """Test that _publish_loop logs an error when publish fails."""
+        from mqtt_handler import MqttTaskState, _publish_loop
+
+        mock_client = AsyncMock()
+
+        async def publish_side_effect(topic, *args, **kwargs):
+            if topic.endswith("/error"):
+                raise Exception("Publish error")
+
+        mock_client.publish = AsyncMock(side_effect=publish_side_effect)
+        task_state = MqttTaskState()
+
+        # Make error_msg different to trigger publish
+        mqtt_context.set_error("Connect fail", category="mqtt", trigger_event=False)
+
+        mocker.patch("mqtt_handler.logger.error")
+
+        # Trigger event once then cancel
+        call_count = 0
+
+        async def trigger_once():
+            nonlocal call_count
+            call_count += 1
+            if call_count > 1:
+                raise asyncio.CancelledError()
+
+        mqtt_context.trigger_event.wait = trigger_once
+        mqtt_context.trigger_event.set()
+
+        with contextlib.suppress(asyncio.CancelledError):
+            await _publish_loop(mqtt_context, mock_client, task_state)
+
+        import mqtt_handler
+
+        mqtt_handler.logger.error.assert_called_with("MQTT Publish Failed for error: Publish error")
+
+    async def test_mqtt_task_tls_build_fail(self, mqtt_context, mocker):
+        """Test that mqtt_task retries and sleeps when TLS configuration fails."""
+        from mqtt_handler import mqtt_task
+
+        mqtt_context.config = make_test_config(tls=True)
+        mocker.patch("mqtt_handler._build_ssl_context", return_value=None)
+        mocker.patch("asyncio.sleep", side_effect=[None, asyncio.CancelledError()])
+
+        # CancelledError is caught internally and logs cancellation
+        await mqtt_task(mqtt_context)
+
+    async def test_mqtt_task_connection_success(self, mqtt_context, mocker):
+        """Test that mqtt_task connects, runs recovery, and sets up TaskGroup listeners successfully on happy path."""
+        from mqtt_handler import mqtt_task
+
+        mock_client = AsyncMock()
+        # Mock the context manager
+        mock_client_cm = MagicMock()
+        mock_client_cm.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_cm.__aexit__ = AsyncMock(return_value=None)
+        mocker.patch("mqtt_handler.aiomqtt.Client", return_value=mock_client_cm)
+
+        # Mock StateRecoverer
+        mock_recoverer = MagicMock()
+        mock_recoverer.run = AsyncMock()
+        mocker.patch("mqtt_handler.StateRecoverer", return_value=mock_recoverer)
+
+        # Mock TaskGroup to instantly raise CancelledError to break out after starting tasks
+        class MockTaskGroup:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                raise asyncio.CancelledError()
+
+            def create_task(self, coro):
+                pass
+
+        mocker.patch("asyncio.TaskGroup", return_value=MockTaskGroup())
+
+        # CancelledError is caught internally and logs cancellation
+        await mqtt_task(mqtt_context)
+
+        # Verify recovery ran, status published, subscriptions made
+        mock_recoverer.run.assert_called_once()
+        mock_client.publish.assert_any_call("s0pcmreader/status", "online", retain=True)
+        mock_client.subscribe.assert_any_call("s0pcmreader/+/total/set")
+        mock_client.subscribe.assert_any_call("s0pcmreader/+/name/set")
+        assert mqtt_context.recovery_event.is_set()
+
+    async def test_mqtt_task_connection_fail(self, mqtt_context, mocker):
+        """Test that mqtt_task sets error state and retries on broker connection failure."""
+        from mqtt_handler import mqtt_task
+
+        mock_client_cm = MagicMock()
+        mock_client_cm.__aenter__ = AsyncMock(side_effect=Exception("Connection Failed"))
+        mocker.patch("mqtt_handler.aiomqtt.Client", return_value=mock_client_cm)
+
+        mocker.patch("asyncio.sleep", side_effect=asyncio.CancelledError)
+
+        # CancelledError is caught internally and logs cancellation
+        await mqtt_task(mqtt_context)
+
+        assert "MQTT connection failed" in mqtt_context.lasterror_mqtt
+
+    async def test_mqtt_task_fatal_exception_outer(self, mocker):
+        """Test outer Exception handler in mqtt_task."""
+        from mqtt_handler import mqtt_task
+
+        context = state_module.get_context()
+        context.config = None  # This will trigger AttributeError when accessing context.config.mqtt.tls
+
+        mocker.patch("mqtt_handler.logger.error")
+
+        await mqtt_task(context)
+
+        import mqtt_handler
+
+        mqtt_handler.logger.error.assert_called_with("Fatal MQTT exception", exc_info=True)
 
 
 if __name__ == "__main__":

@@ -6,8 +6,7 @@ import json
 import os
 from pathlib import Path
 import sys
-import threading
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -22,18 +21,18 @@ def setup_config_test_env():
 
 
 class TestConfigLoading:
-    def test_load_default_config(self, mocker):
+    async def test_load_default_config(self, mocker):
         # Mock Path.exists and Path.read_text for safer modern python testing
         mocker.patch.object(Path, "exists", return_value=False)
         context = state_module.get_context()
-        context.config = config_module.read_config()
+        context.config = await config_module.read_config()
         assert context.config.mqtt.host == "127.0.0.1"
 
-    def test_load_config_from_options(self, sample_options, mocker):
+    async def test_load_config_from_options(self, sample_options, mocker):
         mocker.patch.object(Path, "exists", return_value=True)
         mocker.patch.object(Path, "read_text", return_value=json.dumps(sample_options))
         context = state_module.get_context()
-        context.config = config_module.read_config()
+        context.config = await config_module.read_config()
         assert context.config.mqtt.host == sample_options["mqtt"]["host"]
 
 
@@ -46,23 +45,23 @@ class TestCLI:
 
 
 class TestConfigEdgeCases:
-    def test_tls_path_join(self, mocker):
+    async def test_tls_path_join(self, mocker):
         mocker.patch.object(Path, "exists", return_value=True)
         mocker.patch.object(Path, "read_text", return_value=json.dumps({"security": {"tls": True, "tls_ca": "ca.crt"}}))
         context = state_module.get_context()
-        context.config = config_module.read_config(config_dir=Path("/data/"))
+        context.config = await config_module.read_config(config_dir=Path("/data/"))
         expected_path = os.path.normpath("data/ca.crt")
         actual_path = os.path.normpath(context.config.mqtt.tls_ca)
         assert expected_path in actual_path
 
-    def test_password_redaction(self, mocker):
+    async def test_password_redaction(self, mocker):
         mocker.patch.object(Path, "exists", return_value=True)
         # Test 1: Password set
         mocker.patch.object(
             Path, "read_text", return_value=json.dumps({"mqtt": {"password": "secret", "username": "admin"}})
         )
         with patch("logging.Logger.debug") as mock_debug:
-            config_module.read_config()
+            await config_module.read_config()
             log_str = str(mock_debug.call_args[0][0])
             assert "**********" in log_str
             assert "secret" not in log_str
@@ -71,7 +70,7 @@ class TestConfigEdgeCases:
         # Test 2: Password None
         mocker.patch.object(Path, "read_text", return_value=json.dumps({}))
         with patch("logging.Logger.debug") as mock_debug:
-            config_module.read_config()
+            await config_module.read_config()
             log_str = str(mock_debug.call_args[0][0])
             # Check for None explicitly
             assert "'password': None" in log_str
@@ -81,54 +80,152 @@ class TestConfigEdgeCases:
 class TestErrorHandling:
     def test_set_error_behavior(self, mocker):
         """Test SetError sets the shared error and triggers the event, including clearing."""
-        trigger = threading.Event()
         context = state_module.get_context()
-        context.register_trigger(trigger)
         context.lasterror_share = None
-        context.lasterror_serial = None  # Reset internal state too
+        context.lasterror_serial = None
         context.lasterror_mqtt = None
 
         # 1. Set error
         context.set_error("Test Error")
         assert context.lasterror_share == "Test Error"
-        assert trigger.is_set()
+        assert context.trigger_event.is_set()
 
-        trigger.clear()
+        context.trigger_event.clear()
         context.set_error(None)
         assert context.lasterror_share is None
-        assert trigger.is_set()
+        assert context.trigger_event.is_set()
 
 
 class TestConfigCoverage:
-    def test_read_config_options_exception(self):
+    async def test_read_config_options_exception(self):
         """Test exception handling during options.json load (lines 118-119)."""
         with (
             patch("pathlib.Path.exists", return_value=True),
             patch("pathlib.Path.read_text", side_effect=Exception("Read Error")),
             patch("config.logger.error") as mock_logger,
         ):
-            config_module.read_config()
+            await config_module.read_config()
             assert mock_logger.called
-            assert "Failed to load" in mock_logger.call_args[0][0]
+            assert any("Failed to load" in str(c) for c in mock_logger.call_args_list)
 
-    def test_read_config_mqtt_discovery_log(self, mocker):
+    async def test_read_config_mqtt_discovery_log(self, mocker):
         """Test logging when MQTT service discovery is used (line 126)."""
         # Mock get_supervisor_config to return data
         with (
-            patch("config.get_supervisor_config", return_value={"host": "1.2.3.4"}),
+            patch("config.get_supervisor_config", new_callable=AsyncMock, return_value={"host": "1.2.3.4"}),
             patch("config.logger.info") as mock_logger,
         ):
-            config_module.read_config()
+            await config_module.read_config()
 
             # One of the calls should be the discovery message
             found = any("Using MQTT service discovery" in str(c) for c in mock_logger.call_args_list)
             assert found
 
-    def test_read_config_returns_model(self):
+    async def test_read_config_returns_model(self):
         """Test that read_config returns a ConfigModel directly."""
-        model = config_module.read_config()
+        model = await config_module.read_config()
         assert model.mqtt.base_topic == "s0pcmreader"
         assert model.log.level == "INFO"
+
+    async def test_read_config_mqtt_version_string(self):
+        """Test that MQTT version is stored as a string."""
+        model = await config_module.read_config()
+        assert model.mqtt.version == "5.0"
+        assert isinstance(model.mqtt.version, str)
+
+
+class TestAutoDetectSerialPort:
+    async def test_auto_detect_no_ports(self, mocker):
+        mocker.patch("serialx.list_serial_ports", return_value=[])
+        with patch("config.logger.warning") as mock_warn:
+            port = await config_module._auto_detect_serial_port()
+            assert port == "/dev/ttyACM0"
+            mock_warn.assert_called_once()
+            assert "No serial ports detected" in mock_warn.call_args[0][0]
+
+    async def test_auto_detect_ch340_vid(self, mocker):
+        mock_port = mocker.MagicMock()
+        mock_port.device = "/dev/ttyUSB99"
+        mock_port.vid = 0x1A86
+        mock_port.manufacturer = "CH340 Manufacturer"
+        mocker.patch("serialx.list_serial_ports", return_value=[mock_port])
+        port = await config_module._auto_detect_serial_port()
+        assert port == "/dev/ttyUSB99"
+
+    async def test_auto_detect_ch340_name(self, mocker):
+        mock_port = mocker.MagicMock()
+        mock_port.device = "/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0"
+        mock_port.vid = 0x1234
+        mock_port.manufacturer = None
+        mocker.patch("serialx.list_serial_ports", return_value=[mock_port])
+        port = await config_module._auto_detect_serial_port()
+        assert port == "/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0"
+
+    async def test_auto_detect_arduino_vid(self, mocker):
+        mock_port = mocker.MagicMock()
+        mock_port.device = "/dev/ttyACM99"
+        mock_port.vid = 0x2341
+        mock_port.manufacturer = "Arduino LLC"
+        mock_port.description = "Arduino Leonardo"
+        mocker.patch("serialx.list_serial_ports", return_value=[mock_port])
+        port = await config_module._auto_detect_serial_port()
+        assert port == "/dev/ttyACM99"
+
+    async def test_auto_detect_arduino_name(self, mocker):
+        mock_port = mocker.MagicMock()
+        mock_port.device = "/dev/serial/by-id/usb-Arduino_LLC_Arduino_Leonardo-if00-port0"
+        mock_port.vid = 0x1234
+        mock_port.manufacturer = None
+        mock_port.description = None
+        mocker.patch("serialx.list_serial_ports", return_value=[mock_port])
+        port = await config_module._auto_detect_serial_port()
+        assert port == "/dev/serial/by-id/usb-Arduino_LLC_Arduino_Leonardo-if00-port0"
+
+    async def test_auto_detect_generic_usb(self, mocker):
+        mock_port = mocker.MagicMock()
+        mock_port.device = "/dev/serial/by-id/usb-FTDI_FT232R-if00-port0"
+        mock_port.vid = 0x0403
+        mock_port.manufacturer = "FTDI"
+        mock_port.description = "FTDI USB Serial"
+
+        mocker.patch("serialx.list_serial_ports", return_value=[mock_port])
+        port = await config_module._auto_detect_serial_port()
+        assert port == "/dev/serial/by-id/usb-FTDI_FT232R-if00-port0"
+
+    async def test_auto_detect_fallback_first(self, mocker):
+        mock_port = mocker.MagicMock()
+        mock_port.device = "/dev/ttyS0"
+        mock_port.vid = None
+        mock_port.manufacturer = None
+        mock_port.description = "Standard Serial Port"
+
+        mocker.patch("serialx.list_serial_ports", return_value=[mock_port])
+        port = await config_module._auto_detect_serial_port()
+        assert port == "/dev/ttyS0"
+
+    async def test_auto_detect_exception(self, mocker):
+        mocker.patch("serialx.list_serial_ports", side_effect=RuntimeError("Scan error"))
+        with patch("config.logger.error") as mock_error:
+            port = await config_module._auto_detect_serial_port()
+            assert port == "/dev/ttyACM0"
+            mock_error.assert_called_once()
+            assert "Exception during port scan" in mock_error.call_args[0][0]
+
+    async def test_read_config_triggers_auto_detect(self, mocker):
+        mocker.patch("serialx.list_serial_ports", return_value=[])
+        mocker.patch("pathlib.Path.exists", return_value=True)
+        mocker.patch("pathlib.Path.read_text", return_value=json.dumps({"device": None}))
+
+        model = await config_module.read_config()
+        assert model.serial.port == "/dev/ttyACM0"
+
+    async def test_read_config_triggers_auto_detect_missing_key(self, mocker):
+        mocker.patch("serialx.list_serial_ports", return_value=[])
+        mocker.patch("pathlib.Path.exists", return_value=True)
+        mocker.patch("pathlib.Path.read_text", return_value=json.dumps({}))
+
+        model = await config_module.read_config()
+        assert model.serial.port == "/dev/ttyACM0"
 
 
 if __name__ == "__main__":

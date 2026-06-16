@@ -1,14 +1,13 @@
 """
 Serial Handler Module
 
-Contains the TaskReadSerial class for reading and parsing S0PCM data from serial port.
+Contains the serial_task coroutine for reading and parsing S0PCM data from serial port.
 """
 
+import asyncio
 from dataclasses import dataclass
 import datetime
 import logging
-import threading
-import time
 
 import serialx
 
@@ -27,219 +26,209 @@ class SerialTaskState:
     started: bool = False
 
 
-class TaskReadSerial(threading.Thread):
+async def _log_available_ports() -> None:
+    """Log available serial ports for debugging on connection failure."""
+    try:
+        ports = await asyncio.to_thread(serialx.list_serial_ports)
+        if ports:
+            port_list = ", ".join(p.device for p in ports)
+            logger.info(f"Available serial ports: {port_list}")
+        else:
+            logger.warning("No serial ports detected on system")
+    except Exception:
+        logger.debug("Unable to enumerate serial ports")
+
+
+def _handle_header(context: state_module.AppContext, datastr: str) -> None:
     """
-    Task to read the serial port and update meter measurements.
+    Parse header packet to extract firmware version.
 
-    This thread continuously reads from the configured serial port, parses S0PCM packets,
-    and updates the application state.
+    Args:
+        context: Application context.
+        datastr: Raw header string from serial port.
     """
+    logger.debug(f"Header Packet: '{datastr}'")
+    try:
+        if ":" in datastr:
+            context.s0pcm_firmware = datastr.split(":", 1)[1].strip()
+        else:
+            context.s0pcm_firmware = datastr[1:].strip()
+    except IndexError:
+        context.s0pcm_firmware = datastr
 
-    def __init__(self, context: state_module.AppContext, trigger: threading.Event, stopper: threading.Event) -> None:
-        """
-        Initialize the serial reader task.
 
-        Args:
-            context: Application context.
-            trigger: Event to signal when new data is available.
-            stopper: Event to signal when the task should stop.
-        """
-        super().__init__()
-        self._trigger = trigger
-        self._stopper = stopper
-        self._state = SerialTaskState()
-        self.app_context = context
+def _update_meter(
+    context: state_module.AppContext, meter_id: int, pulsecount: int, pulses_in_interval: int, interval: int
+) -> None:
+    """
+    Update logic for a single meter.
 
-    def _log_available_ports(self) -> None:
-        """Log available serial ports for debugging on connection failure."""
-        try:
-            ports = serialx.list_serial_ports()
-            if ports:
-                port_list = ", ".join(p.device for p in ports)
-                logger.info(f"Available serial ports: {port_list}")
-            else:
-                logger.warning("No serial ports detected on system")
-        except Exception:
-            logger.debug("Unable to enumerate serial ports")
+    Handles day-rollover and pulsecount increment/reset logic.
 
-    def _handle_header(self, datastr: str) -> None:
-        """
-        Parse header packet to extract firmware version.
+    Args:
+        context: Application context.
+        meter_id: The ID of the meter to update.
+        pulsecount: The current pulsecount from the device.
+        pulses_in_interval: The number of pulses received in the last interval.
+        interval: The duration of the last interval in seconds.
+    """
+    # Ensure meter exists
+    if meter_id not in context.state.meters:
+        context.state.meters[meter_id] = state_module.MeterState()
 
-        Args:
-            datastr: Raw header string from serial port.
-        """
-        logger.debug(f"Header Packet: '{datastr}'")
-        try:
-            if ":" in datastr:
-                self.app_context.s0pcm_firmware = datastr.split(":", 1)[1].strip()
-            else:
-                self.app_context.s0pcm_firmware = datastr[1:].strip()
-        except IndexError:
-            self.app_context.s0pcm_firmware = datastr
+    meter = context.state.meters[meter_id]
 
-    def _handle_data_packet(self, datastr: str) -> None:
-        """
-        Parse data packet and update measurements in state.
+    # Handle day-rollover
+    today = datetime.date.today()
+    if context.state.date != today:
+        logger.debug(f"Day changed from '{context.state.date}' to '{today}', rolling over counter '{meter_id}'.")
+        meter.yesterday = meter.today
+        meter.today = 0
+        # Note: context.state.date update should ideally happen once.
+        # We'll update it here so subsequent meters in the same packet also see the change.
+        context.state.date = today
 
-        Args:
-            datastr: Raw data packet string from serial port.
-        """
-        logger.debug(f"S0PCM Packet: '{datastr}'")
+    # Check delta and update
+    if pulsecount > meter.pulsecount:
+        logger.debug(f"Pulsecount changed from '{meter.pulsecount}' to '{pulsecount}' for meter {meter_id}")
+        delta = pulsecount - meter.pulsecount
+        meter.pulsecount = pulsecount
+        meter.total += delta
+        meter.today += delta
 
-        try:
-            parsed_data = parse_s0pcm_packet(datastr)
-            interval = parsed_data["interval"]
-            meters = parsed_data["meters"]
-        except (ValueError, KeyError) as e:
-            self.app_context.set_error(f"Invalid Packet: {e}. Packet: '{datastr}'", category="serial")
-            return
-
-        with self.app_context.lock:
-            for meter_id, data in meters.items():
-                self._update_meter(meter_id, data["pulsecount"], data["pulses_in_interval"], interval)
-
-            # Update shared state snapshot for MQTT
-            self.app_context.state_share = self.app_context.state.model_copy(deep=True)
-
-        # Clear serial error
-        self.app_context.set_error(None, category="serial")
-
-        # Signal MQTT task that new data is available
-        self._trigger.set()
-
-    def _update_meter(self, meter_id: int, pulsecount: int, pulses_in_interval: int, interval: int) -> None:
-        """
-        Update logic for a single meter.
-
-        Handles day-rollover and pulsecount increment/reset logic.
-
-        Args:
-            meter_id: The ID of the meter to update.
-            pulsecount: The current pulsecount from the device.
-            pulses_in_interval: The number of pulses received in the last interval.
-            interval: The duration of the last interval in seconds.
-        """
-        # Ensure meter exists
-        if meter_id not in self.app_context.state.meters:
-            self.app_context.state.meters[meter_id] = state_module.MeterState()
-
-        meter = self.app_context.state.meters[meter_id]
-
-        # Handle day-rollover
-        today = datetime.date.today()
-        if self.app_context.state.date != today:
-            logger.debug(
-                f"Day changed from '{self.app_context.state.date}' to '{today}', rolling over counter '{meter_id}'."
+    elif pulsecount < meter.pulsecount:
+        # Pulsecount reset (e.g. device restart)
+        if pulsecount == 0:
+            context.set_error(
+                f"S0PCM Reset detected for meter {meter_id}: Pulsecounters cleared. Restoring from total {meter.total}.",
+                category="serial",
+                level=logging.WARNING,
             )
-            meter.yesterday = meter.today
-            meter.today = 0
-            # Note: context.state.date update should ideally happen once.
-            # We'll update it here so subsequent meters in the same packet also see the change.
-            self.app_context.state.date = today
+        else:
+            context.set_error(
+                f"Pulsecount anomaly detected for meter {meter_id}: Stored pulsecount '{meter.pulsecount}' is higher than read '{pulsecount}'.",
+                category="serial",
+            )
 
-        # Check delta and update
-        if pulsecount > meter.pulsecount:
-            logger.debug(f"Pulsecount changed from '{meter.pulsecount}' to '{pulsecount}' for meter {meter_id}")
-            delta = pulsecount - meter.pulsecount
-            meter.pulsecount = pulsecount
-            meter.total += delta
-            meter.today += delta
+        # Note: We don't use the delta here if it reset, we just sync the pulsecount
+        # but we DO add what we received. Actually, if it reset to 0 and sends 10,
+        # we should add 10.
+        delta = pulsecount
+        meter.pulsecount = pulsecount
+        meter.total += delta
+        meter.today += delta
 
-        elif pulsecount < meter.pulsecount:
-            # Pulsecount reset (e.g. device restart)
-            if pulsecount == 0:
-                self.app_context.set_error(
-                    f"S0PCM Reset detected for meter {meter_id}: Pulsecounters cleared. Restoring from total {meter.total}.",
-                    category="serial",
-                    level=logging.WARNING,
-                )
-            else:
-                self.app_context.set_error(
-                    f"Pulsecount anomaly detected for meter {meter_id}: Stored pulsecount '{meter.pulsecount}' is higher than read '{pulsecount}'.",
-                    category="serial",
-                )
+    # Clamp to 32-bit signed integer max (matches HA number entity max: 2,147,483,647)
+    meter.total = min(meter.total, 2_147_483_647)
+    meter.today = min(meter.today, 2_147_483_647)
 
-            # Note: We don't use the delta here if it reset, we just sync the pulsecount
-            # but we DO add what we received. Actually, if it reset to 0 and sends 10,
-            # we should add 10.
-            delta = pulsecount
-            meter.pulsecount = pulsecount
-            meter.total += delta
-            meter.today += delta
 
-    def _read_loop(self, ser: serialx.BaseSerial) -> None:
-        """
-        Continuous read loop from serial port.
+def _handle_data_packet(context: state_module.AppContext, datastr: str) -> None:
+    """
+    Parse data packet and update measurements in state.
 
-        Args:
-            ser: The connected serial object.
-        """
-        while not self._stopper.is_set():
-            try:
-                datain = ser.readline(512)
-            except Exception as e:
-                self.app_context.set_error(f"Serialport read error: {type(e).__name__}: '{e}'", category="serial")
-                break  # Break to reconnect
+    Args:
+        context: Application context.
+        datastr: Raw data packet string from serial port.
+    """
+    logger.debug(f"S0PCM Packet: '{datastr}'")
 
-            if len(datain) == 0:
-                # Timeout
-                self.app_context.set_error("Serialport read timeout: Failed to read any data", category="serial")
-                break
+    try:
+        parsed_data = parse_s0pcm_packet(datastr)
+        interval = parsed_data["interval"]
+        meters = parsed_data["meters"]
+    except (ValueError, KeyError) as e:
+        context.set_error(f"Invalid Packet: {e}. Packet: '{datastr}'", category="serial")
+        return
 
-            try:
-                datastr = datain.decode("ascii").rstrip("\r\n")
-            except UnicodeDecodeError:
-                self.app_context.set_error(f"Failed to decode serial data: '{datain}'", category="serial")
-                continue
+    for meter_id, data in meters.items():
+        _update_meter(context, meter_id, data["pulsecount"], data["pulses_in_interval"], interval)
 
-            match datastr:
-                case str(s) if s.startswith(SerialPacketType.HEADER):
-                    self._handle_header(datastr)
-                case str(s) if s.startswith(SerialPacketType.DATA):
-                    self._handle_data_packet(datastr)
-                case "":
-                    logger.warning("Empty Packet received, this can happen during start-up")
-                case _:
-                    self.app_context.set_error(f"Invalid Packet: '{datastr}'", category="serial")
+    # Clear serial error
+    context.set_error(None, category="serial")
 
-    def run(self) -> None:
-        """Main thread execution."""
+    # Signal MQTT task that new data is available
+    context.trigger_event.set()
+
+
+async def _read_loop(context: state_module.AppContext, ser: serialx.BaseSerial) -> None:
+    """
+    Continuous read loop from serial port.
+
+    Args:
+        context: Application context.
+        ser: The connected async serial object.
+    """
+    while True:
         try:
-            # Wait for MQTT recovery to complete before starting to process serial data
-            logger.info("Serial Task: Waiting for MQTT/HA state recovery...")
-            self.app_context.recovery_event.wait()
-            logger.info("Serial Task: Recovery complete, starting serial read loop.")
+            datain = await ser.readline()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            context.set_error(f"Serialport read error: {type(e).__name__}: '{e}'", category="serial")
+            break  # Break to reconnect
 
-            while not self._stopper.is_set():
-                logger.debug(f"Opening serialport '{self.app_context.config.serial.port}'")
-                try:
-                    ser = serialx.serial_for_url(
-                        self.app_context.config.serial.port,
-                        baudrate=self.app_context.config.serial.baudrate,
-                        parity=self.app_context.config.serial.parity,
-                        stopbits=self.app_context.config.serial.stopbits,
-                        byte_size=self.app_context.config.serial.bytesize,
-                        read_timeout=self.app_context.config.serial.timeout,
-                        exclusive=True,
-                    )
-                    with ser:
-                        self._state.serialerror = 0
-                        logger.info(f"Connected to serialport '{self.app_context.config.serial.port}'")
-                        if not self._state.started:
-                            self._state.started = True
-                            logger.info(f"s0pcm-reader v{self.app_context.s0pcm_reader_version} started successfully")
-                        self._read_loop(ser)
-                except Exception as e:
-                    self._state.serialerror += 1
-                    self.app_context.set_error(
-                        f"Serialport connection failed: {type(e).__name__}: '{e}'", category="serial"
-                    )
-                    if self._state.serialerror == 1:
-                        self._log_available_ports()
-                    logger.error(f"Retry in {self.app_context.config.serial.connect_retry} seconds")
-                    time.sleep(self.app_context.config.serial.connect_retry)
-        except Exception:
-            logger.error("Fatal exception in Serial Task", exc_info=True)
-        finally:
-            self._stopper.set()
+        if len(datain) == 0:
+            # Timeout
+            context.set_error("Serialport read timeout: Failed to read any data", category="serial")
+            break
+
+        try:
+            datastr = datain.decode("ascii").rstrip("\r\n")
+        except UnicodeDecodeError:
+            context.set_error(f"Failed to decode serial data: '{datain}'", category="serial")
+            continue
+
+        match datastr:
+            case str(s) if s.startswith(SerialPacketType.HEADER):
+                _handle_header(context, datastr)
+            case str(s) if s.startswith(SerialPacketType.DATA):
+                _handle_data_packet(context, datastr)
+            case "":
+                logger.warning("Empty Packet received, this can happen during start-up")
+            case _:
+                context.set_error(f"Invalid Packet: '{datastr}'", category="serial")
+
+
+async def serial_task(context: state_module.AppContext) -> None:
+    """Main serial task coroutine."""
+    task_state = SerialTaskState()
+
+    try:
+        # Wait for MQTT recovery to complete before starting to process serial data
+        logger.info("Serial Task: Waiting for MQTT/HA state recovery...")
+        await context.recovery_event.wait()
+        logger.info("Serial Task: Recovery complete, starting serial read loop.")
+
+        while True:
+            logger.debug(f"Opening serialport '{context.config.serial.port}'")
+            try:
+                ser = serialx.async_serial_for_url(
+                    context.config.serial.port,
+                    baudrate=context.config.serial.baudrate,
+                    parity=context.config.serial.parity,
+                    stopbits=context.config.serial.stopbits,
+                    byte_size=context.config.serial.bytesize,
+                    read_timeout=context.config.serial.timeout,
+                    exclusive=True,
+                )
+                async with ser:
+                    task_state.serialerror = 0
+                    logger.info(f"Connected to serialport '{context.config.serial.port}'")
+                    if not task_state.started:
+                        task_state.started = True
+                        logger.info(f"s0pcm-reader v{context.s0pcm_reader_version} started successfully")
+                    await _read_loop(context, ser)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                task_state.serialerror += 1
+                context.set_error(f"Serialport connection failed: {type(e).__name__}: '{e}'", category="serial")
+                if task_state.serialerror == 1:
+                    await _log_available_ports()
+                logger.error(f"Retry in {context.config.serial.connect_retry} seconds")
+                await asyncio.sleep(context.config.serial.connect_retry)
+    except asyncio.CancelledError:
+        logger.info("Serial Task: Cancelled, shutting down.")
+    except Exception:
+        logger.error("Fatal exception in Serial Task", exc_info=True)

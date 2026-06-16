@@ -2,16 +2,17 @@
 Comprehensive tests for the recovery module.
 
 Tests cover:
-- MQTT message parsing (discovery topics, data topics, date handling)
+- Message parsing (discovery topics, data topics, date handling)
 - HA API methods (fetch_ha_state, fetch_all_ha_states)
 - Robust state cleaning logic (units, decimal separators, localization)
 - Name-to-ID mapping
 - Complete recovery flow and edge cases
 """
 
+import asyncio
 import datetime
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from helpers import make_test_config
 import pytest
@@ -22,10 +23,11 @@ import state as state_module
 
 @pytest.fixture
 def mock_mqtt_client():
-    """Create a mock MQTT client."""
-    client = MagicMock()
-    client.subscribe = MagicMock()
-    client.unsubscribe = MagicMock()
+    """Create a mock aiomqtt Client."""
+    client = AsyncMock()
+    client.subscribe = AsyncMock()
+    client.unsubscribe = AsyncMock()
+    client.messages = AsyncMock()
     return client
 
 
@@ -40,116 +42,82 @@ def recoverer(mock_mqtt_client):
 class TestMQTTMessageParsing:
     """Test MQTT message parsing during recovery."""
 
-    def test_parse_discovery_topic_with_name(self, recoverer):
+    def test_process_message_discovery_topic_with_name(self, recoverer):
         """Test parsing discovery config messages to extract meter names."""
-        msg = MagicMock()
-        msg.topic = "homeassistant/sensor/s0pcmreader/s0pcm_s0pcmreader_1_total/config"
-        msg.payload = json.dumps(
+        topic = "homeassistant/sensor/s0pcmreader/s0pcm_s0pcmreader_1_total/config"
+        payload = json.dumps(
             {"unique_id": "s0pcm_s0pcmreader_1_total", "state_topic": "s0pcmreader/Water/total"}
         ).encode()
 
-        recoverer.on_message(None, None, msg)
+        recoverer._process_message(topic, payload)
 
         assert 1 in recoverer.recovered_names
         assert recoverer.recovered_names[1] == "Water"
 
-    def test_parse_discovery_topic_ignores_id_as_name(self, recoverer):
+    def test_process_message_discovery_topic_ignores_id_as_name(self, recoverer):
         """Test that numeric IDs are not stored as names."""
-        msg = MagicMock()
-        msg.topic = "homeassistant/sensor/s0pcmreader/s0pcm_s0pcmreader_2_total/config"
-        msg.payload = json.dumps(
-            {"unique_id": "s0pcm_s0pcmreader_2_total", "state_topic": "s0pcmreader/2/total"}
-        ).encode()
+        topic = "homeassistant/sensor/s0pcmreader/s0pcm_s0pcmreader_2_total/config"
+        payload = json.dumps({"unique_id": "s0pcm_s0pcmreader_2_total", "state_topic": "s0pcmreader/2/total"}).encode()
 
-        recoverer.on_message(None, None, msg)
+        recoverer._process_message(topic, payload)
 
         assert 2 not in recoverer.recovered_names
 
-    def test_parse_discovery_topic_ignores_none(self, recoverer):
+    def test_process_message_discovery_topic_ignores_none(self, recoverer):
         """Test that 'None' is not stored as a valid name."""
-        msg = MagicMock()
-        msg.topic = "homeassistant/sensor/s0pcmreader/s0pcm_s0pcmreader_3_total/config"
-        msg.payload = json.dumps(
+        topic = "homeassistant/sensor/s0pcmreader/s0pcm_s0pcmreader_3_total/config"
+        payload = json.dumps(
             {"unique_id": "s0pcm_s0pcmreader_3_total", "state_topic": "s0pcmreader/None/total"}
         ).encode()
 
-        recoverer.on_message(None, None, msg)
+        recoverer._process_message(topic, payload)
 
         assert 3 not in recoverer.recovered_names
 
-    def test_parse_data_topic_total(self, recoverer):
+    def test_process_message_data_topic_total(self, recoverer):
         """Test parsing total value from MQTT data topic."""
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/1/total"
-        msg.payload = b"1234567"
-
-        recoverer.on_message(None, None, msg)
+        recoverer._process_message("s0pcmreader/1/total", b"1234567")
 
         assert "1" in recoverer.recovered_data
         assert recoverer.recovered_data["1"]["total"] == 1234567
 
-    def test_parse_data_topic_today(self, recoverer):
+    def test_process_message_data_topic_today(self, recoverer):
         """Test parsing today value from MQTT data topic."""
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/Water/today"
-        msg.payload = b"150"
-
-        recoverer.on_message(None, None, msg)
+        recoverer._process_message("s0pcmreader/Water/today", b"150")
 
         assert "Water" in recoverer.recovered_data
         assert recoverer.recovered_data["Water"]["today"] == 150
 
-    def test_parse_data_topic_yesterday(self, recoverer):
+    def test_process_message_data_topic_yesterday(self, recoverer):
         """Test parsing yesterday value from MQTT data topic."""
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/2/yesterday"
-        msg.payload = b"200"
-
-        recoverer.on_message(None, None, msg)
+        recoverer._process_message("s0pcmreader/2/yesterday", b"200")
 
         assert "2" in recoverer.recovered_data
         assert recoverer.recovered_data["2"]["yesterday"] == 200
 
-    def test_parse_data_topic_pulsecount(self, recoverer):
+    def test_process_message_data_topic_pulsecount(self, recoverer):
         """Test parsing pulsecount value from MQTT data topic."""
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/1/pulsecount"
-        msg.payload = b"42"
-
-        recoverer.on_message(None, None, msg)
+        recoverer._process_message("s0pcmreader/1/pulsecount", b"42")
 
         assert "1" in recoverer.recovered_data
         assert recoverer.recovered_data["1"]["pulsecount"] == 42
 
-    def test_parse_date_topic(self, recoverer):
+    def test_process_message_date_topic(self, recoverer):
         """Test parsing date from MQTT topic."""
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/date"
-        msg.payload = b"2026-01-25"
-
-        recoverer.on_message(None, None, msg)
+        recoverer._process_message("s0pcmreader/date", b"2026-01-25")
 
         assert recoverer.context.state.date == datetime.date(2026, 1, 25)
 
-    def test_parse_invalid_json_gracefully(self, recoverer):
+    def test_process_message_invalid_json_gracefully(self, recoverer):
         """Test that invalid JSON in discovery topics doesn't crash."""
-        msg = MagicMock()
-        msg.topic = "homeassistant/sensor/s0pcmreader/s0pcm_s0pcmreader_1_total/config"
-        msg.payload = b"{invalid json"
-
-        # Should not raise exception
-        recoverer.on_message(None, None, msg)
+        topic = "homeassistant/sensor/s0pcmreader/s0pcm_s0pcmreader_1_total/config"
+        recoverer._process_message(topic, b"{invalid json")
 
         assert 1 not in recoverer.recovered_names
 
-    def test_parse_invalid_number_gracefully(self, recoverer):
+    def test_process_message_invalid_number_gracefully(self, recoverer):
         """Test that invalid numbers in data topics are ignored."""
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/1/total"
-        msg.payload = b"not_a_number"
-
-        # Should not raise exception
-        recoverer.on_message(None, None, msg)
+        recoverer._process_message("s0pcmreader/1/total", b"not_a_number")
 
         assert "1" not in recoverer.recovered_data
 
@@ -157,7 +125,7 @@ class TestMQTTMessageParsing:
 class TestHAAPIFallback:
     """Test Home Assistant API fallback methods."""
 
-    def test_fetch_ha_state_success(self, recoverer, mocker):
+    async def test_fetch_ha_state_success(self, recoverer, mocker):
         """Test successful HA API state fetch."""
         mocker.patch.dict("os.environ", {"SUPERVISOR_TOKEN": "test_token"})
 
@@ -171,19 +139,19 @@ class TestHAAPIFallback:
 
         mocker.patch("urllib.request.urlopen", return_value=mock_response)
 
-        result = recoverer.fetch_ha_state("sensor.s0pcmreader_1_total")
+        result = await recoverer.fetch_ha_state("sensor.s0pcmreader_1_total")
 
         assert result == "1234567"
 
-    def test_fetch_ha_state_no_token(self, recoverer, mocker):
+    async def test_fetch_ha_state_no_token(self, recoverer, mocker):
         """Test HA API fetch returns None when no token available."""
         mocker.patch.dict("os.environ", {}, clear=True)
 
-        result = recoverer.fetch_ha_state("sensor.s0pcmreader_1_total")
+        result = await recoverer.fetch_ha_state("sensor.s0pcmreader_1_total")
 
         assert result is None
 
-    def test_fetch_ha_state_unknown_state(self, recoverer, mocker):
+    async def test_fetch_ha_state_unknown_state(self, recoverer, mocker):
         """Test HA API fetch returns None for unknown/unavailable states."""
         mocker.patch.dict("os.environ", {"SUPERVISOR_TOKEN": "test_token"})
         mock_response = MagicMock()
@@ -195,11 +163,23 @@ class TestHAAPIFallback:
         mock_response.__exit__ = lambda self, *args: None
         mocker.patch("urllib.request.urlopen", return_value=mock_response)
 
-        result = recoverer.fetch_ha_state("sensor.s0pcmreader_1_total")
+        result = await recoverer.fetch_ha_state("sensor.s0pcmreader_1_total")
 
         assert result is None
 
-    def test_fetch_all_ha_states_success(self, recoverer, mocker):
+    async def test_fetch_ha_state_status_not_200(self, recoverer, mocker):
+        """Test fetch HA state returns None when response status is not 200."""
+        mocker.patch.dict("os.environ", {"SUPERVISOR_TOKEN": "test_token"})
+        mock_response = MagicMock()
+        mock_response.status = 204
+        mock_response.__enter__ = lambda self: self
+        mock_response.__exit__ = lambda self, *args: None
+        mocker.patch("urllib.request.urlopen", return_value=mock_response)
+
+        result = await recoverer.fetch_ha_state("sensor.s0pcmreader_1_total")
+        assert result is None
+
+    async def test_fetch_all_ha_states_success(self, recoverer, mocker):
         """Test successful fetch of all HA states."""
         mocker.patch.dict("os.environ", {"SUPERVISOR_TOKEN": "test_token"})
 
@@ -216,18 +196,30 @@ class TestHAAPIFallback:
 
         mocker.patch("urllib.request.urlopen", return_value=mock_response)
 
-        result = recoverer.fetch_all_ha_states()
+        result = await recoverer.fetch_all_ha_states()
 
         assert len(result) == 2
         assert result[0]["entity_id"] == "sensor.s0pcmreader_1_total"
         assert result[1]["state"] == "5000"
 
-    def test_fetch_all_ha_states_no_token(self, recoverer, mocker):
+    async def test_fetch_all_ha_states_no_token(self, recoverer, mocker):
         """Test fetch all states returns empty list when no token."""
         mocker.patch.dict("os.environ", {}, clear=True)
 
-        result = recoverer.fetch_all_ha_states()
+        result = await recoverer.fetch_all_ha_states()
 
+        assert result == []
+
+    async def test_fetch_all_ha_states_status_not_200(self, recoverer, mocker):
+        """Test fetch all states returns empty list when response status is not 200."""
+        mocker.patch.dict("os.environ", {"SUPERVISOR_TOKEN": "test_token"})
+        mock_response = MagicMock()
+        mock_response.status = 204
+        mock_response.__enter__ = lambda self: self
+        mock_response.__exit__ = lambda self, *args: None
+        mocker.patch("urllib.request.urlopen", return_value=mock_response)
+
+        result = await recoverer.fetch_all_ha_states()
         assert result == []
 
 
@@ -327,15 +319,21 @@ class TestRobustStateCleaning:
 class TestRecoveryFlow:
     """Test the complete recovery flow."""
 
-    def test_run_subscribes_to_topics(self, recoverer, mocker):
+    async def test_run_subscribes_to_topics(self, recoverer, mocker):
         """Test that run() subscribes to all necessary topics."""
-        mocker.patch("time.sleep")
 
-        recoverer.run()
+        # Mock messages to immediately timeout
+        async def empty_messages():
+            return
+            yield  # Make it an async generator that yields nothing
+
+        recoverer.client.messages = empty_messages()
+
+        await recoverer.run()
 
         # Verify subscriptions
-        assert recoverer.mqttc.subscribe.call_count == 6
-        topics = [c[0][0] for c in recoverer.mqttc.subscribe.call_args_list]
+        assert recoverer.client.subscribe.call_count == 6
+        topics = [c[0][0] for c in recoverer.client.subscribe.call_args_list]
         assert "s0pcmreader/+/total" in topics
         assert "s0pcmreader/+/today" in topics
         assert "s0pcmreader/+/yesterday" in topics
@@ -343,34 +341,62 @@ class TestRecoveryFlow:
         assert "s0pcmreader/date" in topics
         assert "homeassistant/sensor/s0pcmreader/#" in topics
 
-    def test_run_unsubscribes_after_recovery(self, recoverer, mocker):
+    async def test_run_unsubscribes_after_recovery(self, recoverer, mocker):
         """Test that run() unsubscribes from topics after recovery."""
-        mocker.patch("time.sleep")
 
-        recoverer.run()
+        async def empty_messages():
+            return
+            yield
+
+        recoverer.client.messages = empty_messages()
+
+        await recoverer.run()
 
         # Verify unsubscriptions
-        assert recoverer.mqttc.unsubscribe.call_count == 6
+        assert recoverer.client.unsubscribe.call_count == 6
 
-    def test_run_restores_original_on_message(self, recoverer, mocker):
-        """Test that run() restores the original on_message handler."""
-        mocker.patch("time.sleep")
-        original_handler = MagicMock()
-        recoverer.mqttc.on_message = original_handler
+    async def test_run_receives_retained_messages_and_timeouts(self, recoverer, mocker):
+        """Test that run() successfully processes received messages and handles TimeoutError gracefully."""
 
-        recoverer.run()
+        # Yield a couple of messages, then wait to trigger TimeoutError
+        async def message_generator():
+            msg1 = MagicMock()
+            msg1.topic = "s0pcmreader/1/total"
+            msg1.payload = b"12345"
+            yield msg1
 
-        assert recoverer.mqttc.on_message == original_handler
+            msg2 = MagicMock()
+            msg2.topic = "s0pcmreader/Water/name"
+            msg2.payload = b"Water"
+            yield msg2
 
-    def test_run_initializes_meters_from_mqtt_data(self, recoverer, mocker):
+            await asyncio.sleep(0.05)  # sleep to let timeout happen
+
+        recoverer.client.messages = message_generator()
+
+        # Set recovery wait to a very small value so timeout is quick
+        recoverer.context.config.mqtt.recovery_wait = 0.01
+
+        await recoverer.run()
+
+        # Check that the messages were processed and saved to recovered_data
+        assert "1" in recoverer.recovered_data
+        assert recoverer.recovered_data["1"]["total"] == 12345
+
+    async def test_run_initializes_meters_from_mqtt_data(self, recoverer, mocker):
         """Test that run() initializes meters from recovered MQTT data."""
-        mocker.patch("time.sleep")
+
+        async def empty_messages():
+            return
+            yield
+
+        recoverer.client.messages = empty_messages()
 
         # Simulate recovered data
         recoverer.recovered_data = {"1": {"total": 1000, "today": 50, "yesterday": 40, "pulsecount": 10}}
         recoverer.recovered_names = {1: "Water"}
 
-        recoverer.run()
+        await recoverer.run()
 
         assert 1 in recoverer.context.state.meters
         meter = recoverer.context.state.meters[1]
@@ -380,77 +406,90 @@ class TestRecoveryFlow:
         assert meter.yesterday == 40
         assert meter.pulsecount == 10
 
-    def test_run_skips_zero_only_data(self, recoverer, mocker):
+    async def test_run_skips_zero_only_data(self, recoverer, mocker):
         """Test that run() doesn't initialize meters with only zero values."""
-        mocker.patch("time.sleep")
+
+        async def empty_messages():
+            return
+            yield
+
+        recoverer.client.messages = empty_messages()
 
         # Simulate recovered data with all zeros
         recoverer.recovered_data = {"1": {"total": 0, "today": 0, "yesterday": 0, "pulsecount": 0}}
 
-        recoverer.run()
+        await recoverer.run()
 
         assert 1 not in recoverer.context.state.meters
 
-    def test_run_uses_ha_api_fallback(self, recoverer, mocker):
+    async def test_run_uses_ha_api_fallback(self, recoverer, mocker):
         """Test that run() uses HA API fallback for missing totals."""
-        mocker.patch("time.sleep")
+
+        async def empty_messages():
+            return
+            yield
+
+        recoverer.client.messages = empty_messages()
+
         mocker.patch.object(
             recoverer,
             "fetch_all_ha_states",
+            new_callable=AsyncMock,
             return_value=[{"entity_id": "sensor.s0pcmreader_1_total", "state": "5000"}],
         )
 
         # Initialize meter with zero total
         recoverer.context.state.meters[1] = state_module.MeterState()
 
-        recoverer.run()
+        await recoverer.run()
 
         assert recoverer.context.state.meters[1].total == 5000
 
         meter = recoverer.context.state.meters[1]
-        assert meter.name is None  # Name not recovered/set in this test
-        # These fields are not updated by fetch_all_ha_states (only totals)
-        assert meter.today == 0  # Default
-        assert meter.yesterday == 0  # Default
-        assert meter.pulsecount == 0  # Default
+        assert meter.name is None
+        assert meter.today == 0
+        assert meter.yesterday == 0
+        assert meter.pulsecount == 0
 
 
 class TestRecoveryExceptions:
-    def test_fetch_ha_state_exception(self, recoverer):
-        """Test fetch_ha_state exception handling (lines 48-49)."""
+    async def test_fetch_ha_state_exception(self, recoverer):
+        """Test fetch_ha_state exception handling."""
         with (
             patch("os.getenv", return_value="TOKEN"),
             patch("urllib.request.urlopen", side_effect=Exception("API Error")),
         ):
-            res = recoverer.fetch_ha_state("sensor.test")
+            res = await recoverer.fetch_ha_state("sensor.test")
             assert res is None
 
-    def test_fetch_all_ha_states_exception(self, recoverer):
-        """Test fetch_all_ha_states exception handling (lines 65-67)."""
+    async def test_fetch_all_ha_states_exception(self, recoverer):
+        """Test fetch_all_ha_states exception handling."""
         with (
             patch("os.getenv", return_value="TOKEN"),
             patch("urllib.request.urlopen", side_effect=Exception("API Error")),
         ):
-            res = recoverer.fetch_all_ha_states()
+            res = await recoverer.fetch_all_ha_states()
             assert res == []
 
-    def test_run_recover_named_meter_gap(self, recoverer):
-        """Test recovering a meter by name that isn't in main state yet (lines 160-162)."""
+    async def test_run_recover_named_meter_gap(self, recoverer):
+        """Test recovering a meter by name that isn't in main state yet."""
         recoverer.recovered_names = {10: "Garage"}
-        # No recovered data for 10, so it won't be created by ID loop
 
-        with patch("time.sleep"):
-            recoverer.run()
+        async def empty_messages():
+            return
+            yield
+
+        recoverer.client.messages = empty_messages()
+
+        await recoverer.run()
 
         context = state_module.get_context()
         assert 10 in context.state.meters
         assert context.state.meters[10].name == "Garage"
 
     def test_find_total_chaos_format(self, recoverer):
-        """Test _find_total_in_ha with chaos format (line 249)."""
-        # "1.1.1,1,1" -> chaos -> "11111"
+        """Test _find_total_in_ha with chaos format."""
         states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1.1.1,1,1"}]
-        # We need a meter in state for _find_total_in_ha to work (it gets name from there)
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState()
 
@@ -458,7 +497,7 @@ class TestRecoveryExceptions:
         assert val == 11111
 
     def test_find_total_empty(self, recoverer):
-        """Test _find_total_in_ha with empty string (line 257)."""
+        """Test _find_total_in_ha with empty string."""
         states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": " "}]
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState()
@@ -467,8 +506,7 @@ class TestRecoveryExceptions:
         assert val is None
 
     def test_find_total_value_error(self, recoverer):
-        """Test _find_total_in_ha with invalid number (lines 259-260)."""
-        # "." passes the digit/sep filter but fails float conversion
+        """Test _find_total_in_ha with invalid number."""
         states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "."}]
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState()
@@ -476,23 +514,13 @@ class TestRecoveryExceptions:
         val = recoverer._find_total_in_ha(1, states)
         assert val is None
 
-    def test_on_message_date_error(self, recoverer):
-        """Test on_message date parsing error (lines 106-107)."""
-        msg = MagicMock()
-        msg.topic = "s0pcmreader/date"
-        msg.payload = b"invalid-date"
-
-        # Should not raise
-        recoverer.on_message(None, None, msg)
+    def test_process_message_date_error(self, recoverer):
+        """Test _process_message date parsing error."""
+        recoverer._process_message("s0pcmreader/date", b"invalid-date")
         assert recoverer.context.state.date != "invalid-date"
 
     def test_find_total_complex_US(self, recoverer):
-        """Test _find_total_in_ha with US format 1,000.50 (lines 245-246)."""
-        # Comma > Dot? 1 comma, 1 dot. Equal.
-        # Line 239: count(.) == 1 and count(,) == 1
-        # Line 241: find(.) < find(,) (EU) vs else (US)
-        # 1,000.50 -> find(,) vs find(.) -> index 1 vs 5 -> Comma first.
-        # US: remove ',' -> 1000.50 -> int(float) -> 1000
+        """Test _find_total_in_ha with US format 1,000.50."""
         states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1,000.50"}]
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState()
@@ -501,9 +529,7 @@ class TestRecoveryExceptions:
         assert val == 1000
 
     def test_find_total_complex_EU(self, recoverer):
-        """Test _find_total_in_ha with EU format 1.000,50 (lines 242-243)."""
-        # 1.000,50 -> Dot first -> EU
-        # replace . -> 1000,50 -> replace , back to . -> 1000.50 -> 1000
+        """Test _find_total_in_ha with EU format 1.000,50."""
         states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1.000,50"}]
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState()
@@ -512,9 +538,14 @@ class TestRecoveryExceptions:
         assert val == 1000
 
 
-def test_run_name_data_merge(recoverer, mocker):
-    """Test name-based data merging with max() logic (lines 169-172)."""
-    mocker.patch("time.sleep")
+async def test_run_name_data_merge(recoverer, mocker):
+    """Test name-based data merging with max() logic."""
+
+    async def empty_messages():
+        return
+        yield
+
+    recoverer.client.messages = empty_messages()
 
     # Setup: meter with name and data under name topic
     recoverer.recovered_names = {1: "WaterMeter"}
@@ -523,7 +554,7 @@ def test_run_name_data_merge(recoverer, mocker):
         "WaterMeter": {"total": 150, "today": 15, "yesterday": 5, "pulsecount": 20},
     }
 
-    recoverer.run()
+    await recoverer.run()
 
     meter = recoverer.context.state.meters[1]
     assert meter.name == "WaterMeter"
@@ -533,7 +564,7 @@ def test_run_name_data_merge(recoverer, mocker):
 
 
 def test_find_total_many_commas(recoverer):
-    """Test number parsing with many commas (line 235)."""
+    """Test number parsing with many commas."""
     states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1,000,000"}]
     context = state_module.get_context()
     context.state.meters[1] = state_module.MeterState()

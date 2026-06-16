@@ -90,3 +90,12 @@ class TestIsProcessRunning:
         # Reset for second check
         mock_iterdir.return_value = _mock_proc_entries(["42"], cmdline_data=cmdline_data)
         assert is_process_running("other_app.py") is False
+
+    @patch("healthcheck.os.getpid", return_value=1)
+    @patch("healthcheck.Path.iterdir")
+    def test_rejects_non_python_process(self, mock_iterdir, mock_getpid):
+        """Rejects processes that reference the script name but aren't Python (e.g. grep)."""
+        cmdline_data = b"grep\x00s0pcm_reader.py\x00"
+        mock_iterdir.return_value = _mock_proc_entries(["42"], cmdline_data=cmdline_data)
+
+        assert is_process_running() is False

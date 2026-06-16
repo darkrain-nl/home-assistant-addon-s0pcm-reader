@@ -11,6 +11,7 @@ from pathlib import Path
 import sys
 
 PROCESS_NAME = "s0pcm_reader.py"
+PROCESS_INTERPRETER = "python"
 
 
 def is_process_running(process_name: str = PROCESS_NAME) -> bool:
@@ -24,7 +25,7 @@ def is_process_running(process_name: str = PROCESS_NAME) -> bool:
                 continue
             try:
                 cmdline = (entry / "cmdline").read_bytes().decode("utf-8", errors="replace")
-                if process_name in cmdline:
+                if process_name in cmdline and PROCESS_INTERPRETER in cmdline:
                     return True
             except OSError, PermissionError:
                 continue

@@ -12,22 +12,22 @@ import pytest
 import utils
 
 
-def test_get_version_from_env(mocker):
+async def test_get_version_from_env(mocker):
     """Test get_version from environment variable."""
     mocker.patch.dict(os.environ, {"S0PCM_READER_VERSION": "3.1.0"})
-    assert utils.get_version() == "3.1.0"
+    assert await utils.get_version() == "3.1.0"
 
 
-def test_get_version_fallback(mocker, tmp_path, monkeypatch):
+async def test_get_version_fallback(mocker, tmp_path, monkeypatch):
     """Test GetVersion fallback when env is missing and no config file."""
     monkeypatch.chdir(tmp_path)
     mocker.patch.dict(os.environ, {}, clear=True)
     # Mock __file__ to point to our tmp_path
     mocker.patch("utils.__file__", str(tmp_path / "utils.py"))
-    assert utils.get_version() == "dev"
+    assert await utils.get_version() == "dev"
 
 
-def test_get_version_config_yaml(mocker, tmp_path, monkeypatch):
+async def test_get_version_config_yaml(mocker, tmp_path, monkeypatch):
     """Test GetVersion reading from config.yaml."""
     monkeypatch.chdir(tmp_path)
     mocker.patch.dict(os.environ, {}, clear=True)
@@ -38,11 +38,11 @@ def test_get_version_config_yaml(mocker, tmp_path, monkeypatch):
     # Mock __file__ so utils looks in tmp_path
     mocker.patch("utils.__file__", str(tmp_path / "utils.py"))
 
-    version = utils.get_version()
+    version = await utils.get_version()
     assert "3.0.0-test" in version
 
 
-def test_get_version_invalid_yaml(mocker, tmp_path, monkeypatch):
+async def test_get_version_invalid_yaml(mocker, tmp_path, monkeypatch):
     """Test get_version handles invalid YAML gracefully."""
     monkeypatch.chdir(tmp_path)
     mocker.patch.dict(os.environ, {}, clear=True)
@@ -53,10 +53,10 @@ def test_get_version_invalid_yaml(mocker, tmp_path, monkeypatch):
     mocker.patch("utils.__file__", str(tmp_path / "utils.py"))
 
     # Should fall back to 'dev' because our file is invalid
-    assert utils.get_version() == "dev"
+    assert await utils.get_version() == "dev"
 
 
-def test_get_version_yaml_no_version_key(mocker, tmp_path, monkeypatch):
+async def test_get_version_yaml_no_version_key(mocker, tmp_path, monkeypatch):
     """Test get_version when YAML exists but has no version key."""
     monkeypatch.chdir(tmp_path)
     mocker.patch.dict(os.environ, {}, clear=True)
@@ -66,16 +66,16 @@ def test_get_version_yaml_no_version_key(mocker, tmp_path, monkeypatch):
 
     mocker.patch("utils.__file__", str(tmp_path / "utils.py"))
 
-    assert utils.get_version() == "dev"
+    assert await utils.get_version() == "dev"
 
 
-def test_get_supervisor_config_no_token(mocker):
+async def test_get_supervisor_config_no_token(mocker):
     """Test GetSupervisorConfig when token is missing."""
     mocker.patch.dict(os.environ, {}, clear=True)
-    assert utils.get_supervisor_config("mqtt") == {}
+    assert await utils.get_supervisor_config("mqtt") == {}
 
 
-def test_get_supervisor_config_success(mocker):
+async def test_get_supervisor_config_success(mocker):
     """Test successful Supervisor API config fetch."""
     mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
 
@@ -89,21 +89,34 @@ def test_get_supervisor_config_success(mocker):
 
     mocker.patch("urllib.request.urlopen", return_value=mock_response)
 
-    result = utils.get_supervisor_config("mqtt")
+    result = await utils.get_supervisor_config("mqtt")
 
     assert result["host"] == "core-mosquitto"
     assert result["port"] == 1883
     assert result["username"] == "mqtt_user"
 
 
-def test_get_supervisor_config_api_error(mocker):
+async def test_get_supervisor_config_api_error(mocker):
     """Test Supervisor API handles errors gracefully."""
     mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
     # Raise URLError which is one of the caught exceptions
     mocker.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("API Error"))
 
-    result = utils.get_supervisor_config("mqtt")
+    result = await utils.get_supervisor_config("mqtt")
 
+    assert result == {}
+
+
+async def test_get_supervisor_config_status_not_200(mocker):
+    """Test Supervisor API returns empty dict when response status is not 200."""
+    mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
+    mock_response = MagicMock()
+    mock_response.status = 204
+    mock_response.__enter__ = lambda self: self
+    mock_response.__exit__ = lambda self, *args: None
+    mocker.patch("urllib.request.urlopen", return_value=mock_response)
+
+    result = await utils.get_supervisor_config("mqtt")
     assert result == {}
 
 
@@ -112,13 +125,13 @@ def test_get_supervisor_config_api_error(mocker):
 # ------------------------------------------------------------------------------------
 
 
-def test_get_ha_core_version_no_token(mocker):
+async def test_get_ha_core_version_no_token(mocker):
     """Test get_ha_core_version when token is missing."""
     mocker.patch.dict(os.environ, {}, clear=True)
-    assert utils.get_ha_core_version() is None
+    assert await utils.get_ha_core_version() is None
 
 
-def test_get_ha_core_version_success(mocker):
+async def test_get_ha_core_version_success(mocker):
     """Test successful HA core version fetch."""
     mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
     mock_response = MagicMock()
@@ -128,14 +141,26 @@ def test_get_ha_core_version_success(mocker):
     mock_response.__exit__ = lambda self, *args: None
     mocker.patch("urllib.request.urlopen", return_value=mock_response)
 
-    assert utils.get_ha_core_version() == "2025.5.0"
+    assert await utils.get_ha_core_version() == "2025.5.0"
 
 
-def test_get_ha_core_version_error(mocker):
+async def test_get_ha_core_version_error(mocker):
     """Test get_ha_core_version handles errors gracefully."""
     mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
     mocker.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("API Error"))
-    assert utils.get_ha_core_version() is None
+    assert await utils.get_ha_core_version() is None
+
+
+async def test_get_ha_core_version_status_not_200(mocker):
+    """Test get_ha_core_version returns None when response status is not 200."""
+    mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
+    mock_response = MagicMock()
+    mock_response.status = 204
+    mock_response.__enter__ = lambda self: self
+    mock_response.__exit__ = lambda self, *args: None
+    mocker.patch("urllib.request.urlopen", return_value=mock_response)
+
+    assert await utils.get_ha_core_version() is None
 
 
 def test_parse_ha_version():

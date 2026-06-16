@@ -3,7 +3,7 @@ Tests for discovery module (discovery.py).
 """
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from helpers import make_test_config
 
@@ -11,81 +11,83 @@ import state as state_module
 from state import MeterState
 
 
-def test_send_global_discovery_new_ha(mocker):
+async def test_send_global_discovery_new_ha(mocker):
     """Test global discovery message publishing with HA >= 2025.5.0."""
     import discovery
 
-    mock_mqttc = MagicMock()
+    mock_client = AsyncMock()
     context = state_module.get_context()
     context.config = make_test_config(base_topic="s0pcm")
     context.s0pcm_reader_version = "3.0.0"
 
-    mocker.patch("utils.get_ha_core_version", return_value="2025.5.0")
+    mocker.patch("utils.get_ha_core_version", new_callable=AsyncMock, return_value="2025.5.0")
 
-    discovery.send_global_discovery(mock_mqttc, context)
+    await discovery.send_global_discovery(mock_client, context)
 
     # Core check: Was something published?
-    assert mock_mqttc.publish.called
+    assert mock_client.publish.called
 
     # Check status topic
     status_call = [
-        c for c in mock_mqttc.publish.call_args_list if "binary_sensor/s0pcm/s0pcm_s0pcm_status/config" in str(c)
+        c for c in mock_client.publish.call_args_list if "binary_sensor/s0pcm/s0pcm_s0pcm_status/config" in c.args[0]
     ]
     assert status_call
-    payload = json.loads(status_call[0][0][1])
+    payload = json.loads(status_call[0].args[1])
     assert payload["name"] == "S0PCM Reader Status"
     assert payload["device"]["sw_version"] == "3.0.0"
 
     # Check startup_time sensor
     startup_call = [
-        c for c in mock_mqttc.publish.call_args_list if "sensor/s0pcm/s0pcm_s0pcm_startup_time/config" in str(c)
+        c for c in mock_client.publish.call_args_list if "sensor/s0pcm/s0pcm_s0pcm_startup_time/config" in c.args[0]
     ]
     assert startup_call
-    startup_payload = json.loads(startup_call[0][0][1])
+    startup_payload = json.loads(startup_call[0].args[1])
     assert startup_payload["device_class"] == "uptime"
     assert startup_payload["icon"] == "mdi:clock-start"
 
 
-def test_send_global_discovery_old_ha(mocker):
+async def test_send_global_discovery_old_ha(mocker):
     """Test global discovery message publishing with HA < 2025.5.0."""
     import discovery
 
-    mock_mqttc = MagicMock()
+    mock_client = AsyncMock()
     context = state_module.get_context()
     context.config = make_test_config(base_topic="s0pcm")
     context.s0pcm_reader_version = "3.0.0"
 
-    mocker.patch("utils.get_ha_core_version", return_value="2024.12.0")
+    mocker.patch("utils.get_ha_core_version", new_callable=AsyncMock, return_value="2024.12.0")
 
-    discovery.send_global_discovery(mock_mqttc, context)
+    await discovery.send_global_discovery(mock_client, context)
 
     # Check startup_time sensor fallback
     startup_call = [
-        c for c in mock_mqttc.publish.call_args_list if "sensor/s0pcm/s0pcm_s0pcm_startup_time/config" in str(c)
+        c for c in mock_client.publish.call_args_list if "sensor/s0pcm/s0pcm_s0pcm_startup_time/config" in c.args[0]
     ]
     assert startup_call
-    startup_payload = json.loads(startup_call[0][0][1])
+    startup_payload = json.loads(startup_call[0].args[1])
     assert startup_payload["device_class"] == "timestamp"
     assert startup_payload["icon"] == "mdi:clock-outline"
 
 
-def test_send_meter_discovery(mocker):
+async def test_send_meter_discovery(mocker):
     """Test meter discovery message publishing."""
     import discovery
 
-    mock_mqttc = MagicMock()
+    mock_client = AsyncMock()
     context = state_module.get_context()
     context.config = make_test_config(base_topic="s0pcm")
 
     meter_state = MeterState(name="Water")
-    instancename = discovery.send_meter_discovery(mock_mqttc, context, 1, meter_state)
+    instancename = await discovery.send_meter_discovery(mock_client, context, 1, meter_state)
 
     assert instancename == "Water"
 
     # Check total sensor discovery
-    total_call = [c for c in mock_mqttc.publish.call_args_list if "sensor/s0pcm/s0pcm_s0pcm_1_total/config" in str(c)]
+    total_call = [
+        c for c in mock_client.publish.call_args_list if "sensor/s0pcm/s0pcm_s0pcm_1_total/config" in c.args[0]
+    ]
     assert total_call
-    payload = json.loads(total_call[-1][0][1])  # Get last call for this topic
+    payload = json.loads(total_call[-1].args[1])  # Get last call for this topic
     assert payload["name"] == "Water Total"
     assert payload["state_class"] == "total_increasing"
     assert payload["availability_topic"] == "s0pcm/status"
@@ -95,42 +97,42 @@ def test_send_meter_discovery(mocker):
     # Verify purge of obsolete diagnostic sensors (PPS and Activity)
     activity_clear = [
         c
-        for c in mock_mqttc.publish.call_args_list
-        if "binary_sensor/s0pcm/s0pcm_s0pcm_1_activity/config" in str(c) and c[0][1] == ""
+        for c in mock_client.publish.call_args_list
+        if "binary_sensor/s0pcm/s0pcm_s0pcm_1_activity/config" in c.args[0] and c.args[1] == ""
     ]
     pps_clear = [
         c
-        for c in mock_mqttc.publish.call_args_list
-        if "sensor/s0pcm/s0pcm_s0pcm_1_pps/config" in str(c) and c[0][1] == ""
+        for c in mock_client.publish.call_args_list
+        if "sensor/s0pcm/s0pcm_s0pcm_1_pps/config" in c.args[0] and c.args[1] == ""
     ]
     assert activity_clear
     assert pps_clear
 
 
-def test_discovery_disabled(mocker):
+async def test_discovery_disabled(mocker):
     """Test behavior when discovery is disabled."""
     import discovery
 
-    mock_mqttc = MagicMock()
+    mock_client = AsyncMock()
     context = state_module.get_context()
     context.config = make_test_config(discovery=False)
 
-    discovery.send_global_discovery(mock_mqttc, context)
-    assert not mock_mqttc.publish.called
+    await discovery.send_global_discovery(mock_client, context)
+    assert not mock_client.publish.called
 
-    result = discovery.send_meter_discovery(mock_mqttc, context, 1, MeterState())
+    result = await discovery.send_meter_discovery(mock_client, context, 1, MeterState())
     assert result is None
-    assert not mock_mqttc.publish.called
+    assert not mock_client.publish.called
 
 
-def test_send_global_discovery_with_units(mocker):
+async def test_send_global_discovery_with_units(mocker):
     """Test send_global_discovery with custom diagnostics including units (line 93)."""
     import discovery
 
     context = state_module.get_context()
     context.s0pcm_reader_version = "3.0.0"
     context.config = make_test_config(base_topic="s0pcm")
-    mqttc = MagicMock()
+    mock_client = AsyncMock()
 
     # Custom diagnostics with all fields including 'unit'
     custom_diags = [
@@ -144,12 +146,10 @@ def test_send_global_discovery_with_units(mocker):
     ]
 
     with patch("discovery.GLOBAL_DIAGNOSTICS", custom_diags):
-        discovery.send_global_discovery(mqttc, context)
+        await discovery.send_global_discovery(mock_client, context)
 
     # Verify the published config
-    # topic: homeassistant/sensor/s0pcm/s0pcm_s0pcm_temp/config
-    # find the call
-    config_call = next(c for c in mqttc.publish.call_args_list if "temp" in c.args[0])
+    config_call = next(c for c in mock_client.publish.call_args_list if "temp" in c.args[0])
     payload = json.loads(config_call.args[1])
 
     assert payload["unit_of_measurement"] == "°C"
@@ -157,37 +157,37 @@ def test_send_global_discovery_with_units(mocker):
     assert payload["name"] == "S0PCM Reader Temperature"
 
 
-def test_send_meter_discovery_split_topic():
+async def test_send_meter_discovery_split_topic():
     """Test meter discovery with split_topic enabled."""
     import discovery
 
     context = state_module.get_context()
     context.config = make_test_config(base_topic="s0pcm", split_topic=True)
-    mqttc = MagicMock()
+    mock_client = AsyncMock()
 
-    discovery.send_meter_discovery(mqttc, context, 1, MeterState(name="test"))
+    await discovery.send_meter_discovery(mock_client, context, 1, MeterState(name="test"))
 
     # Find the 'total' config message
-    total_call = next(c for c in mqttc.publish.call_args_list if "total" in c.args[0] and "{" in str(c.args[1]))
+    total_call = next(c for c in mock_client.publish.call_args_list if "total" in c.args[0] and "{" in str(c.args[1]))
 
     payload = json.loads(total_call.args[1])
     assert payload["state_topic"] == "s0pcm/test/total"
 
 
-def test_cleanup_meter_discovery_enabled():
+async def test_cleanup_meter_discovery_enabled():
     """Test cleanup_meter_discovery with discovery enabled (lines 199-217)."""
     import discovery
 
     context = state_module.get_context()
     context.config = make_test_config()
-    mqttc = MagicMock()
+    mock_client = AsyncMock()
 
-    discovery.cleanup_meter_discovery(mqttc, context, 5)
+    await discovery.cleanup_meter_discovery(mock_client, context, 5)
 
     # Should publish empty payloads to clear discovery
-    assert mqttc.publish.call_count > 0
+    assert mock_client.publish.call_count > 0
     # Check that it published to sensor topics
-    topics = [call[0][0] for call in mqttc.publish.call_args_list]
+    topics = [call[0][0] for call in mock_client.publish.call_args_list]
     assert any("sensor" in t for t in topics)
     assert any("text" in t for t in topics)
     assert any("number" in t for t in topics)
@@ -196,31 +196,31 @@ def test_cleanup_meter_discovery_enabled():
     assert any("sensor" in t and "pps" in t for t in topics)
 
 
-def test_cleanup_meter_discovery_disabled():
+async def test_cleanup_meter_discovery_disabled():
     """Test that cleanup does nothing if discovery is disabled."""
     import discovery
 
     context = state_module.get_context()
     context.config = make_test_config(discovery=False)
-    mqttc = MagicMock()
+    mock_client = AsyncMock()
 
-    discovery.cleanup_meter_discovery(mqttc, context, 1)
-    mqttc.publish.assert_not_called()
+    await discovery.cleanup_meter_discovery(mock_client, context, 1)
+    mock_client.publish.assert_not_called()
 
 
-def test_send_meter_discovery_combined_topic(mocker):
+async def test_send_meter_discovery_combined_topic(mocker):
     """Test discovery payload when split_topic is False."""
     import discovery
 
     context = state_module.get_context()
     context.config = make_test_config(base_topic="s0pcm", split_topic=False)
-    mock_mqtt = MagicMock()
+    mock_client = AsyncMock()
 
-    discovery.send_meter_discovery(mock_mqtt, context, 1, MeterState(name="Combined"))
+    await discovery.send_meter_discovery(mock_client, context, 1, MeterState(name="Combined"))
 
     # Check if value_template is correctly set in one of the publish calls
     found_template = False
-    for call in mock_mqtt.publish.call_args_list:
+    for call in mock_client.publish.call_args_list:
         payload_str = call.args[1]
         if payload_str:
             payload = json.loads(payload_str)
@@ -230,21 +230,21 @@ def test_send_meter_discovery_combined_topic(mocker):
     assert found_template is True
 
 
-def test_send_meter_discovery_sanitizes_name():
+async def test_send_meter_discovery_sanitizes_name():
     """Test that MQTT special characters in meter names are stripped from topics."""
     import discovery
 
     context = state_module.get_context()
     context.config = make_test_config(base_topic="s0pcm")
-    mqttc = MagicMock()
+    mock_client = AsyncMock()
 
     meter_state = MeterState(name="My/Water+Meter#1")
-    instancename = discovery.send_meter_discovery(mqttc, context, 1, meter_state)
+    instancename = await discovery.send_meter_discovery(mock_client, context, 1, meter_state)
 
     assert instancename == "MyWaterMeter1"
 
     # Verify no topics contain MQTT special characters from the name
-    for call in mqttc.publish.call_args_list:
+    for call in mock_client.publish.call_args_list:
         topic = call.args[0]
         if "MyWaterMeter1" in topic:
             assert "/" not in topic.split("s0pcm/")[-1].replace("MyWaterMeter1/", "MyWaterMeter1")
