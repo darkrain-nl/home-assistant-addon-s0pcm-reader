@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Serial Timeout**: Changed default serial read timeout from infinite (`None`) to 30 seconds, ensuring the serial thread can detect hardware hangs and respond to shutdown signals.
 - **CI/CD**: Fixed `git config --global` scope in the `sync-to-beta-repo` CI job to use local repository scope for consistency and OpenSSF best practices.
-- **Dependencies**: Replaced `paho-mqtt` dependency with `aiomqtt` and updated other dependencies.
+- **Dependencies**: Replaced `paho-mqtt` dependency with `aiomqtt` and updated other dependencies (including `serialx` to 1.8.2).
 
 ## [4.3.4] - 2026-06-13
 ### Changed
