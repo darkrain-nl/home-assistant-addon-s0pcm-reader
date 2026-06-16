@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.3.4] - 2026-06-13
 ### Changed
-- **Dependencies**: Dependency updates (serialx v1.8.2).
+- **Dependencies**: Dependency updates (serialx v1.8.1).
 
 ## [4.3.3] - 2026-05-14
 ### Changed

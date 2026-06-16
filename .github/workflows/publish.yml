@@ -148,9 +148,16 @@ jobs:
 
           echo "Notable dependency updates: $DEPS"
 
-          # Replace the dependency line (first occurrence only — the current release entry)
-          # Matches both the generic placeholder and an already-enriched line from a previous beta
-          sed -i "0,/- \*\*Dependencies\*\*: Dependency updates\( ([^)]*)\)\?\\.\?/s//- **Dependencies**: Dependency updates ($DEPS)./" CHANGELOG.md
+          # Limit the replacement scope to the top release section (before the second header)
+          # to prevent modifying older entries in the changelog.
+          SECOND_HEADER_LINE=$(grep -n "^## \[" CHANGELOG.md | head -n 2 | tail -n 1 | cut -d: -f1)
+          if [ -n "$SECOND_HEADER_LINE" ]; then
+            RANGE="1,$((SECOND_HEADER_LINE - 1))"
+          else
+            RANGE="1,$"
+          fi
+
+          sed -i "${RANGE}s/- \*\*Dependencies\*\*: Dependency updates\( ([^)]*)\)\?\\.\?/- **Dependencies**: Dependency updates ($DEPS)./" CHANGELOG.md
 
       - name: Commit and push bumped version
         if: steps.bump.outputs.did_bump == 'true'
