@@ -18,7 +18,7 @@ If a feature request asks for calculations inside the app, point the user to the
 
 Starting in version 5.0.0, the application core runs on a single-threaded `asyncio` event loop instead of multiple OS-level threads. This architecture provides major advantages:
 - **No Locking or Cloning Overhead**: All state updates happen sequentially on the main event loop, eliminating potential race conditions by design. We no longer need thread synchronization locks (`threading.RLock`) or expensive recursive deep-copying (`model_copy(deep=True)`) of the application state. In micro-benchmarks, this transition resulted in a **~90x throughput increase** (from ~16k to ~1.5M ops/sec) and eliminated state-cloning memory allocations.
-- **Resource Efficiency**: Coroutines are far more memory-efficient than OS threads, which is vital when running as an add-on on low-powered smart home servers (like Raspberry Pi).
+- **Resource Efficiency**: Coroutines are far more memory-efficient than OS threads, which is vital when running as an app on low-powered smart home servers (like Raspberry Pi).
 - **Non-Blocking I/O**: Network calls (MQTT publishing) and serial reads (`serialx.AsyncSerial`) are natively asynchronous. Slow blocking operations (such as configuration loading, Supervisor API calls, and serial port listing) are offloaded to helper threads using `asyncio.to_thread` to keep the main event loop responsive and prevent packet loss or keep-alive timeouts.
 
 ## Project Structure
