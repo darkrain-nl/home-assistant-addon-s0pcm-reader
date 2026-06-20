@@ -64,7 +64,7 @@ fi
 echo -e "${GREEN}PR Ready: $BETA_PR_URL${NC}"
 
 echo -e "${YELLOW}Merging PR into 'beta'...${NC}"
-gh pr merge "$BETA_PR_URL" --merge
+gh pr merge "$BETA_PR_URL" --squash
 
 # 5. Sync Local Beta
 echo -e "${YELLOW}Switching to 'beta' and pulling latest changes...${NC}"
@@ -122,7 +122,7 @@ if [ "$IS_BETA" = false ]; then
     echo -e "${GREEN}PR Ready: $PR_URL${NC}"
 
     echo -e "${YELLOW}Merging PR into 'main'...${NC}"
-    gh pr merge "$PR_URL" --merge
+    gh pr merge "$PR_URL" --squash
 
     echo -e "${YELLOW}Switching to 'main' and pulling...${NC}"
     git checkout main
