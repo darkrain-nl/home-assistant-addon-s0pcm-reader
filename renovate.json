@@ -64,7 +64,7 @@
                 "ghcr.io/home-assistant/**"
             ],
             "groupName": "Home Assistant Base Images",
-            "pinDigests": false
+            "pinDigests": true
         },
         {
             "description": "Automerge Docker digest updates weekly to prevent perpetual force-push cycles",
