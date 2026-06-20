@@ -1,7 +1,7 @@
 image: ghcr.io/darkrain-nl/addon-s0pcm_reader
 build_from:
-  aarch64: ghcr.io/home-assistant/aarch64-base-python:3.14-alpine3.23
-  amd64: ghcr.io/home-assistant/amd64-base-python:3.14-alpine3.23
+  aarch64: ghcr.io/home-assistant/aarch64-base-python:3.14-alpine3.24
+  amd64: ghcr.io/home-assistant/amd64-base-python:3.14-alpine3.24
 labels:
   io.hass.type: addon
   org.opencontainers.image.title: "S0PCM Reader"

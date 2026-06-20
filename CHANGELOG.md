@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.1] - 2026-06-20
+### Added
+- **Memory Optimization**: Integrated `jemalloc` as a custom memory allocator in the Home Assistant addon container to reduce memory fragmentation and footprint over long runtimes.
+
+### Changed
+- **Dependencies**: Bumped Home Assistant base images to `3.14-alpine3.24` (Alpine 3.24) in `build.yaml`.
+
 ## [5.0.0] - 2026-06-16
 ### Added
 - **Asyncio Architecture**: Complete rewrite of the application core to run on a single-threaded `asyncio` event loop. Replaced `paho-mqtt` with `aiomqtt` and ported the serial read loop to use non-blocking `serialx.AsyncSerial`. This eliminates background threads and locking primitives (`threading.Lock`), resolving potential race conditions and improving system resource utilization. This transition dramatically reduces CPU overhead and memory footprint, making internal state updates **~90x more efficient** in benchmarks.
@@ -26,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.3.4] - 2026-06-13
 ### Changed
-- **Dependencies**: Dependency updates (serialx v1.8.2).
+- **Dependencies**: Dependency updates (serialx v1.8.1).
 
 ## [4.3.3] - 2026-05-14
 ### Changed
