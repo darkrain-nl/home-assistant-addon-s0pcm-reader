@@ -1,6 +1,6 @@
-# Default to scratch to suppress 'InvalidDefaultArgInFrom' warnings.
+# Default to amd64-base-python to satisfy OpenSSF Scorecard Pinned-Dependencies check.
 # The true base image is always injected by builder using build.yaml.
-ARG BUILD_FROM="scratch"
+ARG BUILD_FROM="ghcr.io/home-assistant/amd64-base-python:3.14-alpine3.24@sha256:f59ecbbc63f781bf1215dd6b70f890a0487ff434ffc0fa721b368a5f4613d176"
 FROM ${BUILD_FROM}
 
 ENV LD_PRELOAD="/usr/local/lib/libjemalloc.so.2"

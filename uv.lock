@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.14"
 
 [options]
-exclude-newer = "2026-06-17T13:54:10.432833909Z"
+exclude-newer = "2026-06-17T14:26:30.615881642Z"
 exclude-newer-span = "P3D"
 
 [[package]]
@@ -308,7 +308,7 @@ wheels = [
 
 [[package]]
 name = "s0pcm-reader"
-version = "5.0.1"
+version = "5.0.2"
 source = { virtual = "." }
 dependencies = [
     { name = "aiomqtt" },
