@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.2-b0] - 2026-06-20
+### Fixed
+- **CI/CD**: Pinned all base image digests in `build.yaml` and the `Dockerfile` to satisfy OpenSSF Scorecard `Pinned-Dependencies` requirements and automated digest updates in Renovate configuration.
+
 ## [5.0.1] - 2026-06-20
 ### Added
 - **Memory Optimization**: Integrated `jemalloc` as a custom memory allocator in the Home Assistant addon container to reduce memory fragmentation and footprint over long runtimes.
