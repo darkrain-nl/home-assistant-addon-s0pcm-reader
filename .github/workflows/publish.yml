@@ -170,7 +170,7 @@ jobs:
 
       - name: Get build matrix
         id: matrix
-        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@4de35182ce1e329181bffcbcc84d33db5e2c7e10 # master
+        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@79350f52a0500b7fc32f2f043747142debdd8cef # master
         with:
           architectures: '["amd64", "aarch64"]'
           image-name: addon-s0pcm_reader
@@ -202,7 +202,7 @@ jobs:
           echo "build_from=$BUILD_FROM" >> "$GITHUB_OUTPUT"
 
       - name: Build image
-        uses: home-assistant/builder/actions/build-image@4de35182ce1e329181bffcbcc84d33db5e2c7e10 # master
+        uses: home-assistant/builder/actions/build-image@79350f52a0500b7fc32f2f043747142debdd8cef # master
         with:
           arch: ${{ matrix.arch }}
           build-args: |
@@ -236,7 +236,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Publish multi-arch manifest
-        uses: home-assistant/builder/actions/publish-multi-arch-manifest@4de35182ce1e329181bffcbcc84d33db5e2c7e10 # master
+        uses: home-assistant/builder/actions/publish-multi-arch-manifest@79350f52a0500b7fc32f2f043747142debdd8cef # master
         with:
           architectures: '["amd64", "aarch64"]'
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
