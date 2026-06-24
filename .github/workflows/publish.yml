@@ -410,7 +410,6 @@ jobs:
         # zizmor: ignore[artipacked]
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          ref: dev
           token: ${{ secrets.BETA_SYNC_TOKEN }}
           fetch-depth: 0
 
@@ -418,9 +417,17 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          # Fetch all branches to ensure origin/beta is available
-          git fetch origin beta
-          git merge origin/beta --no-ff -m "ci: sync beta back to dev"
+          
+          # Fetch origin dev, and create/checkout it locally
+          if git fetch origin dev; then
+            git checkout dev
+            git fetch origin beta
+            git merge origin/beta --no-ff -m "ci: sync beta back to dev"
+          else
+            echo "dev branch not found on origin. Recreating dev branch from current HEAD..."
+            git checkout -b dev
+          fi
+          
           git push origin dev
 
   sync-to-beta-repo:
