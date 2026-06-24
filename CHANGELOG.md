@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.0.3-b2] - 2026-06-24
+## [5.0.3-b4] - 2026-06-24
 ### Added
 - **CI/CD**: Integrated `zizmor` static analysis linter to audit GitHub Actions workflows for security vulnerabilities and best practices locally and on push/pull requests.
 
