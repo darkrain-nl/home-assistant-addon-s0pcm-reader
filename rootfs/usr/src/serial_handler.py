@@ -81,11 +81,10 @@ def _update_meter(
     # Handle day-rollover
     today = datetime.date.today()
     if context.state.date != today:
-        logger.debug(f"Day changed from '{context.state.date}' to '{today}', rolling over counter '{meter_id}'.")
-        meter.yesterday = meter.today
-        meter.today = 0
-        # Note: context.state.date update should ideally happen once.
-        # We'll update it here so subsequent meters in the same packet also see the change.
+        logger.info(f"Day changed from '{context.state.date}' to '{today}', rolling over all counters.")
+        for _, m in context.state.meters.items():
+            m.yesterday = m.today
+            m.today = 0
         context.state.date = today
 
     # Check delta and update

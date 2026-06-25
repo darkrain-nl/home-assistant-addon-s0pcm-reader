@@ -153,6 +153,23 @@ class TestDayChange:
         assert context.state.meters[1].today == 10
         assert context.state.date == datetime.date.today()
 
+    async def test_day_change_resets_multiple_meters(self):
+        context = state_module.get_context()
+        yesterday = datetime.date.today() - datetime.timedelta(days=1)
+        # Set date in state
+        context.state.date = yesterday
+        context.state.meters[1] = state_module.MeterState(pulsecount=100, total=1000, today=50)
+        context.state.meters[2] = state_module.MeterState(pulsecount=200, total=2000, today=70)
+
+        _update_meter(context, 1, 110, 10, 10)
+        _update_meter(context, 2, 215, 15, 10)
+
+        assert context.state.meters[1].yesterday == 50
+        assert context.state.meters[1].today == 10
+        assert context.state.meters[2].yesterday == 70
+        assert context.state.meters[2].today == 15
+        assert context.state.date == datetime.date.today()
+
 
 async def test_handle_header_fallback():
     """Test _handle_header fallback paths."""
