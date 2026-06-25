@@ -28,6 +28,9 @@ if [ "$1" == "lint" ]; then
     echo -e "${YELLOW}Running Ruff Format...${NC}"
     docker exec "$CONTAINER_ID" ruff format .
 
+    echo -e "${YELLOW}Running Zizmor workflow audit...${NC}"
+    uvx zizmor --offline .
+
     echo -e "${GREEN}Copying patched files back to host...${NC}"
     docker cp "${CONTAINER_ID}:/workspace/rootfs" .
     docker cp "${CONTAINER_ID}:/workspace/tests" .

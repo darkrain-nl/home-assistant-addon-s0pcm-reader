@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.3] - 2026-06-25
+### Added
+- **CI/CD**: Integrated `zizmor` static analysis linter to audit GitHub Actions workflows for security vulnerabilities and best practices locally and on push/pull requests.
+
+### Changed
+- **CI/CD**: Hardened all GitHub Actions workflows against template injection, credential persistence, and excessive secret access.
+- **Dependencies**: Dependency updates.
+
+### Fixed
+- **Serial Connection**: Fixed an issue where only the first pulse counter (counter 1) reset/rolled over at 00:00. Now, all pulse counters correctly reset to 0 and roll over to yesterday's counts when the day changes (closes #327).
+
 ## [5.0.2] - 2026-06-20
 ### Fixed
 - **CI/CD**: Pinned all base image digests in `build.yaml` and the `Dockerfile` to satisfy OpenSSF Scorecard `Pinned-Dependencies` requirements and automated digest updates in Renovate configuration.

@@ -2,6 +2,9 @@ name: Publish
 
 on:
   workflow_call:
+    secrets:
+      BETA_SYNC_TOKEN:
+        required: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -19,11 +22,12 @@ jobs:
       is_beta: ${{ steps.check.outputs.is_beta }}
     steps:
       - name: Checkout config.yaml
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           sparse-checkout: |
             config.yaml
           sparse-checkout-cone-mode: false
+          persist-credentials: false
 
       - name: Check if version exists as tag
         id: check
@@ -62,7 +66,8 @@ jobs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        # zizmor: ignore[artipacked]
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -170,7 +175,7 @@ jobs:
 
       - name: Get build matrix
         id: matrix
-        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@4de35182ce1e329181bffcbcc84d33db5e2c7e10 # master
+        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@4de35182ce1e329181bffcbcc84d33db5e2c7e10 # 2026.06.0
         with:
           architectures: '["amd64", "aarch64"]'
           image-name: addon-s0pcm_reader
@@ -188,21 +193,24 @@ jobs:
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           ref: ${{ github.ref_name }}
+          persist-credentials: false
 
       - name: Get version and build_from
         id: version
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           VERSION=$(grep '^version:' config.yaml | sed 's/version: *"\(.*\)"/\1/')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           
-          BUILD_FROM=$(grep "^  ${{ matrix.arch }}:" build.yaml | awk '{print $2}' | tr -d '"')
+          BUILD_FROM=$(grep "^  ${ARCH}:" build.yaml | awk '{print $2}' | tr -d '"')
           echo "build_from=$BUILD_FROM" >> "$GITHUB_OUTPUT"
 
       - name: Build image
-        uses: home-assistant/builder/actions/build-image@4de35182ce1e329181bffcbcc84d33db5e2c7e10 # master
+        uses: home-assistant/builder/actions/build-image@4de35182ce1e329181bffcbcc84d33db5e2c7e10 # 2026.06.0
         with:
           arch: ${{ matrix.arch }}
           build-args: |
@@ -225,9 +233,10 @@ jobs:
       id-token: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           ref: ${{ github.ref_name }}
+          persist-credentials: false
 
       - name: Get version
         id: version
@@ -236,7 +245,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Publish multi-arch manifest
-        uses: home-assistant/builder/actions/publish-multi-arch-manifest@4de35182ce1e329181bffcbcc84d33db5e2c7e10 # master
+        uses: home-assistant/builder/actions/publish-multi-arch-manifest@4de35182ce1e329181bffcbcc84d33db5e2c7e10 # 2026.06.0
         with:
           architectures: '["amd64", "aarch64"]'
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
@@ -255,9 +264,10 @@ jobs:
     if: needs.check.outputs.should_build == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           ref: ${{ github.ref_name }}
+          persist-credentials: false
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
@@ -299,11 +309,12 @@ jobs:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           ref: ${{ github.ref_name }}
           fetch-tags: true
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Read version from config.yaml
         id: version
@@ -315,10 +326,12 @@ jobs:
 
       - name: Check if tag exists
         id: check_tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          if git ls-remote --tags origin "${{ steps.version.outputs.tag }}" | grep -q .; then
+          if git ls-remote --tags origin "${TAG}" | grep -q .; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Tag ${{ steps.version.outputs.tag }} already exists, skipping release"
+            echo "Tag ${TAG} already exists, skipping release"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
@@ -326,14 +339,18 @@ jobs:
       - name: Extract Release Notes from CHANGELOG
         if: steps.check_tag.outputs.exists == 'false'
         id: extract_notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          IS_BETA: ${{ needs.check.outputs.is_beta }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           # Extract the section from CHANGELOG.md for the current version
-          awk '/^## \[${{ steps.version.outputs.version }}\]/{flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > release_notes.md
+          awk -v ver="${VERSION}" '$0 ~ "^## \\[" ver "\\]"{flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > release_notes.md
           
           # Manually generate "What's Changed" to avoid GitHub's flawed detection
           # Beta: Compare against the absolute last tag
           # Stable: Compare against the last STABLE tag (exclude beta tags)
-          if [ "${{ needs.check.outputs.is_beta }}" = "true" ]; then
+          if [ "${IS_BETA}" = "true" ]; then
             PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           else
             PREV_TAG=$(git describe --tags --abbrev=0 --exclude "*-b*" HEAD^ 2>/dev/null || echo "")
@@ -349,14 +366,15 @@ jobs:
               echo "Internal maintenance and direct commits." >> release_notes.md
             fi
             
-            echo -e "\n**Full Changelog**: https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/compare/$PREV_TAG...${{ steps.version.outputs.tag }}" >> release_notes.md
+            echo -e "\n**Full Changelog**: https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/compare/$PREV_TAG...${TAG}" >> release_notes.md
           fi
 
       - name: Create Stable Release
+        # zizmor: ignore[superfluous-actions]
         if: >
           steps.check_tag.outputs.exists == 'false' &&
           needs.check.outputs.is_beta == 'false'
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.ref_name }}
@@ -367,10 +385,11 @@ jobs:
           prerelease: false
 
       - name: Create Beta Pre-release
+        # zizmor: ignore[superfluous-actions]
         if: >
           steps.check_tag.outputs.exists == 'false' &&
           needs.check.outputs.is_beta == 'true'
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.ref_name }}
@@ -388,9 +407,9 @@ jobs:
     if: github.ref_name == 'beta' && needs.prepare.outputs.did_bump == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        # zizmor: ignore[artipacked]
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          ref: dev
           token: ${{ secrets.BETA_SYNC_TOKEN }}
           fetch-depth: 0
 
@@ -398,9 +417,17 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          # Fetch all branches to ensure origin/beta is available
-          git fetch origin beta
-          git merge origin/beta --no-ff -m "ci: sync beta back to dev"
+          
+          # Fetch origin dev, and create/checkout it locally
+          if git fetch origin dev; then
+            git checkout dev
+            git fetch origin beta
+            git merge origin/beta --no-ff -m "ci: sync beta back to dev"
+          else
+            echo "dev branch not found on origin. Recreating dev branch from current HEAD..."
+            git checkout -b dev
+          fi
+          
           git push origin dev
 
   sync-to-beta-repo:
@@ -410,7 +437,7 @@ jobs:
     if: github.ref_name == 'beta' || github.ref_name == 'main'
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           ref: ${{ github.ref_name }}
           path: main-repo
