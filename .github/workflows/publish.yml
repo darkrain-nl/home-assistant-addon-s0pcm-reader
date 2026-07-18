@@ -374,7 +374,7 @@ jobs:
         if: >
           steps.check_tag.outputs.exists == 'false' &&
           needs.check.outputs.is_beta == 'false'
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.ref_name }}
@@ -389,7 +389,7 @@ jobs:
         if: >
           steps.check_tag.outputs.exists == 'false' &&
           needs.check.outputs.is_beta == 'true'
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.ref_name }}
