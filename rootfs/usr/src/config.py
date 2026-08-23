@@ -1,9 +1,4 @@
-"""
-S0PCM Reader Configuration
-
-Handles command-line argument parsing and configuration loading from
-Home Assistant options.json and Supervisor API.
-"""
+"""Configuration loading from options.json and Supervisor API."""
 
 import argparse
 import asyncio
@@ -18,10 +13,6 @@ from constants import ConnectionStatus
 from utils import get_supervisor_config
 
 logger = logging.getLogger(__name__)
-
-# ------------------------------------------------------------------------------------
-# Configuration Models
-# ------------------------------------------------------------------------------------
 
 
 class LogConfig(BaseModel):
@@ -75,15 +66,10 @@ class ConfigModel(BaseModel):
     mqtt: MqttConfig = Field(default_factory=MqttConfig)
 
 
-# ------------------------------------------------------------------------------------
-# Configuration Paths
-# ------------------------------------------------------------------------------------
-
-
 def init_args() -> Path:
     """Initialize arguments and global configuration paths."""
     parser = argparse.ArgumentParser(prog="s0pcm-reader", description="S0 Pulse Counter Module")
-    # Determine default config directory: /data for HA, ./ for local dev
+    # Default to /data in container, local path in dev.
     default_config = "/data" if Path("/data").exists() else "./"
     parser.add_argument(
         "-c", "--config", help="Directory where the configuration resides", type=str, default=default_config
@@ -95,22 +81,17 @@ def init_args() -> Path:
 
 
 async def _auto_detect_serial_port() -> str:
-    """
-    Auto-detect the S0PCM serial port on the system.
-
-    Looks for typical CH340 USB-serial chips first, then any USB-serial device.
-    """
+    """Auto-detect S0PCM USB serial adapter from available ports."""
     try:
         ports = await asyncio.to_thread(serialx.list_serial_ports)
         if not ports:
             logger.warning("Auto-detect: No serial ports detected. Defaulting to /dev/ttyACM0")
             return "/dev/ttyACM0"
 
-        # 1. Look for known S0PCM candidates: CH340 (Vendor ID 0x1a86) or Arduino/Leonardo (Vendor IDs 0x2341, 0x2a03)
+        # Check candidate vendor IDs or driver names.
         for p in ports:
             is_candidate_vid = p.vid in (0x1A86, 0x2341, 0x2A03)
 
-            # Check string indicators (device name, description, or manufacturer)
             dev_str = p.device.lower()
             desc_str = p.description.lower() if p.description is not None else ""
             mfg_str = p.manufacturer.lower() if p.manufacturer is not None else ""
@@ -127,13 +108,12 @@ async def _auto_detect_serial_port() -> str:
                 logger.info(f"Auto-detect: Found S0PCM candidate device at '{p.device}' ({chip_info})")
                 return p.device
 
-        # 2. Look for any other USB serial port (has "usb" in path or description)
+        # Fallback to any USB serial port before generic ports.
         for p in ports:
             if "usb" in p.device.lower() or (p.description is not None and "usb" in p.description.lower()):
                 logger.info(f"Auto-detect: Selecting first available USB serial port '{p.device}' ({p.description})")
                 return p.device
 
-        # 3. Fallback to the first available port
         first_port = ports[0].device
         logger.info(f"Auto-detect: No USB-serial candidate found. Selecting first port '{first_port}'")
         return first_port
@@ -146,17 +126,7 @@ async def read_config(
     version: str = "Unknown",
     config_dir: Path = Path("./"),
 ) -> ConfigModel:
-    """
-    Read and populate the configuration.
-
-    Args:
-        version: The app version string for logging
-        config_dir: Directory where config files reside
-
-    Returns:
-        ConfigModel: The populated configuration object
-    """
-    # 1. Load Home Assistant Options
+    """Read configuration from options.json or Supervisor."""
     options_path = Path("/data/options.json")
     ha_options = {}
 
@@ -170,14 +140,12 @@ async def read_config(
 
     ha_options = await asyncio.to_thread(_read_options)
 
-    # 2. MQTT Service Discovery
     mqtt_service = {}
     if not ha_options.get("mqtt_host"):
         mqtt_service = await get_supervisor_config("mqtt")
         if mqtt_service:
             logger.info("Using MQTT service discovery for connection settings.")
 
-    # 3. Build Config Model
     mqtt_opts = ha_options.get("mqtt", {})
     adv_opts = ha_options.get("advanced", {})
     sec_opts = ha_options.get("security", {})
@@ -216,7 +184,6 @@ async def read_config(
         ),
     )
 
-    # 4. Global Logging Setup
     root_logger = logging.getLogger()
     root_logger.setLevel(model.log.level)
     formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
@@ -229,12 +196,12 @@ async def read_config(
     stream.setFormatter(formatter)
     root_logger.addHandler(stream)
 
-    # Suppress serialx's verbose internal debug logging (logs every byte read/write)
+    # Suppress serialx byte-level debug logging.
     logging.getLogger("serialx").setLevel(logging.WARNING)
 
     logger.info(f"Start: s0pcm-reader - version: {version}")
 
-    # Debug logging with redacted sensitive info (mode="json" for clean enum serialization)
+    # Log configuration with sanitized secrets.
     config_log = model.model_dump(mode="json")
     logger.debug(f"Config: {config_log!s}")
 

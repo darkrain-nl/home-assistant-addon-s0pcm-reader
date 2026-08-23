@@ -1,8 +1,4 @@
-"""
-Recovery Module
-
-Handles state recovery from MQTT retained messages and Home Assistant REST API.
-"""
+"""State recovery from retained MQTT messages and HA REST API."""
 
 import asyncio
 import datetime
@@ -20,21 +16,21 @@ import utils
 
 logger = logging.getLogger(__name__)
 
-# Type Aliases
+# Type aliases for entity state collections.
 type EntityStateList = list[dict[str, Any]]
 
 
 class StateRecoverer:
-    """Helper class to manage the startup state recovery phase."""
+    """Orchestrate state recovery phase during startup."""
 
     def __init__(self, context: state_module.AppContext, client: aiomqtt.Client):
         self.client = client
-        self.recovered_data = {}  # {identifier: {'total': X}}
-        self.recovered_names = {}  # {id: name}
+        self.recovered_data = {}
+        self.recovered_names = {}
         self.context = context
 
     async def fetch_ha_state(self, entity_id: str) -> str | None:
-        """Fetch the current state of an entity from Home Assistant."""
+        """Fetch state for an entity from Home Assistant REST API."""
         token = os.getenv("SUPERVISOR_TOKEN")
         if not token:
             return None
@@ -59,7 +55,7 @@ class StateRecoverer:
         return None
 
     async def fetch_all_ha_states(self) -> EntityStateList:
-        """Fetch all entity states from Home Assistant."""
+        """Fetch all entity states from Home Assistant REST API."""
         token = os.getenv("SUPERVISOR_TOKEN")
         if not token:
             return []
@@ -81,10 +77,10 @@ class StateRecoverer:
         return []
 
     def _process_message(self, topic: str, payload: bytes) -> None:
-        """Process a single retained message for state recovery."""
+        """Parse retained MQTT messages to reconstruct meter state."""
         base_topic = self.context.config.mqtt.base_topic
         try:
-            # 1. Discovery topics (Name Mapping)
+            # Extract custom meter names from discovery config topics.
             if "/config" in topic:
                 decoded = json.loads(payload.decode())
                 unique_id = decoded.get("unique_id", "")
@@ -100,7 +96,7 @@ class StateRecoverer:
                         logger.debug(f"Recovery: Mapped ID {meter_id} to Name '{name}'")
                 return
 
-            # 2. Data topics
+            # Extract counter values from measurement topics.
             topic_parts = topic.split("/")
             if len(topic_parts) >= 3:
                 suffix = topic_parts[-1]
@@ -122,12 +118,12 @@ class StateRecoverer:
             logger.debug(f"Recovery parse error: {e}")
 
     async def run(self):
-        """Execute the recovery process."""
+        """Run recovery subscriptions and state reconciliation."""
         logger.info("Starting State Recovery phase...")
         base_topic = self.context.config.mqtt.base_topic
         discovery_prefix = self.context.config.mqtt.discovery_prefix
 
-        # Subscribe to recovery topics
+        # Subscribe to retained topics to reconstruct history.
         topics = [
             f"{base_topic}/+/total",
             f"{base_topic}/+/today",
@@ -142,7 +138,7 @@ class StateRecoverer:
         wait_time = self.context.config.mqtt.recovery_wait
         logger.info(f"Recovery: Waiting {wait_time}s for MQTT retained messages...")
 
-        # Collect retained messages during the wait period
+        # Collect retained messages before timeout expires.
         try:
             async with asyncio.timeout(wait_time):
                 async for message in self.client.messages:
@@ -150,19 +146,17 @@ class StateRecoverer:
         except TimeoutError:
             pass
 
-        # Cleanup subscriptions
+        # Unsubscribe from recovery topics.
         for t in topics:
             await self.client.unsubscribe(t)
 
-        # Sync mapped data
-        # First pass: discovered IDs from MQTT
+        # Populate counters from recovered MQTT numeric topics.
         for id_str, data in self.recovered_data.items():
             try:
                 meter_id = int(id_str)
             except ValueError:
                 continue
 
-            # Only initialize if there is actually data beyond zeroes
             if any(data.get(k, 0) > 0 for k in ["total", "today", "pulsecount", "yesterday"]):
                 if meter_id not in self.context.state.meters:
                     self.context.state.meters[meter_id] = state_module.MeterState()
@@ -173,7 +167,7 @@ class StateRecoverer:
                 meter.yesterday = data.get("yesterday", meter.yesterday)
                 meter.pulsecount = data.get("pulsecount", meter.pulsecount)
 
-        # Second pass: Names (only if ID was already found or if name is solid)
+        # Map custom names and name-based topic measurements.
         for mid, name in self.recovered_names.items():
             if mid not in self.context.state.meters:
                 self.context.state.meters[mid] = state_module.MeterState()
@@ -181,14 +175,13 @@ class StateRecoverer:
             meter = self.context.state.meters[mid]
             meter.name = name
 
-            # Check for data under the name topic too (split_topic format)
             if name in self.recovered_data:
                 meter.total = max(meter.total, self.recovered_data[name].get("total", 0))
                 meter.today = max(meter.today, self.recovered_data[name].get("today", 0))
                 meter.yesterday = max(meter.yesterday, self.recovered_data[name].get("yesterday", 0))
                 meter.pulsecount = max(meter.pulsecount, self.recovered_data[name].get("pulsecount", 0))
 
-        # HA API Fallback for missing totals (blocking HTTP — run in thread)
+        # Query Home Assistant REST API when MQTT history is missing.
         ha_states = None
         for mid, meter in self.context.state.meters.items():
             if meter.total == 0:
@@ -201,7 +194,7 @@ class StateRecoverer:
                     meter.total = found_val
                     logger.info(f"Recovery: Recovered total for meter {mid} from HA API: {found_val}")
 
-        # Summary logging (Useful for verification)
+        # Log recovered metrics for observability.
         for mid, meter in self.context.state.meters.items():
             logger.info(f"Recovered total for meter {mid}: {meter.total}")
             logger.info(f"Recovered pulsecount for meter {mid}: {meter.pulsecount}")
@@ -211,12 +204,12 @@ class StateRecoverer:
         logger.info("State Recovery complete.")
 
     def _find_total_in_ha(self, mid: int, ha_states: EntityStateList) -> int | None:
-        """Surgically find the total for a meter in a list of HA states."""
+        """Search Home Assistant entities for matching meter total."""
         base_topic = self.context.config.mqtt.base_topic
         meter = self.context.state.meters.get(mid)
         name = meter.name if meter else None
 
-        # Patterns to check
+        # Build potential entity ID patterns.
         patterns = [f"sensor.{base_topic}_{mid}_total", f"sensor.s0pcm_reader_{mid}_total", f"sensor.{mid}_total"]
         if name:
             sanitized_name = name.lower().replace(" ", "_")
@@ -230,7 +223,7 @@ class StateRecoverer:
                     if state_str in [None, "unknown", "unavailable", ""]:
                         continue
 
-                    # Use the robust parser from utils
+                    # Parse localized number string.
                     parsed_val = utils.parse_localized_number(state_str)
                     if parsed_val is not None:
                         return int(parsed_val)

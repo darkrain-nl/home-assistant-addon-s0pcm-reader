@@ -1,9 +1,4 @@
-"""
-S0PCM Reader Main
-
-This application reads pulse counters from S0PCM-2 or S0PCM-5 devices via serial port
-and publishes the data (total, today, yesterday) to MQTT (Home Assistant compatible).
-"""
+"""Main entry point orchestrating serial and MQTT tasks."""
 
 import asyncio
 import logging
@@ -24,8 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
-    """Main application entry point."""
-    # Initialize Context
+    """Run the main event loop and task lifecycle."""
     context = state_module.get_context()
 
     version = await get_version()
@@ -36,7 +30,6 @@ async def main() -> None:
         config_path = config_module.init_args()  # pragma: no cover
 
     try:
-        # Load Configuration into context
         context.config = await config_module.read_config(version=context.s0pcm_reader_version, config_dir=config_path)
     except ValidationError, Exception:
         logger.error("Fatal exception during startup", exc_info=True)
@@ -44,7 +37,7 @@ async def main() -> None:
 
     logger.info("Starting s0pcm-reader...")
 
-    # Signal handling for graceful shutdown via task cancellation
+    # Allow graceful shutdown on termination signals.
     loop = asyncio.get_running_loop()
 
     def signal_handler() -> None:

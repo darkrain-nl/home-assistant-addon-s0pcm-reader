@@ -1,8 +1,4 @@
-"""
-Tests for constants module.
-
-Ensures enum definitions are correct and usable.
-"""
+"""Unit tests for shared constants and enums."""
 
 import pytest
 from rootfs.usr.src.constants import ConnectionStatus, MqttTopicSuffix, SerialPacketType

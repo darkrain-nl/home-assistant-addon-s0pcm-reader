@@ -1,6 +1,4 @@
-"""
-Tests for helper modules (utils.py).
-"""
+"""Unit tests for utility helpers and localized number parsing."""
 
 import json
 import os
@@ -19,10 +17,9 @@ async def test_get_version_from_env(mocker):
 
 
 async def test_get_version_fallback(mocker, tmp_path, monkeypatch):
-    """Test GetVersion fallback when env is missing and no config file."""
+    """Test GetVersion fallback when env and config missing."""
     monkeypatch.chdir(tmp_path)
     mocker.patch.dict(os.environ, {}, clear=True)
-    # Mock __file__ to point to our tmp_path
     mocker.patch("utils.__file__", str(tmp_path / "utils.py"))
     assert await utils.get_version() == "dev"
 
@@ -35,7 +32,6 @@ async def test_get_version_config_yaml(mocker, tmp_path, monkeypatch):
     config_file = tmp_path / "config.yaml"
     config_file.write_text("version: '3.0.0-test'\n", encoding="utf-8")
 
-    # Mock __file__ so utils looks in tmp_path
     mocker.patch("utils.__file__", str(tmp_path / "utils.py"))
 
     version = await utils.get_version()
@@ -52,7 +48,6 @@ async def test_get_version_invalid_yaml(mocker, tmp_path, monkeypatch):
 
     mocker.patch("utils.__file__", str(tmp_path / "utils.py"))
 
-    # Should fall back to 'dev' because our file is invalid
     assert await utils.get_version() == "dev"
 
 
@@ -99,7 +94,6 @@ async def test_get_supervisor_config_success(mocker):
 async def test_get_supervisor_config_api_error(mocker):
     """Test Supervisor API handles errors gracefully."""
     mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
-    # Raise URLError which is one of the caught exceptions
     mocker.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("API Error"))
 
     result = await utils.get_supervisor_config("mqtt")
@@ -108,7 +102,7 @@ async def test_get_supervisor_config_api_error(mocker):
 
 
 async def test_get_supervisor_config_status_not_200(mocker):
-    """Test Supervisor API returns empty dict when response status is not 200."""
+    """Verify empty dict returned when API returns non-200 status."""
     mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
     mock_response = MagicMock()
     mock_response.status = 204
@@ -118,11 +112,6 @@ async def test_get_supervisor_config_status_not_200(mocker):
 
     result = await utils.get_supervisor_config("mqtt")
     assert result == {}
-
-
-# ------------------------------------------------------------------------------------
-# HA Core Version Tests
-# ------------------------------------------------------------------------------------
 
 
 async def test_get_ha_core_version_no_token(mocker):
@@ -152,7 +141,7 @@ async def test_get_ha_core_version_error(mocker):
 
 
 async def test_get_ha_core_version_status_not_200(mocker):
-    """Test get_ha_core_version returns None when response status is not 200."""
+    """Verify None returned when core info returns non-200 status."""
     mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
     mock_response = MagicMock()
     mock_response.status = 204
@@ -174,11 +163,6 @@ def test_parse_ha_version():
     assert utils.parse_ha_version("") == (0, 0, 0)
 
 
-# ------------------------------------------------------------------------------------
-# Parse Localized Number Tests
-# ------------------------------------------------------------------------------------
-
-
 def test_parse_localized_number_simple():
     """Test standard number parsing."""
     assert utils.parse_localized_number("1000") == 1000.0
@@ -194,33 +178,28 @@ def test_parse_localized_number_units():
 
 
 def test_parse_localized_number_us_format():
-    """Test parsing US formatted numbers (dots for decimal, commas for thousands)."""
+    """Verify parsing US formatted numbers with comma separators."""
     assert utils.parse_localized_number("1,000.50") == 1000.5
     assert utils.parse_localized_number("1,000,000.00") == 1000000.0
-    # Ambiguous single comma: Code defaults to treating single comma as decimal (EU preference/Safety)
-    # So 1,500 -> 1.5
+    # Single comma defaults to decimal separator.
     assert utils.parse_localized_number("1,500") == 1.5
 
 
 def test_parse_localized_number_eu_format():
-    """Test parsing EU formatted numbers (commas for decimal, dots for thousands)."""
+    """Verify parsing EU formatted numbers with dot separators."""
     assert utils.parse_localized_number("1.000,50") == 1000.5
     assert utils.parse_localized_number("1.000.000,00") == 1000000.0
-    # Ambiguous single dot: Code defaults to treating single dot as decimal (US preference/Standard float)
-    # So 1.500 -> 1.5
+    # Single dot defaults to decimal separator.
     assert utils.parse_localized_number("1.500") == 1.5
 
 
 def test_parse_localized_number_ambiguous():
     """Test ambiguous cases."""
-    # Single comma, no dot -> usually decimal in EU if not obviously thousands
-    # But our logic prefers decimal if single comma and no dot
+    # Single comma defaults to decimal in ambiguous strings.
     assert utils.parse_localized_number("1000,5") == 1000.5
     assert utils.parse_localized_number("0,5") == 0.5
 
-    # Mixed or chaotic
-    assert utils.parse_localized_number("1.000.000") == 1000000.0  # Assumes thousands
-    # 1.1.1,1,1 -> should strip separators and parse
+    assert utils.parse_localized_number("1.000.000") == 1000000.0
     assert utils.parse_localized_number("1.1.1,1,1") == 11111.0
 
 

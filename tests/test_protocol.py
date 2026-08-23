@@ -1,7 +1,4 @@
-"""
-Tests for the refactored packet parsing logic.
-This test files targets the standalone 'parse_s0pcm_packet' function.
-"""
+"""Unit tests for S0PCM protocol parser."""
 
 import pytest
 
@@ -9,7 +6,7 @@ from protocol import parse_s0pcm_packet
 
 
 class TestPacketParsing:
-    """Test S0PCM packet parsing logic."""
+    """Tests for S0PCM telegram parsing logic."""
 
     def test_parse_s0pcm2_packet(self):
         """Test parsing valid S0PCM-2 data packet."""

@@ -1,8 +1,4 @@
-"""
-Tests for the healthcheck module.
-
-Verifies process detection logic used by Docker HEALTHCHECK.
-"""
+"""Unit tests for Docker healthcheck process detection."""
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -27,7 +23,7 @@ def _mock_proc_entries(pids, cmdline_data=None, side_effect=None):
 
 
 class TestIsProcessRunning:
-    """Tests for the is_process_running function."""
+    """Tests for is_process_running function."""
 
     @patch("healthcheck.os.getpid", return_value=1)
     @patch("healthcheck.Path.iterdir")
@@ -67,7 +63,7 @@ class TestIsProcessRunning:
     @patch("healthcheck.os.getpid", return_value=1)
     @patch("healthcheck.Path.iterdir")
     def test_handles_permission_error(self, mock_iterdir, mock_getpid):
-        """Gracefully handles PermissionError when reading /proc/pid/cmdline."""
+        """Gracefully handle PermissionError on /proc read."""
         mock_iterdir.return_value = _mock_proc_entries(["42"], side_effect=PermissionError)
 
         assert is_process_running() is False
@@ -75,7 +71,7 @@ class TestIsProcessRunning:
     @patch("healthcheck.os.getpid", return_value=1)
     @patch("healthcheck.Path.iterdir", side_effect=OSError("No /proc"))
     def test_handles_missing_proc(self, mock_iterdir, mock_getpid):
-        """Returns False when /proc is not available (e.g., non-Linux)."""
+        """Return False when /proc is not available."""
         assert is_process_running() is False
 
     @patch("healthcheck.os.getpid", return_value=1)
@@ -87,14 +83,13 @@ class TestIsProcessRunning:
 
         assert is_process_running("custom_app.py") is True
 
-        # Reset for second check
         mock_iterdir.return_value = _mock_proc_entries(["42"], cmdline_data=cmdline_data)
         assert is_process_running("other_app.py") is False
 
     @patch("healthcheck.os.getpid", return_value=1)
     @patch("healthcheck.Path.iterdir")
     def test_rejects_non_python_process(self, mock_iterdir, mock_getpid):
-        """Rejects processes that reference the script name but aren't Python (e.g. grep)."""
+        """Reject processes matching name that are not Python."""
         cmdline_data = b"grep\x00s0pcm_reader.py\x00"
         mock_iterdir.return_value = _mock_proc_entries(["42"], cmdline_data=cmdline_data)
 
