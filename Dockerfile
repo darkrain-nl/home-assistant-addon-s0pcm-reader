@@ -1,6 +1,6 @@
 # Default to amd64-base-python to satisfy OpenSSF Scorecard Pinned-Dependencies check.
 # The true base image is always injected by builder using build.yaml.
-ARG BUILD_FROM="ghcr.io/home-assistant/amd64-base-python:3.14-alpine3.24@sha256:f59ecbbc63f781bf1215dd6b70f890a0487ff434ffc0fa721b368a5f4613d176"
+ARG BUILD_FROM="ghcr.io/home-assistant/amd64-base-python:3.14-alpine3.24@sha256:2313257a84f90cbc94231d87e0aba100fee14e36ef4d4b0041d5d554b2ecd287"
 FROM ${BUILD_FROM}
 
 ENV LD_PRELOAD="/usr/local/lib/libjemalloc.so.2"
