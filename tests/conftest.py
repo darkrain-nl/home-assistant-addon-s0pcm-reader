@@ -1,6 +1,4 @@
-"""
-Shared pytest fixtures for S0PCM Reader tests.
-"""
+"""Shared pytest fixtures for S0PCM Reader test suite."""
 
 import asyncio
 import json
@@ -11,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-# Add the source directory to the path so we can import s0pcm_reader
+# Add rootfs source directory to import path.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "rootfs", "usr", "src")))
 
 import state as state_module
@@ -19,22 +17,19 @@ import state as state_module
 
 @pytest.fixture(autouse=True)
 def setup_s0pcm_globals():
-    """Ensure global variables expected by s0pcm_reader are initialized."""
-    # Lazy import to avoid coverage issues
-
-    # Use the real context from state_module
+    """Ensure application context is initialized before test."""
     state_module.get_context()
 
 
 @pytest.fixture
 def mock_serial(mocker):
-    """Mock serialx.Serial class."""
+    """Mock serialx.Serial class for hardware abstraction."""
     return mocker.patch("serialx.Serial")
 
 
 @pytest.fixture
 def mock_aiomqtt_client():
-    """Create a mock aiomqtt.Client for testing."""
+    """Mock aiomqtt.Client for asynchronous MQTT testing."""
     mock = AsyncMock()
     mock.publish = AsyncMock()
     mock.subscribe = AsyncMock()
@@ -45,14 +40,14 @@ def mock_aiomqtt_client():
 
 @pytest.fixture
 def temp_config_dir():
-    """Create a temporary directory for configuration files."""
+    """Provide isolated temporary directory for test configs."""
     with tempfile.TemporaryDirectory() as tmpdir:
         yield tmpdir
 
 
 @pytest.fixture
 def sample_options():
-    """Sample Home Assistant options.json content."""
+    """Sample configuration dictionary."""
     return {
         "device": "/dev/ttyACM0",
         "log_level": "INFO",
@@ -69,7 +64,7 @@ def sample_options():
 
 @pytest.fixture
 def mock_options_file(temp_config_dir, sample_options):
-    """Create a mock options.json file."""
+    """Write sample options.json to temporary test directory."""
     options_path = os.path.join(temp_config_dir, "options.json")
     with open(options_path, "w") as f:
         json.dump(sample_options, f)
@@ -78,7 +73,7 @@ def mock_options_file(temp_config_dir, sample_options):
 
 @pytest.fixture
 def s0pcm_packets():
-    """Sample S0PCM telegram packets."""
+    """Sample raw serial telegram byte packets."""
     return {
         "header": b"/8237:S0 Pulse Counter V0.6 - 30/30/30/30/30ms\r\n",
         "s0pcm2_data": b"ID:8237:I:10:M1:0:100:M2:0:50\r\n",
@@ -91,22 +86,25 @@ def s0pcm_packets():
 
 @pytest.fixture
 def mock_supervisor_api(mocker):
-    """Mock Home Assistant Supervisor API."""
+    """Mock Home Assistant Supervisor HTTP API responses."""
 
     def mock_urlopen(request):
-        """Mock urllib.request.urlopen."""
+        """Mock urlopen responses according to target endpoint."""
         mock_response = MagicMock()
         mock_response.status = 200
-        # Determine response based on URL
         url = request.full_url if hasattr(request, "full_url") else str(request)
         if "services/mqtt" in url:
-            # MQTT service discovery
-            data = {"data": {"host": "core-mosquitto", "port": 1883, "username": "mqtt_user", "password": "mqtt_pass"}}
+            data = {
+                "data": {
+                    "host": "core-mosquitto",
+                    "port": 1883,
+                    "username": "mqtt_user",
+                    "password": "mqtt_pass",
+                }
+            }
         elif "states/" in url:
-            # Single entity state
             data = {"state": "1323128", "entity_id": "sensor.s0pcmreader_1_total"}
         elif "states" in url:
-            # All states
             data = [
                 {"entity_id": "sensor.s0pcmreader_1_total", "state": "1323128"},
                 {"entity_id": "sensor.s0pcmreader_2_total", "state": "5000"},
@@ -123,16 +121,14 @@ def mock_supervisor_api(mocker):
 
 @pytest.fixture(autouse=True)
 def reset_global_state():
-    """Reset global state before each test."""
+    """Reset context state and events before each test run."""
     context = state_module.get_context()
-    # Use context methods to clear state
     context.state.reset_state()
     context.lasterror_serial = None
     context.lasterror_mqtt = None
     context.lasterror_share = None
     context.config = None
     context.s0pcm_firmware = "Unknown"
-    # Reset asyncio events
     context.recovery_event = asyncio.Event()
     context.trigger_event = asyncio.Event()
     yield

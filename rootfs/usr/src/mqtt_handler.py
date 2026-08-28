@@ -1,8 +1,4 @@
-"""
-MQTT Handler
-
-Manages MQTT connection, publishing sensor data, and handling discovery.
-"""
+"""MQTT client lifecycle, state publishing, and command handlers."""
 
 import asyncio
 from dataclasses import dataclass, field
@@ -23,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 MAX_PAYLOAD_SIZE = 256
 
-# Background task set to hold strong references (prevents GC of fire-and-forget tasks)
+# Strong references prevent GC of active fire-and-forget tasks.
 _background_tasks: set[asyncio.Task] = set()
 
-# Map config version strings to paho-mqtt protocol constants (used by aiomqtt internally)
+# Map configuration strings to paho MQTT protocol constants.
 MQTT_VERSION_MAP: dict[str, int] = {
     "3.1": paho_mqtt.MQTTv31,
     "3.1.1": paho_mqtt.MQTTv311,
@@ -36,7 +32,7 @@ MQTT_VERSION_MAP: dict[str, int] = {
 
 @dataclass
 class MqttTaskState:
-    """Internal state for MQTT task."""
+    """Internal state tracking for discovery and diagnostics."""
 
     global_discovery_sent: bool = False
     discovered_meters: dict[int, str] = field(default_factory=dict)
@@ -47,7 +43,7 @@ class MqttTaskState:
 
 
 def _resolve_meter_id(context: state_module.AppContext, identifier: str) -> int | None:
-    """Resolve a meter identifier (ID or Name) to a numeric Meter ID."""
+    """Resolve identifier string to meter ID integer."""
     try:
         return int(identifier)
     except ValueError:
@@ -58,7 +54,7 @@ def _resolve_meter_id(context: state_module.AppContext, identifier: str) -> int 
 
 
 async def _handle_set_command(context: state_module.AppContext, topic: str, payload: bytes) -> None:
-    """Handle a total/set MQTT command."""
+    """Handle total pulse correction commands."""
     if len(payload) > MAX_PAYLOAD_SIZE:
         context.set_error(f"Ignored oversized payload ({len(payload)} bytes) on {topic}", category="mqtt")
         return
@@ -98,7 +94,7 @@ async def _handle_name_set(
     topic: str,
     payload: bytes,
 ) -> None:
-    """Handle a name/set MQTT command."""
+    """Handle meter name update commands."""
     if len(payload) > MAX_PAYLOAD_SIZE:
         context.set_error(f"Ignored oversized payload ({len(payload)} bytes) on {topic}", category="mqtt")
         return
@@ -112,7 +108,7 @@ async def _handle_name_set(
             return
 
         new_name = payload.decode("utf-8").strip()
-        # Sanitize MQTT special characters and non-printable characters from meter names
+        # Remove special characters to keep topic valid.
         for char in "/+#":
             new_name = new_name.replace(char, "")
         new_name = "".join(c for c in new_name if c.isprintable())
@@ -125,7 +121,7 @@ async def _handle_name_set(
             context.state.meters[meter_id] = state_module.MeterState()
         context.state.meters[meter_id].name = new_name
 
-        # Re-trigger discovery
+        # Re-send discovery with updated meter name.
         await discovery.send_global_discovery(client, context)
         for mid, mstate in context.state.meters.items():
             instancename = await discovery.send_meter_discovery(client, context, mid, mstate)
@@ -143,7 +139,7 @@ async def _message_listener(
     client: aiomqtt.Client,
     task_state: MqttTaskState,
 ) -> None:
-    """Listen for incoming MQTT messages (set commands, name changes)."""
+    """Route incoming command payloads to appropriate handlers."""
     async for message in client.messages:
         topic = str(message.topic)
         logger.debug(f"MQTT on_message: {topic} {message.payload}")
@@ -158,7 +154,7 @@ async def _publish_diagnostics(
     client: aiomqtt.Client,
     task_state: MqttTaskState,
 ) -> None:
-    """Publish diagnostic information to MQTT."""
+    """Publish runtime diagnostics if values have changed."""
     try:
         current_diagnostics = {
             "version": context.s0pcm_reader_version,
@@ -191,8 +187,7 @@ async def _publish_measurements(
     state_snapshot: state_module.AppState,
     previous_snapshot: state_module.AppState | None,
 ) -> None:
-    """Publish meter measurements to MQTT."""
-    # Date
+    """Publish meter pulse counts to split or combined topics."""
     current_date_str = str(state_snapshot.date)
     previous_date_str = str(previous_snapshot.date) if previous_snapshot else ""
     if current_date_str != previous_date_str:
@@ -205,7 +200,7 @@ async def _publish_measurements(
         instancename = mstate.name if mstate.name else str(mid)
         prev_mstate = previous_snapshot.meters.get(mid) if previous_snapshot else None
 
-        # Internal topics for recovery
+        # Publish raw counter topics for recovery and diagnostics.
         for topic_field in [
             MqttTopicSuffix.TOTAL,
             MqttTopicSuffix.TODAY,
@@ -219,7 +214,7 @@ async def _publish_measurements(
                 await client.publish(topic, val, retain=True)
                 logger.debug(f"MQTT Publish: topic='{topic}', value='{val}'")
 
-        # High-level topics
+        # Publish user-facing topics.
         jsondata = {}
         for topic_field in [MqttTopicSuffix.TOTAL, MqttTopicSuffix.TODAY, MqttTopicSuffix.YESTERDAY]:
             val = getattr(mstate, topic_field)
@@ -233,14 +228,12 @@ async def _publish_measurements(
                 else:
                     jsondata[topic_field] = val
 
-        # Name state
         if not prev_mstate or mstate.name != prev_mstate.name:
             topic = f"{context.config.mqtt.base_topic}/{mid}/name"
             val = mstate.name if mstate.name else ""
             await client.publish(topic, val, retain=True)
             logger.debug(f"MQTT Publish Name: topic='{topic}', value='{val}'")
 
-        # JSON publish
         if not context.config.mqtt.split_topic and jsondata:
             topic = f"{context.config.mqtt.base_topic}/{instancename}"
             await client.publish(topic, json.dumps(jsondata), retain=context.config.mqtt.retain)
@@ -252,17 +245,17 @@ async def _publish_loop(
     client: aiomqtt.Client,
     task_state: MqttTaskState,
 ) -> None:
-    """Main publish loop — waits for trigger events and publishes data."""
+    """Publish updated meter states upon trigger notification."""
     previous_snapshot = None
 
     while True:
-        # Take a snapshot of current state for diff-based publishing
+        # Snapshot state to perform delta comparison.
         state_snapshot = context.state.model_copy(deep=True)
         error_msg = context.lasterror_share
 
         if not task_state.global_discovery_sent:
             await discovery.send_global_discovery(client, context)
-            # Purge all potential meters first to clear ghosts
+            # Clean up potential ghost meter entries on startup.
             for mid in range(1, 6):
                 await discovery.cleanup_meter_discovery(client, context, mid)
             task_state.global_discovery_sent = True
@@ -277,7 +270,7 @@ async def _publish_loop(
         await _publish_diagnostics(context, client, task_state)
         await _publish_measurements(context, client, state_snapshot, previous_snapshot)
 
-        # Publish Error (only on change)
+        # Publish latest error state if changed.
         try:
             error_to_publish = error_msg if error_msg else "No Error"
             if task_state.last_error_msg != error_to_publish:
@@ -288,9 +281,7 @@ async def _publish_loop(
                 )
                 task_state.last_error_msg = error_to_publish
 
-                # If we just successfully published a REAL connection failure, launch a robust
-                # 15-second background timer to clear it later, bypassing any rapid serial events.
-                # This completely avoids race conditions with HA's state ingestion.
+                # Auto-clear errors after 15 seconds.
                 if error_to_publish != "No Error":
 
                     async def delayed_clear():
@@ -309,7 +300,7 @@ async def _publish_loop(
 
 
 def _build_ssl_context(context: state_module.AppContext) -> ssl.SSLContext | None:
-    """Build an SSL context from configuration, or None on failure."""
+    """Build SSL context according to TLS configuration."""
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     if context.config.mqtt.tls_ca == "":
         ssl_context.check_hostname = False
@@ -331,7 +322,7 @@ def _build_ssl_context(context: state_module.AppContext) -> ssl.SSLContext | Non
 
 
 async def mqtt_task(context: state_module.AppContext) -> None:
-    """Main MQTT task coroutine."""
+    """Run the main MQTT connection loop and child tasks."""
     task_state = MqttTaskState()
 
     try:
@@ -340,7 +331,6 @@ async def mqtt_task(context: state_module.AppContext) -> None:
             port = int(context.config.mqtt.tls_port if use_tls else context.config.mqtt.port)
             base_topic = context.config.mqtt.base_topic
 
-            # Build TLS context if needed
             tls_context = None
             if use_tls:
                 tls_context = _build_ssl_context(context)
@@ -348,10 +338,8 @@ async def mqtt_task(context: state_module.AppContext) -> None:
                     await asyncio.sleep(context.config.mqtt.connect_retry)
                     continue
 
-            # Resolve protocol version
             protocol = MQTT_VERSION_MAP.get(context.config.mqtt.version, paho_mqtt.MQTTv5)
 
-            # Prepare credentials
             username = context.config.mqtt.username.get_secret_value() if context.config.mqtt.username else None
             password = context.config.mqtt.password.get_secret_value() if context.config.mqtt.password else None
 
@@ -374,19 +362,19 @@ async def mqtt_task(context: state_module.AppContext) -> None:
                 ) as client:
                     logger.info("MQTT successfully connected to broker")
 
-                    # Publish online status and subscribe to command topics
+                    # Announce availability and register command topics.
                     await client.publish(base_topic + "/status", ConnectionStatus.ONLINE, retain=True)
                     await client.subscribe(base_topic + "/+/total/set")
                     await client.subscribe(base_topic + "/+/name/set")
 
-                    # Recovery phase (only on first connect)
+                    # Recover persisted states on initial connection.
                     if not task_state.recovery_complete:
                         recoverer = StateRecoverer(context, client)
                         await recoverer.run()
                         task_state.recovery_complete = True
                         context.recovery_event.set()
 
-                    # Run listener + publisher concurrently
+                    # Run listener and publisher concurrently.
                     async with asyncio.TaskGroup() as tg:
                         tg.create_task(_message_listener(context, client, task_state))
                         tg.create_task(_publish_loop(context, client, task_state))
@@ -395,7 +383,7 @@ async def mqtt_task(context: state_module.AppContext) -> None:
                 err_str = f"MQTT connection failed: {e}"
                 context.set_error(err_str, category="mqtt")
                 logger.error(err_str)
-                # Reset discovery state on disconnect so it re-sends on reconnect
+                # Invalidate discovery cache so reconnect re-advertises.
                 task_state.global_discovery_sent = False
                 task_state.discovered_meters.clear()
                 task_state.last_diagnostics.clear()

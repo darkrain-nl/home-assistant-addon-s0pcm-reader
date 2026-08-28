@@ -21,12 +21,10 @@ def run_server():
                     counter_1 = 100
                     counter_2 = 50
                     while True:
-                        # Send Header
+                        # Send device header.
                         conn.sendall(b"/8237:S0 Pulse Counter V0.6 - 30/30/30/30/30ms\r\n")
                         time.sleep(0.1)
-                        # Send Data
-                        # ID:8237:I:10:M1:0:100:M2:0:50
-                        # Increment pulses to show activity
+                        # Send telegram data with incrementing counters.
                         counter_1 += 1
                         counter_2 += 2
                         data = f"ID:8237:I:10:M1:0:{counter_1}:M2:0:{counter_2}\r\n"

@@ -1,8 +1,4 @@
-"""
-Discovery Module
-
-Handles MQTT discovery payload generation for Home Assistant.
-"""
+"""MQTT discovery payload generation for Home Assistant."""
 
 import json
 import logging
@@ -24,13 +20,7 @@ GLOBAL_DIAGNOSTICS: Final = [
 
 
 async def send_global_discovery(client: aiomqtt.Client, context: AppContext) -> None:
-    """
-    Send discovery for global entities (Status, Error, Version, etc.)
-
-    Args:
-        client: The connected aiomqtt client.
-        context: Application context.
-    """
+    """Publish MQTT discovery configs for global entities."""
     if not context.config.mqtt.discovery:
         return
 
@@ -45,7 +35,7 @@ async def send_global_discovery(client: aiomqtt.Client, context: AppContext) -> 
         "sw_version": context.s0pcm_reader_version,
     }
 
-    # Status Binary Sensor
+    # Status binary sensor discovery.
     status_unique_id = f"s0pcm_{base_topic}_status"
     status_topic = f"{discovery_prefix}/binary_sensor/{base_topic}/{status_unique_id}/config"
     status_payload = {
@@ -60,11 +50,11 @@ async def send_global_discovery(client: aiomqtt.Client, context: AppContext) -> 
     }
     await client.publish(status_topic, json.dumps(status_payload), retain=True)
 
-    # Cleanup legacy
+    # Remove legacy diagnostic sensor configurations.
     await client.publish(f"{discovery_prefix}/sensor/{base_topic}/s0pcm_{base_topic}_info/config", "", retain=True)
     await client.publish(f"{discovery_prefix}/sensor/{base_topic}/s0pcm_{base_topic}_uptime/config", "", retain=True)
 
-    # Error Sensor
+    # Error sensor discovery.
     error_unique_id = f"s0pcm_{base_topic}_error"
     error_topic = f"{discovery_prefix}/sensor/{base_topic}/{error_unique_id}/config"
     error_payload = {
@@ -74,7 +64,7 @@ async def send_global_discovery(client: aiomqtt.Client, context: AppContext) -> 
         "entity_category": "diagnostic",
         "state_topic": base_topic + "/error",
         "icon": "mdi:alert-circle",
-        # Force the sensor to stay Available to prevent HA from inheriting device-level offline states
+        # Keep error sensor available when offline to surface errors.
         "availability": [
             {"topic": base_topic + "/status", "value_template": "{{ 'online' }}", "payload_available": "online"}
         ],
@@ -84,7 +74,7 @@ async def send_global_discovery(client: aiomqtt.Client, context: AppContext) -> 
     ha_version = await utils.get_ha_core_version()
     ha_version_tuple = utils.parse_ha_version(ha_version)
 
-    # Diagnostics
+    # Global diagnostic sensors.
     for diag in GLOBAL_DIAGNOSTICS:
         diag_unique_id = f"s0pcm_{base_topic}_{diag['id']}"
         diag_topic = f"{discovery_prefix}/sensor/{base_topic}/{diag_unique_id}/config"
@@ -120,18 +110,7 @@ async def send_global_discovery(client: aiomqtt.Client, context: AppContext) -> 
 async def send_meter_discovery(
     client: aiomqtt.Client, context: AppContext, meter_id: int, meter_state: MeterState
 ) -> str | None:
-    """
-    Send discovery for a specific meter.
-
-    Args:
-        client: The connected aiomqtt client.
-        context: Application context.
-        meter_id: The unique ID of the meter.
-        meter_state: The MeterState object for this meter.
-
-    Returns:
-        str | None: The instance name (for tracking), or None if discovery is disabled.
-    """
+    """Publish MQTT discovery configs for a single meter entity."""
     if not context.config.mqtt.discovery:
         return None
 
@@ -141,15 +120,15 @@ async def send_meter_discovery(
     device_info = {
         "identifiers": [base_topic],
         "name": "S0PCM Reader",
-    }  # Link to global device
+    }
     raw_name = meter_state.name
     instancename = str(meter_id) if not raw_name or str(raw_name).lower() == "none" else str(raw_name)
-    # Defensive: strip MQTT special characters and non-printable characters from topic names
+    # Strip special characters to prevent invalid MQTT topics.
     for char in "/+#":
         instancename = instancename.replace(char, "")
     instancename = "".join(c for c in instancename if c.isprintable())
 
-    # Purge obsolete diagnostic sensors (PPS and Activity)
+    # Purge obsolete legacy diagnostic entities.
     for p_type, p_key in [("binary_sensor", "activity"), ("sensor", "pps")]:
         p_uid = f"s0pcm_{base_topic}_{meter_id}_{p_key}"
         p_topic = f"{discovery_prefix}/{p_type}/{base_topic}/{p_uid}/config"
@@ -161,7 +140,7 @@ async def send_meter_discovery(
 
         payload = {"name": f"{instancename} {subkey.capitalize()}", "unique_id": unique_id, "device": device_info}
 
-        # Availability: sensors go "Unavailable" when addon is offline
+        # Link availability to reader status.
         payload["availability_topic"] = base_topic + "/status"
         payload["payload_available"] = "online"
         payload["payload_not_available"] = "offline"
@@ -177,12 +156,12 @@ async def send_meter_discovery(
             payload["state_topic"] = f"{base_topic}/{instancename}"
             payload["value_template"] = f"{{{{ value_json.{subkey} }}}}"
 
-        # Force refresh
+        # Clear old retained config before publishing updated config.
         await client.publish(topic, "", retain=True)
         await client.publish(topic, json.dumps(payload), retain=True)
 
         if subkey == "total":
-            # Text Entity (Name)
+            # Editable meter name configuration entity.
             text_uid = f"s0pcm_{base_topic}_{meter_id}_name_config"
             text_topic = f"{discovery_prefix}/text/{base_topic}/{text_uid}/config"
             text_payload = {
@@ -197,7 +176,7 @@ async def send_meter_discovery(
             await client.publish(text_topic, "", retain=True)
             await client.publish(text_topic, json.dumps(text_payload), retain=True)
 
-            # Number Entity (Total Correction)
+            # Pulse count correction configuration entity.
             num_uid = f"s0pcm_{base_topic}_{meter_id}_total_config"
             num_topic = f"{discovery_prefix}/number/{base_topic}/{num_uid}/config"
             num_payload = {
@@ -221,27 +200,18 @@ async def send_meter_discovery(
 
 
 async def cleanup_meter_discovery(client: aiomqtt.Client, context: AppContext, meter_id: int) -> None:
-    """
-    Clear discovery for a specific meter ID (useful for purging ghost sensors).
-
-    Args:
-        client: The connected aiomqtt client.
-        context: Application context.
-        meter_id: The ID of the meter to clear.
-    """
+    """Remove retained discovery configurations for a meter."""
     if not context.config.mqtt.discovery:
         return
 
     base_topic = context.config.mqtt.base_topic
     discovery_prefix = context.config.mqtt.discovery_prefix
 
-    # Clear individual sensors
     for subkey in ["total", "today", "yesterday"]:
         unique_id = f"s0pcm_{base_topic}_{meter_id}_{subkey}"
         topic = f"{discovery_prefix}/sensor/{base_topic}/{unique_id}/config"
         await client.publish(topic, "", retain=True)
 
-    # Clear configuration entities
     text_uid = f"s0pcm_{base_topic}_{meter_id}_name_config"
     text_topic = f"{discovery_prefix}/text/{base_topic}/{text_uid}/config"
     await client.publish(text_topic, "", retain=True)
@@ -250,7 +220,6 @@ async def cleanup_meter_discovery(client: aiomqtt.Client, context: AppContext, m
     num_topic = f"{discovery_prefix}/number/{base_topic}/{num_uid}/config"
     await client.publish(num_topic, "", retain=True)
 
-    # Clear obsolete diagnostic sensors
     for p_type, p_key in [("binary_sensor", "activity"), ("sensor", "pps")]:
         p_uid = f"s0pcm_{base_topic}_{meter_id}_{p_key}"
         p_topic = f"{discovery_prefix}/{p_type}/{base_topic}/{p_uid}/config"

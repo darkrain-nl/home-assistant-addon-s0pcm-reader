@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.5] - 2026-08-29
+### Changed
+- **Serial Connection**: Switched to native `serialx.async_list_serial_ports` for non-blocking serial port auto-detection and enumeration.
+- **Dependencies**: Dependency updates (serialx v1.9.0).
+
 ## [5.0.4] - 2026-07-29
 ### Changed
 - **Dependencies**: Maintenance updates for Docker base image digests, Python packages, and GitHub Actions workflows.

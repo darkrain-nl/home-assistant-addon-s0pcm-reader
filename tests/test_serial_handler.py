@@ -1,6 +1,4 @@
-"""
-Tests for serial handler module (serial_handler.py).
-"""
+"""Unit tests for serial port communication and packet handling."""
 
 import asyncio
 import datetime
@@ -54,7 +52,7 @@ class TestSerialPacketParsing:
     async def test_invalid_packet_sets_error(self, s0pcm_packets, mocker):
         context = state_module.get_context()
         mock_set_error = mocker.patch.object(context, "set_error")
-        _handle_data_packet(context, "ID:8237:I:10:M1:0:100")  # Too short
+        _handle_data_packet(context, "ID:8237:I:10:M1:0:100")
         assert mock_set_error.called
 
 
@@ -70,8 +68,7 @@ class TestPulseCountLogic:
     async def test_pulse_reset_detection(self):
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState(pulsecount=100, total=1000, today=50)
-        _update_meter(context, 1, 10, 10, 20)  # Restarted (pulsecount reset to 10)
-        # Total should increase by 10
+        _update_meter(context, 1, 10, 10, 20)
         assert context.state.meters[1].total == 1010
 
     async def test_pulse_anomaly(self):
@@ -108,9 +105,9 @@ class TestSerialPacketAdvanced:
         assert any("Failed to decode" in str(c) for c in mock_set_error.call_args_list)
 
     async def test_read_loop_bounded_read(self):
-        """Test that readline is called with a size limit (DoS prevention)."""
+        """Test readline size limit for DoS prevention."""
         mock_ser = AsyncMock()
-        mock_ser.readline = AsyncMock(return_value=b"")  # Return empty to exit loop immediately (timeout path)
+        mock_ser.readline = AsyncMock(return_value=b"")
         context = state_module.get_context()
 
         await _read_loop(context, mock_ser)
@@ -324,7 +321,7 @@ async def test_log_available_ports_with_ports():
     mock_port = MagicMock()
     mock_port.device = "/dev/ttyACM0"
     with (
-        patch("serialx.list_serial_ports", return_value=[mock_port]),
+        patch("serialx.async_list_serial_ports", new_callable=AsyncMock, return_value=[mock_port]),
         patch("serial_handler.logger") as mock_logger,
     ):
         await _log_available_ports()
@@ -334,7 +331,7 @@ async def test_log_available_ports_with_ports():
 async def test_log_available_ports_no_ports():
     """Test _log_available_ports when no ports are detected."""
     with (
-        patch("serialx.list_serial_ports", return_value=[]),
+        patch("serialx.async_list_serial_ports", new_callable=AsyncMock, return_value=[]),
         patch("serial_handler.logger") as mock_logger,
     ):
         await _log_available_ports()
@@ -345,7 +342,11 @@ async def test_log_available_ports_no_ports():
 async def test_log_available_ports_exception():
     """Test _log_available_ports handles exceptions gracefully."""
     with (
-        patch("serialx.list_serial_ports", side_effect=OSError("Permission denied")),
+        patch(
+            "serialx.async_list_serial_ports",
+            new_callable=AsyncMock,
+            side_effect=OSError("Permission denied"),
+        ),
         patch("serial_handler.logger") as mock_logger,
     ):
         await _log_available_ports()
@@ -354,7 +355,7 @@ async def test_log_available_ports_exception():
 
 
 async def test_log_available_ports_called_on_first_failure(mocker):
-    """Test that _log_available_ports is called only on the first connection failure."""
+    """Verify _log_available_ports runs only on first failure."""
     context = state_module.get_context()
     context.config = make_test_config()
     context.recovery_event.set()

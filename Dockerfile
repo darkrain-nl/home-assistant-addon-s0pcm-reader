@@ -1,6 +1,6 @@
 # Default to amd64-base-python to satisfy OpenSSF Scorecard Pinned-Dependencies check.
 # The true base image is always injected by builder using build.yaml.
-ARG BUILD_FROM="ghcr.io/home-assistant/amd64-base-python:3.14-alpine3.24@sha256:f59ecbbc63f781bf1215dd6b70f890a0487ff434ffc0fa721b368a5f4613d176"
+ARG BUILD_FROM="ghcr.io/home-assistant/amd64-base-python:3.14-alpine3.24@sha256:2313257a84f90cbc94231d87e0aba100fee14e36ef4d4b0041d5d554b2ecd287"
 FROM ${BUILD_FROM}
 
 ENV LD_PRELOAD="/usr/local/lib/libjemalloc.so.2"
@@ -9,7 +9,7 @@ WORKDIR /
 COPY pyproject.toml uv.lock /tmp/uv/
 COPY rootfs /
 
-COPY --from=ghcr.io/astral-sh/uv:0.12.0@sha256:606e70c71c852d03f611b1e56a195d08648507018a7057fab82c4974c4eae105 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.7@sha256:95f2aa1fe59274951cfe9b0cbc7972e879ff1004bc8945d130a32eb0dbd85945 /uv /uvx /bin/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     cd /tmp/uv && uv export --frozen --no-dev --no-emit-project --no-hashes | \

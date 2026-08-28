@@ -1,8 +1,4 @@
-"""
-S0PCM Reader State
-
-Managed global state, events, errors, and measurement data.
-"""
+"""Global application state, event triggers, and error management."""
 
 import asyncio
 import datetime
@@ -16,20 +12,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# ------------------------------------------------------------------------------------
-# Type Aliases
-# ------------------------------------------------------------------------------------
-
 type ErrorCategory = Literal["serial", "mqtt"]
 
 
-# ------------------------------------------------------------------------------------
-# Models
-# ------------------------------------------------------------------------------------
-
-
 class MeterState(BaseModel):
-    """Current state of a single meter."""
+    """Current counter values and configuration for a single meter."""
 
     name: str | None = None
     total: int = 0
@@ -40,43 +27,32 @@ class MeterState(BaseModel):
 
 
 class AppState(BaseModel):
-    """Complete application state (measurements and date)."""
+    """Aggregate application state holding meters and rollover date."""
 
     date: datetime.date = Field(default_factory=datetime.date.today)
     meters: dict[int, MeterState] = Field(default_factory=dict)
 
     def reset_state(self) -> Self:
-        """Reset state to defaults."""
+        """Reset all meter counters to zero and update current date."""
         self.date = datetime.date.today()
         self.meters = {}
         return self
 
 
 class AppContext:
-    """
-    Application context holding all shared state and events.
-
-    In the asyncio architecture, all access happens on the single event loop thread,
-    eliminating the need for locks or deep-copy snapshots.
-    """
+    """Shared application context passed across asynchronous tasks."""
 
     def __init__(self):
-        # Asyncio Events
         self.recovery_event = asyncio.Event()
         self.trigger_event = asyncio.Event()
 
-        # Application State (single copy — no snapshot needed in asyncio)
         self.state = AppState()
-
-        # Configuration
         self.config: ConfigModel | None = None
 
-        # Error State
         self.lasterror_serial: str | None = None
         self.lasterror_mqtt: str | None = None
         self.lasterror_share: str | None = None
 
-        # Metadata
         self.startup_time: str = datetime.datetime.now(datetime.UTC).isoformat()
         self.s0pcm_firmware: str = "Unknown"
         self.s0pcm_reader_version: str = "Unknown"
@@ -88,15 +64,7 @@ class AppContext:
         trigger_event: bool = True,
         level: int | None = None,
     ):
-        """
-        Set or clear an error state.
-
-        Args:
-            message: Error message or None to clear
-            category: Error category ("serial" or "mqtt")
-            trigger_event: Whether to trigger MQTT publish event
-            level: Optional logging level override
-        """
+        """Update error state and notify subscribers on change."""
         changed = False
 
         if category == "serial":
@@ -125,12 +93,9 @@ class AppContext:
                 self.trigger_event.set()
 
 
-# ------------------------------------------------------------------------------------
-# Global Instance (for backwards compatibility during transition)
-# ------------------------------------------------------------------------------------
 _context = AppContext()
 
 
-# For direct access to context if needed
 def get_context() -> AppContext:
+    """Return shared singleton application context."""
     return _context
