@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [5.0.5-b1] - 2026-08-28
 ### Changed
+- **Serial Connection**: Switched to native `serialx.async_list_serial_ports` for non-blocking serial port auto-detection and enumeration.
 - **Dependencies**: Dependency updates (serialx v1.9.0).
 
 ## [5.0.4] - 2026-07-29
