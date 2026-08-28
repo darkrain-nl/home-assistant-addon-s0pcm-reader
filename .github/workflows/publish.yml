@@ -422,7 +422,7 @@ jobs:
           if git fetch origin dev; then
             git checkout dev
             git fetch origin beta
-            git merge origin/beta --no-ff -m "ci: sync beta back to dev"
+            git merge origin/beta --no-ff -X theirs -m "ci: sync beta back to dev"
           else
             echo "dev branch not found on origin. Recreating dev branch from current HEAD..."
             git checkout -b dev
