@@ -25,7 +25,7 @@ class SerialTaskState:
 async def _log_available_ports() -> None:
     """Log available serial ports on connection failure."""
     try:
-        ports = await asyncio.to_thread(serialx.list_serial_ports)
+        ports = await serialx.async_list_serial_ports()
         if ports:
             port_list = ", ".join(p.device for p in ports)
             logger.info(f"Available serial ports: {port_list}")

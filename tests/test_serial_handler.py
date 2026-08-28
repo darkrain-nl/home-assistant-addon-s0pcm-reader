@@ -321,7 +321,7 @@ async def test_log_available_ports_with_ports():
     mock_port = MagicMock()
     mock_port.device = "/dev/ttyACM0"
     with (
-        patch("serialx.list_serial_ports", return_value=[mock_port]),
+        patch("serialx.async_list_serial_ports", new_callable=AsyncMock, return_value=[mock_port]),
         patch("serial_handler.logger") as mock_logger,
     ):
         await _log_available_ports()
@@ -331,7 +331,7 @@ async def test_log_available_ports_with_ports():
 async def test_log_available_ports_no_ports():
     """Test _log_available_ports when no ports are detected."""
     with (
-        patch("serialx.list_serial_ports", return_value=[]),
+        patch("serialx.async_list_serial_ports", new_callable=AsyncMock, return_value=[]),
         patch("serial_handler.logger") as mock_logger,
     ):
         await _log_available_ports()
@@ -342,7 +342,11 @@ async def test_log_available_ports_no_ports():
 async def test_log_available_ports_exception():
     """Test _log_available_ports handles exceptions gracefully."""
     with (
-        patch("serialx.list_serial_ports", side_effect=OSError("Permission denied")),
+        patch(
+            "serialx.async_list_serial_ports",
+            new_callable=AsyncMock,
+            side_effect=OSError("Permission denied"),
+        ),
         patch("serial_handler.logger") as mock_logger,
     ):
         await _log_available_ports()

@@ -83,7 +83,7 @@ def init_args() -> Path:
 async def _auto_detect_serial_port() -> str:
     """Auto-detect S0PCM USB serial adapter from available ports."""
     try:
-        ports = await asyncio.to_thread(serialx.list_serial_ports)
+        ports = await serialx.async_list_serial_ports()
         if not ports:
             logger.warning("Auto-detect: No serial ports detected. Defaulting to /dev/ttyACM0")
             return "/dev/ttyACM0"
