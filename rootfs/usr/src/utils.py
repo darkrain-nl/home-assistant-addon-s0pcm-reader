@@ -1,8 +1,4 @@
-"""
-S0PCM Reader Utilities
-
-Helper functions for version detection and Home Assistant Supervisor API access.
-"""
+"""Version detection and Supervisor API helper utilities."""
 
 import asyncio
 import json
@@ -19,32 +15,22 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-# Type Aliases
+# Type aliases for JSON dictionaries.
 type JsonDict = dict[str, Any]
 
 
 async def get_version() -> str:
-    """
-    Get the S0PCM Reader version.
-
-    Priority:
-    1. S0PCM_READER_VERSION environment variable (set by HA app)
-    2. config.yaml in common locations (for local development)
-    3. 'dev' as fallback
-
-    Returns:
-        str: The version string.
-    """
-    # 1. Try environment variable (provided by HA app startup)
+    """Detect application version from environment or config.yaml."""
+    # Check environment variable set in container.
     version = os.getenv("S0PCM_READER_VERSION")
     if version:
         return version
 
-    # 2. Try to read from config.yaml (for local development)
+    # Fallback to local config.yaml during development.
     script_path = Path(__file__).resolve()
     script_dir = script_path.parent
     search_paths = [
-        script_dir / "../../../config.yaml",  # Local repo structure
+        script_dir / "../../../config.yaml",
         script_dir / "../../config.yaml",
         script_dir / "config.yaml",
         Path("./config.yaml"),
@@ -69,15 +55,7 @@ async def get_version() -> str:
 
 
 async def get_supervisor_config(service: str) -> JsonDict:
-    """
-    Fetch service configuration from the Home Assistant Supervisor API.
-
-    Args:
-        service: The service name (e.g., 'mqtt')
-
-    Returns:
-        JsonDict: Service configuration data, or empty dict on failure.
-    """
+    """Fetch service configuration dictionary from Supervisor API."""
     token = os.getenv("SUPERVISOR_TOKEN")
     if not token:
         return {}
@@ -101,25 +79,11 @@ async def get_supervisor_config(service: str) -> JsonDict:
 
 
 def parse_localized_number(value_str: str) -> float | None:
-    """
-    Parse a number string that might contain localized separators (US vs EU).
-
-    Handles:
-    - 1,000.50 (US/UK) -> 1000.5
-    - 1.000,50 (EU/DE) -> 1000.5
-    - 1000,5   (Mixed) -> 1000.5
-    - 1000     (Int)   -> 1000.0
-
-    Args:
-        value_str: The string to parse.
-
-    Returns:
-        float | None: The parsed float, or None if parsing failed.
-    """
+    """Parse localized number strings containing dots or commas."""
     if not value_str:
         return None
 
-    # Robust cleaning
+    # Strip unit suffixes and retain numerical chars.
     clean_state = value_str
     for unit in ["m³", "m3", "kwh", "l/min", "l"]:
         if unit in clean_state:
@@ -127,33 +91,26 @@ def parse_localized_number(value_str: str) -> float | None:
 
     clean_state = "".join(c for c in clean_state if c.isdigit() or c in ".,-")
 
-    # Detect format based on separators
+    # Normalize decimal and thousands separators.
     dot_count = clean_state.count(".")
     comma_count = clean_state.count(",")
 
     if dot_count > 1 or comma_count > 1 or (dot_count == 1 and comma_count == 1):
-        # Multiple separators or mixed separators
         if comma_count > dot_count:
-            # Likely 1,000,000.00 (or 1,000.50)
             clean_state = clean_state.replace(",", "")
         elif dot_count > comma_count:
-            # Likely 1.000.000,00
             clean_state = clean_state.replace(".", "").replace(",", ".")
         elif dot_count == 1 and comma_count == 1:
-            # Ambiguous single separators: 1,000.50 vs 1.000,50
             if clean_state.find(".") < clean_state.find(","):
-                # Dot first -> 1.000,50 (EU)
                 clean_state = clean_state.replace(".", "").replace(",", ".")
             else:
-                # Comma first -> 1,000.50 (US)
                 clean_state = clean_state.replace(",", "")
         else:
-            # Chaos (e.g. 1.1.1,1,1), strip all non-digits aggressively?
-            # For now, just strip dots and commas to be safeish (likely integer)
+            # Multiple conflicting separators.
             clean_state = clean_state.replace(".", "").replace(",", "")
 
     elif comma_count == 1 and "." not in clean_state:
-        # Single comma, no dot -> 1,5 or 1000,5 -> treat as decimal separator
+        # Single comma treated as decimal.
         clean_state = clean_state.replace(",", ".")
 
     try:
@@ -165,7 +122,7 @@ def parse_localized_number(value_str: str) -> float | None:
 
 
 async def get_ha_core_version() -> str | None:
-    """Fetch the Home Assistant Core version from the Supervisor API."""
+    """Fetch Home Assistant Core version from Supervisor API."""
     token = os.getenv("SUPERVISOR_TOKEN")
     if not token:
         return None
@@ -189,7 +146,7 @@ async def get_ha_core_version() -> str | None:
 
 
 def parse_ha_version(version_str: str | None) -> tuple[int, ...]:
-    """Parse a Home Assistant version string into a comparable tuple."""
+    """Parse version string into integer tuple for comparison."""
     if not version_str:
         return (0, 0, 0)
 

@@ -1,6 +1,4 @@
-"""
-Tests for main module (s0pcm_reader.py).
-"""
+"""Unit tests for s0pcm_reader main orchestration loop."""
 
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -15,7 +13,6 @@ async def test_main_initialization(mocker):
     mocker.patch("s0pcm_reader.get_version", new_callable=AsyncMock)
     mocker.patch("s0pcm_reader.config_module.read_config", new_callable=AsyncMock)
 
-    # Mock serial_task and mqtt_task as async functions
     mock_serial_task = mocker.patch("s0pcm_reader.serial_task", new_callable=AsyncMock)
     mock_mqtt_task = mocker.patch("s0pcm_reader.mqtt_task", new_callable=AsyncMock)
 
@@ -23,10 +20,7 @@ async def test_main_initialization(mocker):
 
     await s0pcm_reader.main()
 
-    # Verify read_config was called
     s0pcm_reader.config_module.read_config.assert_called_once()
-
-    # Verify tasks were started (called as coroutines in TaskGroup)
     mock_serial_task.assert_called_once()
     mock_mqtt_task.assert_called_once()
 
@@ -75,28 +69,23 @@ async def test_main_signal_handler(mocker):
 
     await s0pcm_reader.main()
 
-    # Verify add_signal_handler was called for SIGINT and SIGTERM
     assert mock_loop.add_signal_handler.call_count == 2
 
-    # Extract the registered signal handler function
     sig_handler = mock_loop.add_signal_handler.call_args[0][1]
-
-    # Call the signal handler
     sig_handler()
 
-    # Verify it cancelled the tasks
     mock_task.cancel.assert_called_once()
 
 
 async def test_main_cancellation_handling(mocker):
-    """Test that main() handles CancelledError ExceptionGroup gracefully."""
+    """Test main() handles CancelledError ExceptionGroup."""
     import s0pcm_reader
 
     mocker.patch("s0pcm_reader.get_version", new_callable=AsyncMock)
     mocker.patch("s0pcm_reader.config_module.read_config", new_callable=AsyncMock)
     mocker.patch("s0pcm_reader.logger")
 
-    # Mock TaskGroup to raise BaseExceptionGroup containing CancelledError
+    # Mock TaskGroup raising BaseExceptionGroup with CancelledError.
     class MockTaskGroup:
         async def __aenter__(self):
             return self
@@ -109,7 +98,7 @@ async def test_main_cancellation_handling(mocker):
 
     mocker.patch("asyncio.TaskGroup", return_value=MockTaskGroup())
 
-    # This should run without raising because BaseExceptionGroup containing CancelledError is caught by except*
+    # Verify TaskGroup cancellation group is handled cleanly by except*.
     await s0pcm_reader.main()
 
 

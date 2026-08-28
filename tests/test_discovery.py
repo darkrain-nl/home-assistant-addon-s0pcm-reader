@@ -1,6 +1,4 @@
-"""
-Tests for discovery module (discovery.py).
-"""
+"""Unit tests for MQTT discovery payload generation."""
 
 import json
 from unittest.mock import AsyncMock, patch
@@ -24,10 +22,8 @@ async def test_send_global_discovery_new_ha(mocker):
 
     await discovery.send_global_discovery(mock_client, context)
 
-    # Core check: Was something published?
     assert mock_client.publish.called
 
-    # Check status topic
     status_call = [
         c for c in mock_client.publish.call_args_list if "binary_sensor/s0pcm/s0pcm_s0pcm_status/config" in c.args[0]
     ]
@@ -36,7 +32,6 @@ async def test_send_global_discovery_new_ha(mocker):
     assert payload["name"] == "S0PCM Reader Status"
     assert payload["device"]["sw_version"] == "3.0.0"
 
-    # Check startup_time sensor
     startup_call = [
         c for c in mock_client.publish.call_args_list if "sensor/s0pcm/s0pcm_s0pcm_startup_time/config" in c.args[0]
     ]
@@ -59,7 +54,6 @@ async def test_send_global_discovery_old_ha(mocker):
 
     await discovery.send_global_discovery(mock_client, context)
 
-    # Check startup_time sensor fallback
     startup_call = [
         c for c in mock_client.publish.call_args_list if "sensor/s0pcm/s0pcm_s0pcm_startup_time/config" in c.args[0]
     ]
@@ -82,19 +76,19 @@ async def test_send_meter_discovery(mocker):
 
     assert instancename == "Water"
 
-    # Check total sensor discovery
     total_call = [
         c for c in mock_client.publish.call_args_list if "sensor/s0pcm/s0pcm_s0pcm_1_total/config" in c.args[0]
     ]
     assert total_call
-    payload = json.loads(total_call[-1].args[1])  # Get last call for this topic
+    # Extract latest published payload for total sensor.
+    payload = json.loads(total_call[-1].args[1])
     assert payload["name"] == "Water Total"
     assert payload["state_class"] == "total_increasing"
     assert payload["availability_topic"] == "s0pcm/status"
     assert payload["payload_available"] == "online"
     assert payload["payload_not_available"] == "offline"
 
-    # Verify purge of obsolete diagnostic sensors (PPS and Activity)
+    # Verify purge of obsolete diagnostic sensors (PPS and Activity).
     activity_clear = [
         c
         for c in mock_client.publish.call_args_list
@@ -126,7 +120,7 @@ async def test_discovery_disabled(mocker):
 
 
 async def test_send_global_discovery_with_units(mocker):
-    """Test send_global_discovery with custom diagnostics including units (line 93)."""
+    """Verify discovery payload creation with unit diagnostics."""
     import discovery
 
     context = state_module.get_context()
@@ -134,7 +128,6 @@ async def test_send_global_discovery_with_units(mocker):
     context.config = make_test_config(base_topic="s0pcm")
     mock_client = AsyncMock()
 
-    # Custom diagnostics with all fields including 'unit'
     custom_diags = [
         {
             "id": "temp",
@@ -148,7 +141,6 @@ async def test_send_global_discovery_with_units(mocker):
     with patch("discovery.GLOBAL_DIAGNOSTICS", custom_diags):
         await discovery.send_global_discovery(mock_client, context)
 
-    # Verify the published config
     config_call = next(c for c in mock_client.publish.call_args_list if "temp" in c.args[0])
     payload = json.loads(config_call.args[1])
 
@@ -167,7 +159,6 @@ async def test_send_meter_discovery_split_topic():
 
     await discovery.send_meter_discovery(mock_client, context, 1, MeterState(name="test"))
 
-    # Find the 'total' config message
     total_call = next(c for c in mock_client.publish.call_args_list if "total" in c.args[0] and "{" in str(c.args[1]))
 
     payload = json.loads(total_call.args[1])
@@ -175,7 +166,7 @@ async def test_send_meter_discovery_split_topic():
 
 
 async def test_cleanup_meter_discovery_enabled():
-    """Test cleanup_meter_discovery with discovery enabled (lines 199-217)."""
+    """Verify discovery entity cleanup on enabled discovery."""
     import discovery
 
     context = state_module.get_context()
@@ -184,14 +175,11 @@ async def test_cleanup_meter_discovery_enabled():
 
     await discovery.cleanup_meter_discovery(mock_client, context, 5)
 
-    # Should publish empty payloads to clear discovery
     assert mock_client.publish.call_count > 0
-    # Check that it published to sensor topics
     topics = [call[0][0] for call in mock_client.publish.call_args_list]
     assert any("sensor" in t for t in topics)
     assert any("text" in t for t in topics)
     assert any("number" in t for t in topics)
-    # Check for diagnostic sensor cleanup
     assert any("binary_sensor" in t and "activity" in t for t in topics)
     assert any("sensor" in t and "pps" in t for t in topics)
 
@@ -218,7 +206,7 @@ async def test_send_meter_discovery_combined_topic(mocker):
 
     await discovery.send_meter_discovery(mock_client, context, 1, MeterState(name="Combined"))
 
-    # Check if value_template is correctly set in one of the publish calls
+    # Validate presence of value_template in discovery payload.
     found_template = False
     for call in mock_client.publish.call_args_list:
         payload_str = call.args[1]
@@ -231,7 +219,7 @@ async def test_send_meter_discovery_combined_topic(mocker):
 
 
 async def test_send_meter_discovery_sanitizes_name():
-    """Test that MQTT special characters in meter names are stripped from topics."""
+    """Verify special characters in meter names are stripped."""
     import discovery
 
     context = state_module.get_context()
@@ -243,7 +231,6 @@ async def test_send_meter_discovery_sanitizes_name():
 
     assert instancename == "MyWaterMeter1"
 
-    # Verify no topics contain MQTT special characters from the name
     for call in mock_client.publish.call_args_list:
         topic = call.args[0]
         if "MyWaterMeter1" in topic:

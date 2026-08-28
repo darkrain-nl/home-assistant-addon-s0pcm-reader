@@ -1,14 +1,10 @@
-"""
-Test helpers for S0PCM Reader tests.
-
-This module provides factory functions for creating test configuration objects.
-"""
+"""Factory functions for creating test configuration models."""
 
 from config import ConfigModel, MqttConfig, SerialConfig
 
 
 def make_test_config(**mqtt_overrides) -> ConfigModel:
-    """Create a ConfigModel with test defaults. Override mqtt fields via kwargs."""
+    """Create ConfigModel populated with test defaults."""
     mqtt_defaults = {
         "host": "core-mosquitto",
         "port": 1883,

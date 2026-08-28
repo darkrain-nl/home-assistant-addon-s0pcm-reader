@@ -1,6 +1,4 @@
-"""
-Tests for state management (state.py).
-"""
+"""Unit tests for state management models and context."""
 
 import asyncio
 import datetime

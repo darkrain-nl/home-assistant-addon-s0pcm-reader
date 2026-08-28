@@ -64,7 +64,7 @@ def on_message(client, userdata, msg):
                 logger.info("✅ App is ONLINE")
                 state["app_online"] = True
             elif state["phase"] == 2 and state["broker_restarted"] and not state["app_reconnected"]:
-                # This branch still exists for legacy reasons/clarity, but usually covered by generic detection above
+                # Fallback branch if status topic arrives first.
                 logger.info("✅ App RECONNECTED after broker restart!")
                 state["app_reconnected"] = True
 
@@ -173,8 +173,8 @@ def run():
     client.loop_start()
 
     start_time = time.time()
-    # Need a relatively long timeout because Phase 2 clears the error after 15 seconds
-    timeout = 90  # seconds
+    # 90s timeout allows 15s error clearing timer in Phase 2.
+    timeout = 90
 
     name_change_sent = False
 

@@ -1,8 +1,4 @@
-"""
-S0PCM Reader Constants
-
-Shared constants and enums for type safety across the application.
-"""
+"""Shared constants and enums for type safety."""
 
 from enum import StrEnum
 

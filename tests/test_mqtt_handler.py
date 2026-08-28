@@ -1,13 +1,4 @@
-"""
-Comprehensive tests for MQTT handler functionality.
-
-Tests cover:
-- TLS setup and configuration
-- Publishing logic
-- Error state management
-- Message handling (Set/Name topics)
-- Discovery logic integration
-"""
+"""Unit tests for MQTT client lifecycle and message processing."""
 
 import asyncio
 import contextlib
@@ -36,7 +27,7 @@ class TestTLSSetup:
     """Test TLS/SSL configuration."""
 
     def test_build_ssl_context_no_ca(self, mqtt_context, mocker):
-        """Test TLS setup without CA certificate (creates default context)."""
+        """Test TLS setup without CA certificate."""
         from mqtt_handler import _build_ssl_context
 
         mqtt_context.config = make_test_config(tls=True, tls_ca="")
@@ -103,8 +94,8 @@ class TestMessageHandling:
 
         assert mqtt_context.state.meters[1].total == 2000
 
-    async def test_handle_set_command_create_meter(self, mqtt_context):
-        """Test _handle_set_command creating a meter if it doesn't exist."""
+    async def test_handle_set_command_creates_meter(self, mqtt_context):
+        """Test _handle_set_command creating meter if needed."""
         from mqtt_handler import _handle_set_command
 
         mqtt_context.state.meters = {}
@@ -247,9 +238,9 @@ class TestPublishingLogic:
 
         # Verify split topics were published
         assert mock_client.publish.called
-        assert mock_client.publish.call_count >= 3  # total, today, pulsecount
+        assert mock_client.publish.call_count >= 3
 
-        # Regression check: Ensure topics do NOT contain function/object string representations
+        # Validate topics do not leak object representations.
         published_topics = [str(call.args[0]) for call in mock_client.publish.call_args_list]
         for topic in published_topics:
             assert "<function" not in topic
@@ -412,12 +403,18 @@ class TestSecurityHardening:
         mocker.patch("mqtt_handler.discovery.send_global_discovery", new_callable=AsyncMock)
         mocker.patch("mqtt_handler.discovery.send_meter_discovery", new_callable=AsyncMock, return_value="MyMeter")
 
-        await _handle_name_set(mqtt_context, mock_client, task_state, "s0pcmreader/1/name/set", b"My/Meter+Name#Test")
+        await _handle_name_set(
+            mqtt_context,
+            mock_client,
+            task_state,
+            "s0pcmreader/1/name/set",
+            b"My/Meter+Name#Test",
+        )
 
         assert mqtt_context.state.meters[1].name == "MyMeterNameTest"
 
     async def test_name_set_only_special_chars_becomes_none(self, mqtt_context, mocker):
-        """Test that a name consisting only of MQTT special chars becomes None."""
+        """Verify special-character-only name is cleared."""
         from mqtt_handler import MqttTaskState, _handle_name_set
 
         mqtt_context.state.meters[1] = state_module.MeterState(name="OldName")
@@ -427,7 +424,13 @@ class TestSecurityHardening:
         mocker.patch("mqtt_handler.discovery.send_global_discovery", new_callable=AsyncMock)
         mocker.patch("mqtt_handler.discovery.send_meter_discovery", new_callable=AsyncMock)
 
-        await _handle_name_set(mqtt_context, mock_client, task_state, "s0pcmreader/1/name/set", b"/+#")
+        await _handle_name_set(
+            mqtt_context,
+            mock_client,
+            task_state,
+            "s0pcmreader/1/name/set",
+            b"/+#",
+        )
 
         assert mqtt_context.state.meters[1].name is None
 
@@ -505,9 +508,9 @@ class TestMQTTAdditionalCoverage:
         mqtt_context.state.meters[1] = state_module.MeterState(name="Water")
 
         assert _resolve_meter_id(mqtt_context, "Water") == 1
-        assert _resolve_meter_id(mqtt_context, "water") == 1  # Case-insensitive
+        assert _resolve_meter_id(mqtt_context, "water") == 1
         assert _resolve_meter_id(mqtt_context, "NonExistent") is None
-        assert _resolve_meter_id(mqtt_context, "1") == 1  # Numeric ID
+        assert _resolve_meter_id(mqtt_context, "1") == 1
 
     async def test_message_listener(self, mqtt_context, mocker):
         """Test _message_listener processes set/name commands."""
@@ -542,7 +545,7 @@ class TestMQTTAdditionalCoverage:
         )
 
     async def test_publish_loop_global_discovery(self, mqtt_context, mocker):
-        """Test that _publish_loop sends global discovery and cleans up ghost meters."""
+        """Verify discovery and ghost meter purge in publish loop."""
         from mqtt_handler import MqttTaskState, _publish_loop
 
         mock_client = AsyncMock()
@@ -552,7 +555,6 @@ class TestMQTTAdditionalCoverage:
         mock_cleanup = mocker.patch("mqtt_handler.discovery.cleanup_meter_discovery", new_callable=AsyncMock)
         mocker.patch("mqtt_handler.discovery.send_meter_discovery", new_callable=AsyncMock)
 
-        # Make trigger event fire once then cancel
         call_count = 0
 
         async def trigger_once():
@@ -572,17 +574,16 @@ class TestMQTTAdditionalCoverage:
         assert task_state.global_discovery_sent is True
 
     async def test_publish_loop_delayed_clear(self, mqtt_context, mocker):
-        """Test that delayed_clear background task clears the MQTT error."""
+        """Verify delayed_clear task resets MQTT error."""
         from mqtt_handler import MqttTaskState, _publish_loop
 
         mock_client = AsyncMock()
         task_state = MqttTaskState()
         task_state.global_discovery_sent = True
 
-        # Set error message on context
         mqtt_context.set_error("MQTT Connect Fail", category="mqtt", trigger_event=False)
 
-        # Mock asyncio.sleep dynamically using original sleep to yield control properly
+        # Mock sleep to immediately yield execution control.
         original_sleep = asyncio.sleep
 
         async def mock_sleep(delay, result=None):
@@ -590,7 +591,6 @@ class TestMQTTAdditionalCoverage:
 
         mocker.patch("asyncio.sleep", new=mock_sleep)
 
-        # Trigger event once then cancel
         call_count = 0
 
         async def trigger_once():
@@ -605,11 +605,10 @@ class TestMQTTAdditionalCoverage:
         with contextlib.suppress(asyncio.CancelledError):
             await _publish_loop(mqtt_context, mock_client, task_state)
 
-        # Verify the error was published
         mock_client.publish.assert_any_call("s0pcmreader/error", "MQTT Connect Fail", retain=True)
 
-        # Ensure the background task completed and called set_error(None)
-        await original_sleep(0.05)  # yield control so task executes
+        # Confirm delayed task cleared error after execution.
+        await original_sleep(0.05)
 
         assert mqtt_context.lasterror_mqtt is None
 
@@ -651,33 +650,30 @@ class TestMQTTAdditionalCoverage:
         mqtt_handler.logger.error.assert_called_with("MQTT Publish Failed for error: Publish error")
 
     async def test_mqtt_task_tls_build_fail(self, mqtt_context, mocker):
-        """Test that mqtt_task retries and sleeps when TLS configuration fails."""
+        """Verify mqtt_task retries upon TLS build failure."""
         from mqtt_handler import mqtt_task
 
         mqtt_context.config = make_test_config(tls=True)
         mocker.patch("mqtt_handler._build_ssl_context", return_value=None)
         mocker.patch("asyncio.sleep", side_effect=[None, asyncio.CancelledError()])
 
-        # CancelledError is caught internally and logs cancellation
         await mqtt_task(mqtt_context)
 
     async def test_mqtt_task_connection_success(self, mqtt_context, mocker):
-        """Test that mqtt_task connects, runs recovery, and sets up TaskGroup listeners successfully on happy path."""
+        """Verify connection, recovery, and listeners setup."""
         from mqtt_handler import mqtt_task
 
         mock_client = AsyncMock()
-        # Mock the context manager
         mock_client_cm = MagicMock()
         mock_client_cm.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client_cm.__aexit__ = AsyncMock(return_value=None)
         mocker.patch("mqtt_handler.aiomqtt.Client", return_value=mock_client_cm)
 
-        # Mock StateRecoverer
         mock_recoverer = MagicMock()
         mock_recoverer.run = AsyncMock()
         mocker.patch("mqtt_handler.StateRecoverer", return_value=mock_recoverer)
 
-        # Mock TaskGroup to instantly raise CancelledError to break out after starting tasks
+        # Mock TaskGroup to exit immediately after starting tasks.
         class MockTaskGroup:
             async def __aenter__(self):
                 return self
@@ -690,10 +686,8 @@ class TestMQTTAdditionalCoverage:
 
         mocker.patch("asyncio.TaskGroup", return_value=MockTaskGroup())
 
-        # CancelledError is caught internally and logs cancellation
         await mqtt_task(mqtt_context)
 
-        # Verify recovery ran, status published, subscriptions made
         mock_recoverer.run.assert_called_once()
         mock_client.publish.assert_any_call("s0pcmreader/status", "online", retain=True)
         mock_client.subscribe.assert_any_call("s0pcmreader/+/total/set")
@@ -701,7 +695,7 @@ class TestMQTTAdditionalCoverage:
         assert mqtt_context.recovery_event.is_set()
 
     async def test_mqtt_task_connection_fail(self, mqtt_context, mocker):
-        """Test that mqtt_task sets error state and retries on broker connection failure."""
+        """Verify error reporting on broker connect failure."""
         from mqtt_handler import mqtt_task
 
         mock_client_cm = MagicMock()
@@ -710,7 +704,6 @@ class TestMQTTAdditionalCoverage:
 
         mocker.patch("asyncio.sleep", side_effect=asyncio.CancelledError)
 
-        # CancelledError is caught internally and logs cancellation
         await mqtt_task(mqtt_context)
 
         assert "MQTT connection failed" in mqtt_context.lasterror_mqtt
@@ -720,7 +713,7 @@ class TestMQTTAdditionalCoverage:
         from mqtt_handler import mqtt_task
 
         context = state_module.get_context()
-        context.config = None  # This will trigger AttributeError when accessing context.config.mqtt.tls
+        context.config = None
 
         mocker.patch("mqtt_handler.logger.error")
 

@@ -1,10 +1,4 @@
-"""
-S0PCM Reader Healthcheck
-
-Lightweight healthcheck script for Docker HEALTHCHECK.
-Scans /proc to verify the main s0pcm_reader.py process is running.
-Exit code 0 = healthy, 1 = unhealthy.
-"""
+"""Process liveness probe for Docker container health checks."""
 
 import os
 from pathlib import Path
@@ -15,7 +9,7 @@ PROCESS_INTERPRETER = "python"
 
 
 def is_process_running(process_name: str = PROCESS_NAME) -> bool:
-    """Check if a process with the given name is running by scanning /proc."""
+    """Verify main reader process is alive by inspecting /proc."""
     my_pid = str(os.getpid())
 
     try:
