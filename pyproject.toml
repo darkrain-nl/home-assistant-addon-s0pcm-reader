@@ -7,7 +7,7 @@ dependencies = [
     "pyyaml==6.0.3",
     "serialx==1.9.0",
     "aiomqtt>=2.5.1",
-    "pydantic==2.13.4",
+    "pydantic==2.13.5",
 ]
 
 [dependency-groups]
