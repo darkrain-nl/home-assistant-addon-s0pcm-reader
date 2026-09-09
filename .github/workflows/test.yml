@@ -188,6 +188,6 @@ jobs:
       contents: write
       packages: write
       id-token: write
-    uses: ./.github/workflows/publish.yml
+    uses: $/.github/workflows/publish.yml
     secrets:
       BETA_SYNC_TOKEN: ${{ secrets.BETA_SYNC_TOKEN }}
