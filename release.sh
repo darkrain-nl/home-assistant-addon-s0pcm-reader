@@ -64,7 +64,7 @@ fi
 echo -e "${GREEN}PR Ready: $BETA_PR_URL${NC}"
 
 echo -e "${YELLOW}Merging PR into 'beta'...${NC}"
-gh pr merge "$BETA_PR_URL" --squash
+gh pr merge "$BETA_PR_URL" --squash --author-email "$(git config user.email)"
 
 # 5. Sync Local Beta
 echo -e "${YELLOW}Switching to 'beta' and pulling latest changes...${NC}"
@@ -78,7 +78,7 @@ sleep 10 # Give the API a moment to register the new run
 RUN_ID=$(gh run list --branch beta --workflow "Tests" --limit 1 --json databaseId,status --jq 'if .[0].status == "queued" or .[0].status == "in_progress" or .[0].status == "waiting" then .[0].databaseId else empty end')
 
 if [ -z "$RUN_ID" ]; then
-    # No active run — check if the latest run failed (re-run scenario)
+    # No active run: check if latest run failed (re-run scenario)
     LATEST_STATUS=$(gh run list --branch beta --workflow "Tests" --limit 1 --json conclusion --jq '.[0].conclusion')
     LATEST_RUN_ID=$(gh run list --branch beta --workflow "Tests" --limit 1 --json databaseId --jq '.[0].databaseId')
 
@@ -122,7 +122,7 @@ if [ "$IS_BETA" = false ]; then
     echo -e "${GREEN}PR Ready: $PR_URL${NC}"
 
     echo -e "${YELLOW}Merging PR into 'main'...${NC}"
-    gh pr merge "$PR_URL" --squash
+    gh pr merge "$PR_URL" --squash --author-email "$(git config user.email)"
 
     echo -e "${YELLOW}Switching to 'main' and pulling...${NC}"
     git checkout main
