@@ -3,7 +3,7 @@ FROM python:3.14-alpine@sha256:c6ead215bfd31f1e433d968853b7a769989117115b7288748
 WORKDIR /app
 
 # Install uv
-COPY --from=ghcr.io/astral-sh/uv:0.12.15@sha256:62f8c047d0a0e9ece6b53fc63df902585a67a47a7f318ddec4a37db586edc8e3 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.17@sha256:10787c682e4184e4f290de1171fd4703dc63de99221f10fe1c99002ce7fa9acc /uv /uvx /bin/
 
 # Use the project's lock file for paho-mqtt version consistency
 COPY pyproject.toml uv.lock ./
