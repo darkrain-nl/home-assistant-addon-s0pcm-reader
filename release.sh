@@ -24,6 +24,13 @@ if [[ -n $(git status --porcelain) ]]; then
     exit 1
 fi
 
+# A beta commit missing from dev makes the release PR conflict
+git fetch origin beta
+if ! git merge-base --is-ancestor origin/beta dev; then
+    echo -e "${RED}Error: 'origin/beta' is not merged into 'dev'. Merge it first.${NC}"
+    exit 1
+fi
+
 # 2. Version Detection
 VERSION=$(grep '^version:' config.yaml | sed 's/version: *"\(.*\)"/\1/' | tr -d '\r')
 echo -e "${YELLOW}Detected Version: $VERSION${NC}"
@@ -64,7 +71,7 @@ fi
 echo -e "${GREEN}PR Ready: $BETA_PR_URL${NC}"
 
 echo -e "${YELLOW}Merging PR into 'beta'...${NC}"
-gh pr merge "$BETA_PR_URL" --squash
+gh pr merge "$BETA_PR_URL" --squash --author-email "$(git config user.email)"
 
 # 5. Sync Local Beta
 echo -e "${YELLOW}Switching to 'beta' and pulling latest changes...${NC}"
@@ -78,7 +85,7 @@ sleep 10 # Give the API a moment to register the new run
 RUN_ID=$(gh run list --branch beta --workflow "Tests" --limit 1 --json databaseId,status --jq 'if .[0].status == "queued" or .[0].status == "in_progress" or .[0].status == "waiting" then .[0].databaseId else empty end')
 
 if [ -z "$RUN_ID" ]; then
-    # No active run — check if the latest run failed (re-run scenario)
+    # No active run: check if latest run failed (re-run scenario)
     LATEST_STATUS=$(gh run list --branch beta --workflow "Tests" --limit 1 --json conclusion --jq '.[0].conclusion')
     LATEST_RUN_ID=$(gh run list --branch beta --workflow "Tests" --limit 1 --json databaseId --jq '.[0].databaseId')
 
@@ -122,7 +129,7 @@ if [ "$IS_BETA" = false ]; then
     echo -e "${GREEN}PR Ready: $PR_URL${NC}"
 
     echo -e "${YELLOW}Merging PR into 'main'...${NC}"
-    gh pr merge "$PR_URL" --squash
+    gh pr merge "$PR_URL" --squash --author-email "$(git config user.email)"
 
     echo -e "${YELLOW}Switching to 'main' and pulling...${NC}"
     git checkout main
@@ -138,15 +145,15 @@ if [ "$IS_BETA" = false ]; then
     echo -e "${GREEN}Watching Main CI Run: https://github.com/darkrain-nl/home-assistant-addon-s0pcm-reader/actions/runs/$MAIN_RUN_ID${NC}"
     gh run watch "$MAIN_RUN_ID"
 
-    # Sync main back to beta and dev to unify history
+    # dev merges beta, not main, so it also holds beta's squash commit
     echo -e "${YELLOW}Merging 'main' back into 'beta' to unify history...${NC}"
     git checkout beta
     git merge main --no-edit
     git push origin beta
 
-    echo -e "${YELLOW}Merging 'main' back into 'dev' to unify history...${NC}"
+    echo -e "${YELLOW}Merging 'beta' back into 'dev' to unify history...${NC}"
     git checkout dev
-    git merge main --no-edit
+    git merge beta --no-edit
     git push origin dev
 fi
 
