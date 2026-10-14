@@ -1,4 +1,4 @@
 # 3.14-alpine
-FROM python:3.14-alpine@sha256:f6a589d43c42b9e7f7dc67a12d37132491f362859a5d750607710cc56da3bc72
+FROM python:3.15-alpine@sha256:ff4d3c9b1a48f646eedd93182aaea385c7a5452f4c8a8cd7cef686babacf4928
 COPY tests/standalone/simulator/simulator.py /simulator.py
 CMD ["python3", "-u", "/simulator.py"]
