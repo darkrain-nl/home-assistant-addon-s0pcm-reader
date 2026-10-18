@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Dependencies**: Dependency updates (serialx v1.14.0, pydantic v2.14.1, Home Assistant base images).
 
+### Fixed
+- **Startup**: Replaced deprecated `bashio::addon.*` calls with `bashio::app.*` to silence deprecation warnings in the startup banner.
+
 ## [5.0.7] - 2026-10-03
 ### Changed
 - **Dependencies**: Dependency updates (serialx v1.11.0).
