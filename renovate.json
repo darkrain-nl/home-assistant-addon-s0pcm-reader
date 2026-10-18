@@ -42,8 +42,7 @@
             "matchStrings": [
                 "(?<depName>ghcr\\.io/home-assistant/[^:]+):(?<currentValue>[^@\\s]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?"
             ],
-            "datasourceTemplate": "docker",
-            "versioningTemplate": "regex:^(?<compatibility>\\d+\\.\\d+-alpine)(?<major>\\d+)\\.(?<minor>\\d+)(?:\\.(?<patch>\\d+))?$"
+            "datasourceTemplate": "docker"
         }
     ],
     "packageRules": [
@@ -64,7 +63,20 @@
                 "ghcr.io/home-assistant/**"
             ],
             "groupName": "Home Assistant Base Images",
-            "pinDigests": true
+            "pinDigests": true,
+            "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)-alpine(?<patch>\\d+)\\.(?<build>\\d+)$"
+        },
+        {
+            "description": "Bump Python everywhere in one PR",
+            "matchDepNames": [
+                "python",
+                "ghcr.io/home-assistant/**"
+            ],
+            "matchUpdateTypes": [
+                "major",
+                "minor"
+            ],
+            "groupName": "Python"
         },
         {
             "description": "Automerge Docker digest updates weekly to prevent perpetual force-push cycles",
