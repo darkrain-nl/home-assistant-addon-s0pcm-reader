@@ -369,7 +369,7 @@ wheels = [
 
 [[package]]
 name = "s0pcm-reader"
-version = "5.0.9b0"
+version = "5.0.9b1"
 source = { virtual = "." }
 dependencies = [
     { name = "aiomqtt" },
