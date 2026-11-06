@@ -23,11 +23,13 @@ MAX_PAYLOAD_SIZE = 256
 _background_tasks: set[asyncio.Task] = set()
 
 # Map configuration strings to paho MQTT protocol constants.
-MQTT_VERSION_MAP: dict[str, int] = {
-    "3.1": paho_mqtt.MQTTv31,
-    "3.1.1": paho_mqtt.MQTTv311,
-    "5.0": paho_mqtt.MQTTv5,
-}
+MQTT_VERSION_MAP: frozendict[str, int] = frozendict(
+    {
+        "3.1": paho_mqtt.MQTTv31,
+        "3.1.1": paho_mqtt.MQTTv311,
+        "5.0": paho_mqtt.MQTTv5,
+    }
+)
 
 
 @dataclass
