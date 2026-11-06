@@ -4,7 +4,6 @@ import asyncio
 import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from helpers import make_test_config
 import pytest
 
 import config as config_module
@@ -17,6 +16,7 @@ from serial_handler import (
     serial_task,
 )
 import state as state_module
+from tests.helpers import make_test_config
 
 
 @pytest.fixture(autouse=True)
@@ -176,22 +176,6 @@ async def test_handle_header_fallback():
     _handle_header(context, "/SIMPLE")
     assert context.s0pcm_firmware == "SIMPLE"
 
-    # Test exception fallback
-    class BadString:
-        def __contains__(self, item):
-            return True  # trigger first branch
-
-        def split(self, *args, **kwargs):
-            raise IndexError("Split failed")
-
-        def __str__(self):
-            return "BadString"
-
-    bad_str = BadString()
-    _handle_header(context, bad_str)
-    # Should fall back to assigning the object itself
-    assert context.s0pcm_firmware == bad_str
-
 
 async def test_update_meter_reset_logging():
     """Test _update_meter reset logging."""
@@ -214,6 +198,7 @@ async def test_read_loop_read_error():
     mock_serial.readline = AsyncMock(side_effect=Exception("Read IO Error"))
 
     await _read_loop(context, mock_serial)
+    assert context.lasterror_serial is not None
     assert "Serialport read error" in context.lasterror_serial
 
 
@@ -401,14 +386,11 @@ async def test_serial_task_fatal_exception_outer(mocker):
 
     # Mock recovery_event.wait to raise an exception
     mocker.patch.object(context.recovery_event, "wait", side_effect=ValueError("Fatal Wait Error"))
-    mocker.patch("serial_handler.logger.error")
+    mock_error = mocker.patch("serial_handler.logger.error")
 
     await serial_task(context)
 
-    # Verify logger.error was called with fatal exception info
-    import serial_handler
-
-    serial_handler.logger.error.assert_called_with("Fatal exception in Serial Task", exc_info=True)
+    mock_error.assert_called_with("Fatal exception in Serial Task", exc_info=True)
 
 
 if __name__ == "__main__":

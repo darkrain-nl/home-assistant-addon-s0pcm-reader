@@ -72,18 +72,20 @@ class TestConfigEdgeCases:
 
 
 class TestErrorHandling:
-    def test_set_error_behavior(self, mocker):
+    def test_set_error_behavior(self):
         """Verify error propagation and event signaling."""
         context = state_module.get_context()
-        context.lasterror_share = None
-        context.lasterror_serial = None
-        context.lasterror_mqtt = None
 
         context.set_error("Test Error")
         assert context.lasterror_share == "Test Error"
         assert context.trigger_event.is_set()
 
+    def test_clear_error_behavior(self):
+        """Verify clearing an error signals subscribers."""
+        context = state_module.get_context()
+        context.set_error("Test Error")
         context.trigger_event.clear()
+
         context.set_error(None)
         assert context.lasterror_share is None
         assert context.trigger_event.is_set()

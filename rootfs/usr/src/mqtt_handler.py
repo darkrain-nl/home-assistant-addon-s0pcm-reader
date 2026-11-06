@@ -8,7 +8,6 @@ import ssl
 from typing import Any
 
 import aiomqtt
-import paho.mqtt.client as paho_mqtt
 
 from constants import ConnectionStatus, MqttTopicSuffix
 import discovery
@@ -20,14 +19,16 @@ logger = logging.getLogger(__name__)
 MAX_PAYLOAD_SIZE = 256
 
 # Strong references prevent GC of active fire-and-forget tasks.
-_background_tasks: set[asyncio.Task] = set()
+_background_tasks: set[asyncio.Task[None]] = set()
 
 # Map configuration strings to paho MQTT protocol constants.
-MQTT_VERSION_MAP: dict[str, int] = {
-    "3.1": paho_mqtt.MQTTv31,
-    "3.1.1": paho_mqtt.MQTTv311,
-    "5.0": paho_mqtt.MQTTv5,
-}
+MQTT_VERSION_MAP: frozendict[str, aiomqtt.ProtocolVersion] = frozendict(
+    {
+        "3.1": aiomqtt.ProtocolVersion.V31,
+        "3.1.1": aiomqtt.ProtocolVersion.V311,
+        "5.0": aiomqtt.ProtocolVersion.V5,
+    }
+)
 
 
 @dataclass
@@ -107,19 +108,14 @@ async def _handle_name_set(
             context.set_error(f"Ignored name/set command for unknown meter: {identifier}", category="mqtt")
             return
 
-        new_name = payload.decode("utf-8").strip()
         # Remove special characters to keep topic valid.
-        for char in "/+#":
-            new_name = new_name.replace(char, "")
-        new_name = "".join(c for c in new_name if c.isprintable())
-        if not new_name:
-            new_name = None
+        new_name = "".join(c for c in payload.decode("utf-8").strip() if c.isprintable() and c not in "/+#")
 
         logger.info(f"Received MQTT name/set command for meter {meter_id}. Setting name to: {new_name or 'None'}")
 
         if meter_id not in context.state.meters:
             context.state.meters[meter_id] = state_module.MeterState()
-        context.state.meters[meter_id].name = new_name
+        context.state.meters[meter_id].name = new_name or None
 
         # Re-send discovery with updated meter name.
         await discovery.send_global_discovery(client, context)
@@ -142,7 +138,7 @@ async def _message_listener(
     """Route incoming command payloads to appropriate handlers."""
     async for message in client.messages:
         topic = str(message.topic)
-        logger.debug(f"MQTT on_message: {topic} {message.payload}")
+        logger.debug(f"MQTT on_message: {topic} {message.payload!r}")
         if topic.endswith("/total/set"):
             await _handle_set_command(context, topic, message.payload)
         elif topic.endswith("/name/set"):
@@ -284,7 +280,7 @@ async def _publish_loop(
                 # Auto-clear errors after 15 seconds.
                 if error_to_publish != "No Error":
 
-                    async def delayed_clear():
+                    async def delayed_clear() -> None:
                         await asyncio.sleep(15.0)
                         context.set_error(None, category="mqtt")
 
@@ -338,7 +334,7 @@ async def mqtt_task(context: state_module.AppContext) -> None:
                     await asyncio.sleep(context.config.mqtt.connect_retry)
                     continue
 
-            protocol = MQTT_VERSION_MAP.get(context.config.mqtt.version, paho_mqtt.MQTTv5)
+            protocol = MQTT_VERSION_MAP.get(context.config.mqtt.version, aiomqtt.ProtocolVersion.V5)
 
             username = context.config.mqtt.username.get_secret_value() if context.config.mqtt.username else None
             password = context.config.mqtt.password.get_secret_value() if context.config.mqtt.password else None

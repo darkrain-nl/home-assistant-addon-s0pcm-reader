@@ -1,7 +1,6 @@
 """Version detection and Supervisor API helper utilities."""
 
 import asyncio
-import json
 import logging
 import os
 from pathlib import Path
@@ -11,12 +10,25 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from pydantic import BaseModel
 import yaml
 
 logger = logging.getLogger(__name__)
 
 # Type aliases for JSON dictionaries.
 type JsonDict = dict[str, Any]
+
+
+class SupervisorResponse[T](BaseModel):
+    """Describe a Supervisor API response envelope."""
+
+    data: T
+
+
+class CoreInfo(BaseModel):
+    """Describe the Supervisor core info payload."""
+
+    version: str | None = None
 
 
 async def get_version() -> str:
@@ -36,7 +48,7 @@ async def get_version() -> str:
         Path("./config.yaml"),
     ]
 
-    def _read_version():
+    def _read_version() -> str | None:
         for path in search_paths:
             if path.exists():
                 try:
@@ -65,15 +77,14 @@ async def get_supervisor_config(service: str) -> JsonDict:
     try:
         req = urllib.request.Request(url, headers=headers)
 
-        def _fetch():
+        def _fetch() -> JsonDict:
             with urllib.request.urlopen(req, timeout=5) as response:
                 if response.status == 200:
-                    data = json.loads(response.read().decode())
-                    return data.get("data", {})
+                    return SupervisorResponse[JsonDict].model_validate_json(response.read()).data
             return {}
 
         return await asyncio.to_thread(_fetch)
-    except (urllib.error.URLError, json.JSONDecodeError, OSError) as e:
+    except (urllib.error.URLError, ValueError, OSError) as e:
         logger.debug(f"Supervisor API discovery for {service} failed: {e}")
     return {}
 
@@ -132,15 +143,14 @@ async def get_ha_core_version() -> str | None:
     try:
         req = urllib.request.Request(url, headers=headers)
 
-        def _fetch():
+        def _fetch() -> str | None:
             with urllib.request.urlopen(req, timeout=5) as response:
                 if response.status == 200:
-                    data = json.loads(response.read().decode())
-                    return data.get("data", {}).get("version")
+                    return SupervisorResponse[CoreInfo].model_validate_json(response.read()).data.version
             return None
 
         return await asyncio.to_thread(_fetch)
-    except (urllib.error.URLError, json.JSONDecodeError, OSError) as e:
+    except (urllib.error.URLError, ValueError, OSError) as e:
         logger.debug(f"Supervisor API /core/info failed: {e}")
     return None
 

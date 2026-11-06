@@ -5,11 +5,11 @@ import datetime
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from helpers import make_test_config
 import pytest
 
-from recovery import StateRecoverer
+from recovery import HaEntityState, StateRecoverer
 import state as state_module
+from tests.helpers import make_test_config
 
 
 @pytest.fixture
@@ -191,8 +191,8 @@ class TestHAAPIFallback:
         result = await recoverer.fetch_all_ha_states()
 
         assert len(result) == 2
-        assert result[0]["entity_id"] == "sensor.s0pcmreader_1_total"
-        assert result[1]["state"] == "5000"
+        assert result[0].entity_id == "sensor.s0pcmreader_1_total"
+        assert result[1].state == "5000"
 
     async def test_fetch_all_ha_states_no_token(self, recoverer, mocker):
         """Test no-token fetch all states."""
@@ -223,7 +223,7 @@ class TestRobustStateCleaning:
         recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState(name="Water")
 
-        ha_states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1234.56 m³"}]
+        ha_states = [HaEntityState(entity_id="sensor.s0pcmreader_1_total", state="1234.56 m³")]
 
         result = recoverer._find_total_in_ha(1, ha_states)
 
@@ -234,7 +234,7 @@ class TestRobustStateCleaning:
         recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState()
 
-        ha_states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "5678.90 kWh"}]
+        ha_states = [HaEntityState(entity_id="sensor.s0pcmreader_1_total", state="5678.90 kWh")]
 
         result = recoverer._find_total_in_ha(1, ha_states)
 
@@ -245,7 +245,7 @@ class TestRobustStateCleaning:
         recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState()
 
-        ha_states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1234,56"}]
+        ha_states = [HaEntityState(entity_id="sensor.s0pcmreader_1_total", state="1234,56")]
 
         result = recoverer._find_total_in_ha(1, ha_states)
 
@@ -256,7 +256,7 @@ class TestRobustStateCleaning:
         recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState()
 
-        ha_states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1.234.567"}]
+        ha_states = [HaEntityState(entity_id="sensor.s0pcmreader_1_total", state="1.234.567")]
 
         result = recoverer._find_total_in_ha(1, ha_states)
 
@@ -267,7 +267,7 @@ class TestRobustStateCleaning:
         recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState()
 
-        ha_states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1.234,56 m³"}]
+        ha_states = [HaEntityState(entity_id="sensor.s0pcmreader_1_total", state="1.234,56 m³")]
 
         result = recoverer._find_total_in_ha(1, ha_states)
 
@@ -278,7 +278,7 @@ class TestRobustStateCleaning:
         recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState()
 
-        ha_states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "9876543"}]
+        ha_states = [HaEntityState(entity_id="sensor.s0pcmreader_1_total", state="9876543")]
 
         result = recoverer._find_total_in_ha(1, ha_states)
 
@@ -289,7 +289,7 @@ class TestRobustStateCleaning:
         recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState(name="Water Meter")
 
-        ha_states = [{"entity_id": "sensor.s0pcmreader_water_meter_total", "state": "12345"}]
+        ha_states = [HaEntityState(entity_id="sensor.s0pcmreader_water_meter_total", state="12345")]
 
         result = recoverer._find_total_in_ha(1, ha_states)
 
@@ -300,7 +300,7 @@ class TestRobustStateCleaning:
         recoverer.context.config = make_test_config()
         recoverer.context.state.meters[1] = state_module.MeterState()
 
-        ha_states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "unavailable"}]
+        ha_states = [HaEntityState(entity_id="sensor.s0pcmreader_1_total", state="unavailable")]
 
         result = recoverer._find_total_in_ha(1, ha_states)
 
@@ -418,7 +418,7 @@ class TestRecoveryFlow:
             recoverer,
             "fetch_all_ha_states",
             new_callable=AsyncMock,
-            return_value=[{"entity_id": "sensor.s0pcmreader_1_total", "state": "5000"}],
+            return_value=[HaEntityState(entity_id="sensor.s0pcmreader_1_total", state="5000")],
         )
 
         recoverer.context.state.meters[1] = state_module.MeterState()
@@ -471,7 +471,7 @@ class TestRecoveryExceptions:
 
     def test_find_total_chaos_format(self, recoverer):
         """Test _find_total_in_ha with chaos format."""
-        states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1.1.1,1,1"}]
+        states = [HaEntityState(entity_id="sensor.s0pcmreader_1_total", state="1.1.1,1,1")]
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState()
 
@@ -480,7 +480,7 @@ class TestRecoveryExceptions:
 
     def test_find_total_empty(self, recoverer):
         """Test _find_total_in_ha with empty string."""
-        states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": " "}]
+        states = [HaEntityState(entity_id="sensor.s0pcmreader_1_total", state=" ")]
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState()
 
@@ -489,7 +489,7 @@ class TestRecoveryExceptions:
 
     def test_find_total_value_error(self, recoverer):
         """Test _find_total_in_ha with invalid number."""
-        states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "."}]
+        states = [HaEntityState(entity_id="sensor.s0pcmreader_1_total", state=".")]
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState()
 
@@ -503,7 +503,7 @@ class TestRecoveryExceptions:
 
     def test_find_total_complex_US(self, recoverer):
         """Test _find_total_in_ha with US format 1,000.50."""
-        states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1,000.50"}]
+        states = [HaEntityState(entity_id="sensor.s0pcmreader_1_total", state="1,000.50")]
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState()
 
@@ -512,7 +512,7 @@ class TestRecoveryExceptions:
 
     def test_find_total_complex_EU(self, recoverer):
         """Test _find_total_in_ha with EU format 1.000,50."""
-        states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1.000,50"}]
+        states = [HaEntityState(entity_id="sensor.s0pcmreader_1_total", state="1.000,50")]
         context = state_module.get_context()
         context.state.meters[1] = state_module.MeterState()
 
@@ -547,7 +547,7 @@ async def test_run_name_data_merge(recoverer, mocker):
 
 def test_find_total_many_commas(recoverer):
     """Test number parsing with many commas."""
-    states = [{"entity_id": "sensor.s0pcmreader_1_total", "state": "1,000,000"}]
+    states = [HaEntityState(entity_id="sensor.s0pcmreader_1_total", state="1,000,000")]
     context = state_module.get_context()
     context.state.meters[1] = state_module.MeterState()
 

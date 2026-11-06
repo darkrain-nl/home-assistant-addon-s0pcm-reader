@@ -205,7 +205,6 @@ def test_parse_localized_number_ambiguous():
 
 def test_parse_localized_number_invalid():
     """Test invalid inputs."""
-    assert utils.parse_localized_number(None) is None
     assert utils.parse_localized_number("") is None
     assert utils.parse_localized_number("abc") is None
     assert utils.parse_localized_number("unknown") is None

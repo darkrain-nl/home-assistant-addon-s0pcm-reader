@@ -3,10 +3,9 @@
 import json
 from unittest.mock import AsyncMock, patch
 
-from helpers import make_test_config
-
 import state as state_module
 from state import MeterState
+from tests.helpers import make_test_config
 
 
 async def test_send_global_discovery_new_ha(mocker):

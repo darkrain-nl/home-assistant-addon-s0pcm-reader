@@ -11,12 +11,12 @@ import utils
 
 logger = logging.getLogger(__name__)
 
-GLOBAL_DIAGNOSTICS: Final = [
-    {"id": "version", "name": "App Version", "icon": "mdi:information-outline"},
-    {"id": "firmware", "name": "S0PCM Firmware", "icon": "mdi:chip"},
-    {"id": "startup_time", "name": "Startup Time"},
-    {"id": "port", "name": "Serial Port", "icon": "mdi:serial-port"},
-]
+GLOBAL_DIAGNOSTICS: Final = (
+    frozendict({"id": "version", "name": "App Version", "icon": "mdi:information-outline"}),
+    frozendict({"id": "firmware", "name": "S0PCM Firmware", "icon": "mdi:chip"}),
+    frozendict({"id": "startup_time", "name": "Startup Time"}),
+    frozendict({"id": "port", "name": "Serial Port", "icon": "mdi:serial-port"}),
+)
 
 
 async def send_global_discovery(client: aiomqtt.Client, context: AppContext) -> None:

@@ -1,17 +1,28 @@
 """Parser for S0PCM serial telegram data packets."""
 
-from typing import TypeGuard
-
-# Type aliases for parsed packet dictionaries.
-type MeterResult = dict[str, int | dict[int, dict[str, int]]]
+from typing import TypedDict
 
 
-def is_valid_packet_length(arr: list[str]) -> TypeGuard[list[str]]:
+class MeterReading(TypedDict):
+    """Describe one meter channel in a telegram."""
+
+    pulses_in_interval: int
+    pulsecount: int
+
+
+class ParsedPacket(TypedDict):
+    """Describe a parsed S0PCM data telegram."""
+
+    interval: int
+    meters: dict[int, MeterReading]
+
+
+def is_valid_packet_length(arr: list[str]) -> bool:
     """Validate packet length for 2-channel or 5-channel models."""
     return len(arr) in (10, 19)
 
 
-def parse_s0pcm_packet(datastr: str) -> MeterResult:
+def parse_s0pcm_packet(datastr: str) -> ParsedPacket:
     """Parse raw S0PCM telegram into structured meter counter dict."""
     s0arr = datastr.split(":")
     size = 0
@@ -31,7 +42,7 @@ def parse_s0pcm_packet(datastr: str) -> MeterResult:
     except IndexError, ValueError:
         raise ValueError(f"Cannot parse interval from packet: '{datastr}'") from None
 
-    result = {"interval": interval, "meters": {}}
+    result: ParsedPacket = {"interval": interval, "meters": {}}
 
     # Parse counters for each channel.
     for count in range(1, size + 1):
