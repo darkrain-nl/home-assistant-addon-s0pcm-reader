@@ -45,7 +45,7 @@ config.yaml              # Home Assistant App manifest
 
 ### Prerequisites
 - **Docker** (required for running tests and linting)
-- **Python 3.14+** (optional, for local IDE support)
+- **Python 3.15+** (optional, for local IDE support)
 
 ### Running Tests
 Tests run in Docker for environment consistency. From the project root:
