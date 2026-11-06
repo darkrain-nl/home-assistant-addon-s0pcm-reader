@@ -11,7 +11,7 @@ async def test_main_initialization(mocker):
     import s0pcm_reader
 
     mocker.patch("s0pcm_reader.get_version", new_callable=AsyncMock)
-    mocker.patch("s0pcm_reader.config_module.read_config", new_callable=AsyncMock)
+    mock_read_config = mocker.patch("s0pcm_reader.config_module.read_config", new_callable=AsyncMock)
 
     mock_serial_task = mocker.patch("s0pcm_reader.serial_task", new_callable=AsyncMock)
     mock_mqtt_task = mocker.patch("s0pcm_reader.mqtt_task", new_callable=AsyncMock)
@@ -20,7 +20,7 @@ async def test_main_initialization(mocker):
 
     await s0pcm_reader.main()
 
-    s0pcm_reader.config_module.read_config.assert_called_once()
+    mock_read_config.assert_called_once()
     mock_serial_task.assert_called_once()
     mock_mqtt_task.assert_called_once()
 

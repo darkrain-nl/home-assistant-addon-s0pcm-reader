@@ -11,9 +11,6 @@ import state as state_module
 def test_state_set_error_caching():
     """Test SetError behavior and shared state update."""
     context = state_module.get_context()
-    context.lasterror_serial = None
-    context.lasterror_mqtt = None
-    context.lasterror_share = None
 
     # Set serial error
     context.set_error("Serial Fail", category="serial")

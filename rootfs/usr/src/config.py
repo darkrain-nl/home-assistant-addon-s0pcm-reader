@@ -2,17 +2,19 @@
 
 import argparse
 import asyncio
-import json
 import logging
 from pathlib import Path
+from typing import Any, Final
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, TypeAdapter
 import serialx
 
 from constants import ConnectionStatus
 from utils import get_supervisor_config
 
 logger = logging.getLogger(__name__)
+
+OPTIONS_ADAPTER: Final = TypeAdapter(dict[str, Any])
 
 
 class LogConfig(BaseModel):
@@ -128,12 +130,11 @@ async def read_config(
 ) -> ConfigModel:
     """Read configuration from options.json or Supervisor."""
     options_path = Path("/data/options.json")
-    ha_options = {}
 
-    def _read_options():
+    def _read_options() -> dict[str, Any]:
         if options_path.exists():
             try:
-                return json.loads(options_path.read_text())
+                return OPTIONS_ADAPTER.validate_json(options_path.read_text())
             except Exception as e:
                 logger.error(f"Failed to load {options_path}: {e}")
         return {}

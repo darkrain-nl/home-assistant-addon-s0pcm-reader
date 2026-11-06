@@ -6,18 +6,28 @@ import json
 import logging
 import os
 import re
-from typing import Any
+from typing import Final
 import urllib.request
 
 import aiomqtt
+from pydantic import BaseModel, TypeAdapter
 
 import state as state_module
 import utils
 
 logger = logging.getLogger(__name__)
 
-# Type aliases for entity state collections.
-type EntityStateList = list[dict[str, Any]]
+
+class HaEntityState(BaseModel):
+    """Describe a Home Assistant entity state."""
+
+    entity_id: str
+    state: str
+
+
+type EntityStateList = list[HaEntityState]
+
+ENTITY_STATES_ADAPTER: Final = TypeAdapter(EntityStateList)
 
 
 class StateRecoverer:
@@ -25,8 +35,8 @@ class StateRecoverer:
 
     def __init__(self, context: state_module.AppContext, client: aiomqtt.Client):
         self.client = client
-        self.recovered_data = {}
-        self.recovered_names = {}
+        self.recovered_data: dict[str, dict[str, int]] = {}
+        self.recovered_names: dict[int, str] = {}
         self.context = context
 
     async def fetch_ha_state(self, entity_id: str) -> str | None:
@@ -40,12 +50,11 @@ class StateRecoverer:
         try:
             req = urllib.request.Request(url, headers=headers)
 
-            def _fetch():
+            def _fetch() -> str | None:
                 with urllib.request.urlopen(req, timeout=5) as response:
                     if response.status == 200:
-                        data = json.loads(response.read().decode())
-                        state = data.get("state")
-                        if state not in [None, "unknown", "unavailable"]:
+                        state = HaEntityState.model_validate_json(response.read()).state
+                        if state not in ["unknown", "unavailable"]:
                             return state
                 return None
 
@@ -65,10 +74,10 @@ class StateRecoverer:
         try:
             req = urllib.request.Request(url, headers=headers)
 
-            def _fetch():
+            def _fetch() -> EntityStateList:
                 with urllib.request.urlopen(req, timeout=5) as response:
                     if response.status == 200:
-                        return json.loads(response.read().decode())
+                        return ENTITY_STATES_ADAPTER.validate_json(response.read())
                 return []
 
             return await asyncio.to_thread(_fetch)
@@ -117,7 +126,7 @@ class StateRecoverer:
         except Exception as e:
             logger.debug(f"Recovery parse error: {e}")
 
-    async def run(self):
+    async def run(self) -> None:
         """Run recovery subscriptions and state reconciliation."""
         logger.info("Starting State Recovery phase...")
         base_topic = self.context.config.mqtt.base_topic
@@ -218,9 +227,9 @@ class StateRecoverer:
 
         for p in patterns:
             for s in ha_states:
-                if s.get("entity_id") == p:
-                    state_str = str(s.get("state", "")).lower()
-                    if state_str in [None, "unknown", "unavailable", ""]:
+                if s.entity_id == p:
+                    state_str = s.state.lower()
+                    if state_str in ["unknown", "unavailable", ""]:
                         continue
 
                     # Parse localized number string.

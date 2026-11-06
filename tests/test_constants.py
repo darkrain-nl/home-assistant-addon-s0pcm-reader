@@ -1,14 +1,15 @@
 """Unit tests for shared constants and enums."""
 
 import pytest
-from rootfs.usr.src.constants import ConnectionStatus, MqttTopicSuffix, SerialPacketType
+
+from constants import ConnectionStatus, MqttTopicSuffix, SerialPacketType
 
 
 class TestConnectionStatus:
     def test_enum_values(self):
         """Test ConnectionStatus enum has correct values."""
-        assert ConnectionStatus.ONLINE == "online"
-        assert ConnectionStatus.OFFLINE == "offline"
+        assert ConnectionStatus.ONLINE.value == "online"
+        assert ConnectionStatus.OFFLINE.value == "offline"
 
     def test_enum_membership(self):
         """Test enum membership and iteration."""
@@ -26,8 +27,8 @@ class TestConnectionStatus:
 class TestSerialPacketType:
     def test_enum_values(self):
         """Test SerialPacketType enum has correct values."""
-        assert SerialPacketType.HEADER == "/"
-        assert SerialPacketType.DATA == "ID:"
+        assert SerialPacketType.HEADER.value == "/"
+        assert SerialPacketType.DATA.value == "ID:"
 
     def test_enum_membership(self):
         """Test enum membership."""
@@ -47,10 +48,10 @@ class TestSerialPacketType:
 class TestMqttTopicSuffix:
     def test_enum_values(self):
         """Test MqttTopicSuffix enum has correct values."""
-        assert MqttTopicSuffix.TOTAL == "total"
-        assert MqttTopicSuffix.TODAY == "today"
-        assert MqttTopicSuffix.YESTERDAY == "yesterday"
-        assert MqttTopicSuffix.PULSECOUNT == "pulsecount"
+        assert MqttTopicSuffix.TOTAL.value == "total"
+        assert MqttTopicSuffix.TODAY.value == "today"
+        assert MqttTopicSuffix.YESTERDAY.value == "yesterday"
+        assert MqttTopicSuffix.PULSECOUNT.value == "pulsecount"
 
     def test_enum_membership(self):
         """Test enum membership."""
