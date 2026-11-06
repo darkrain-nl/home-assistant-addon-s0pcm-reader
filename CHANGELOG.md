@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.10] - 2026-11-06
+### Changed
+- **Python**: Upgraded the runtime to Python 3.15.
+- **Dependencies**: Dependency updates (pydantic v2.14.2, Home Assistant base images).
+- **Shutdown**: Termination signals now stop the app through Python 3.15's `TaskGroup.cancel()`, cancelling only the app's own tasks.
+- **Code Quality**: The code is now strictly type-checked with mypy, and Home Assistant and Supervisor API responses are validated with typed models.
+
 ## [5.0.9] - 2026-11-01
 ### Changed
 - **Dependencies**: Dependency updates (serialx v1.15.1, Home Assistant base images).

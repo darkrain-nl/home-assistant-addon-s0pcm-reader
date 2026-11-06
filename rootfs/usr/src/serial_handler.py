@@ -38,13 +38,10 @@ async def _log_available_ports() -> None:
 def _handle_header(context: state_module.AppContext, datastr: str) -> None:
     """Parse header packet to extract device firmware version."""
     logger.debug(f"Header Packet: '{datastr}'")
-    try:
-        if ":" in datastr:
-            context.s0pcm_firmware = datastr.split(":", 1)[1].strip()
-        else:
-            context.s0pcm_firmware = datastr[1:].strip()
-    except IndexError:
-        context.s0pcm_firmware = datastr
+    if ":" in datastr:
+        context.s0pcm_firmware = datastr.split(":", 1)[1].strip()
+    else:
+        context.s0pcm_firmware = datastr[1:].strip()
 
 
 def _update_meter(
@@ -120,7 +117,7 @@ def _handle_data_packet(context: state_module.AppContext, datastr: str) -> None:
     context.trigger_event.set()
 
 
-async def _read_loop(context: state_module.AppContext, ser: serialx.BaseSerial) -> None:
+async def _read_loop(context: state_module.AppContext, ser: serialx.AsyncSerial) -> None:
     """Continuous read loop from open serial port."""
     while True:
         try:
@@ -139,7 +136,7 @@ async def _read_loop(context: state_module.AppContext, ser: serialx.BaseSerial) 
         try:
             datastr = datain.decode("ascii").rstrip("\r\n")
         except UnicodeDecodeError:
-            context.set_error(f"Failed to decode serial data: '{datain}'", category="serial")
+            context.set_error(f"Failed to decode serial data: '{datain!r}'", category="serial")
             continue
 
         match datastr:

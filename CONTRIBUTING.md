@@ -45,7 +45,7 @@ config.yaml              # Home Assistant App manifest
 
 ### Prerequisites
 - **Docker** (required for running tests and linting)
-- **Python 3.14+** (optional, for local IDE support)
+- **Python 3.15+** (optional, for local IDE support)
 
 ### Running Tests
 Tests run in Docker for environment consistency. From the project root:
@@ -63,7 +63,7 @@ powershell -ExecutionPolicy Bypass -File .\tests\docker-test.ps1
 For detailed testing instructions (targeted tests, coverage, hardware simulation), see [tests/README.md](tests/README.md).
 
 ### Linting
-We use [Ruff](https://docs.astral.sh/ruff/) for linting and formatting. Configuration is in `pyproject.toml`.
+We use [Ruff](https://docs.astral.sh/ruff/) for linting and formatting, and [mypy](https://mypy.readthedocs.io/) in strict mode for type checking. Configuration for both is in `pyproject.toml`.
 
 ```bash
 # Linux / Mac
@@ -82,6 +82,7 @@ powershell -ExecutionPolicy Bypass -File .\tests\fix-lint.ps1
 
 - **Full test coverage** is required. If you add or modify code, you must write tests to cover all branches. Use of `# pragma: no cover` is restricted to standard guard clauses (e.g., `if __name__ == "__main__":`).
 - **Ruff linting** must pass with zero warnings. Run the linter before committing.
+- **Type checking**: `mypy --strict` must pass. Annotate every function in `rootfs/usr/src`; tests may leave fixtures and mocks unannotated.
 - **Terminology**: Use "App" instead of "Add-on" or "Addon" in all user-facing text (`README.md`, `DOCS.md`, `translations/en.yaml`). Historical `CHANGELOG.md` entries are not updated.
 - **No hardcoded metrics** in documentation — don't put specific test counts or coverage percentages in README, DOCS, etc.
 

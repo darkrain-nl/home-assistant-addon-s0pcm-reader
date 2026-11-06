@@ -5,10 +5,10 @@ import contextlib
 import ssl
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from helpers import make_test_config
 import pytest
 
 import state as state_module
+from tests.helpers import make_test_config
 
 
 @pytest.fixture
@@ -121,10 +121,8 @@ class TestMessageHandling:
         """Test exception handling in _handle_set_command."""
         from mqtt_handler import _handle_set_command
 
-        # None topic causes Exception on split
-        with contextlib.suppress(Exception):
-            await _handle_set_command(mqtt_context, None, b"1000")
-        # With proper exception handling it should set error
+        # Too few topic levels raise inside the handler.
+        await _handle_set_command(mqtt_context, "set", b"1000")
         assert mqtt_context.lasterror_share is not None or mqtt_context.lasterror_mqtt is not None
 
     async def test_handle_name_set(self, mqtt_context, mocker):
@@ -165,7 +163,7 @@ class TestMessageHandling:
         mock_client = AsyncMock()
         task_state = MqttTaskState()
 
-        await _handle_name_set(mqtt_context, mock_client, task_state, None, b"Name")
+        await _handle_name_set(mqtt_context, mock_client, task_state, "set", b"Name")
         assert mqtt_context.lasterror_mqtt is not None
         assert "Failed to process MQTT name/set command" in mqtt_context.lasterror_mqtt
 
@@ -628,7 +626,7 @@ class TestMQTTAdditionalCoverage:
         # Make error_msg different to trigger publish
         mqtt_context.set_error("Connect fail", category="mqtt", trigger_event=False)
 
-        mocker.patch("mqtt_handler.logger.error")
+        mock_error = mocker.patch("mqtt_handler.logger.error")
 
         # Trigger event once then cancel
         call_count = 0
@@ -645,9 +643,7 @@ class TestMQTTAdditionalCoverage:
         with contextlib.suppress(asyncio.CancelledError):
             await _publish_loop(mqtt_context, mock_client, task_state)
 
-        import mqtt_handler
-
-        mqtt_handler.logger.error.assert_called_with("MQTT Publish Failed for error: Publish error")
+        mock_error.assert_called_with("MQTT Publish Failed for error: Publish error")
 
     async def test_mqtt_task_tls_build_fail(self, mqtt_context, mocker):
         """Verify mqtt_task retries upon TLS build failure."""
@@ -712,16 +708,12 @@ class TestMQTTAdditionalCoverage:
         """Test outer Exception handler in mqtt_task."""
         from mqtt_handler import mqtt_task
 
-        context = state_module.get_context()
-        context.config = None
+        mocker.patch("mqtt_handler.MQTT_VERSION_MAP", MagicMock(get=MagicMock(side_effect=RuntimeError("boom"))))
+        mock_error = mocker.patch("mqtt_handler.logger.error")
 
-        mocker.patch("mqtt_handler.logger.error")
+        await mqtt_task(state_module.get_context())
 
-        await mqtt_task(context)
-
-        import mqtt_handler
-
-        mqtt_handler.logger.error.assert_called_with("Fatal MQTT exception", exc_info=True)
+        mock_error.assert_called_with("Fatal MQTT exception", exc_info=True)
 
 
 if __name__ == "__main__":

@@ -23,7 +23,14 @@ try {
     # We only copy the directories we care about to avoid overwriting unrelated things
     docker cp "${id}:/workspace/rootfs" .
     docker cp "${id}:/workspace/tests" .
-    
+
+    Write-Host "Running mypy type check..." -ForegroundColor Yellow
+    docker exec $id mypy
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Type check failed!" -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
+
     Write-Host "Done! Files updated." -ForegroundColor Green
 }
 finally {

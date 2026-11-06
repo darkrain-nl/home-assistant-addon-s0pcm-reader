@@ -3,12 +3,11 @@
 import asyncio
 import datetime
 import logging
-from typing import TYPE_CHECKING, Literal, Self
+from typing import Literal, Self
 
 from pydantic import BaseModel, Field
 
-if TYPE_CHECKING:
-    from config import ConfigModel
+from config import ConfigModel
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +41,12 @@ class AppState(BaseModel):
 class AppContext:
     """Shared application context passed across asynchronous tasks."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.recovery_event = asyncio.Event()
         self.trigger_event = asyncio.Event()
 
         self.state = AppState()
-        self.config: ConfigModel | None = None
+        self.config = ConfigModel()
 
         self.lasterror_serial: str | None = None
         self.lasterror_mqtt: str | None = None
@@ -63,7 +62,7 @@ class AppContext:
         category: ErrorCategory = "serial",
         trigger_event: bool = True,
         level: int | None = None,
-    ):
+    ) -> None:
         """Update error state and notify subscribers on change."""
         changed = False
 

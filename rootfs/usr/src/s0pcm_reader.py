@@ -37,23 +37,17 @@ async def main() -> None:
 
     logger.info("Starting s0pcm-reader...")
 
-    # Allow graceful shutdown on termination signals.
-    loop = asyncio.get_running_loop()
+    async with asyncio.TaskGroup() as tg:
 
-    def signal_handler() -> None:
-        logger.info("Signal received, stopping...")
-        for task in asyncio.all_tasks(loop):
-            task.cancel()
+        def signal_handler() -> None:
+            logger.info("Signal received, stopping...")
+            tg.cancel()
 
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, signal_handler)
-
-    try:
-        async with asyncio.TaskGroup() as tg:
-            tg.create_task(serial_task(context))
-            tg.create_task(mqtt_task(context))
-    except* asyncio.CancelledError:
-        pass
+        # Allow graceful shutdown on termination signals.
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            asyncio.get_running_loop().add_signal_handler(sig, signal_handler)
+        tg.create_task(serial_task(context))
+        tg.create_task(mqtt_task(context))
 
     logger.info("Stop: s0pcm-reader")
 

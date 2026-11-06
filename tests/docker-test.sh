@@ -35,6 +35,9 @@ if [ "$1" == "lint" ]; then
     docker cp "${CONTAINER_ID}:/workspace/rootfs" .
     docker cp "${CONTAINER_ID}:/workspace/tests" .
 
+    echo -e "${YELLOW}Running mypy type check...${NC}"
+    docker exec "$CONTAINER_ID" mypy
+
     echo -e "${GREEN}Linting and formatting complete!${NC}"
     exit 0
 fi

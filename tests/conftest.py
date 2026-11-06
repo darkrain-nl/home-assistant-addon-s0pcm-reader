@@ -12,6 +12,7 @@ import pytest
 # Add rootfs source directory to import path.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "rootfs", "usr", "src")))
 
+from config import ConfigModel
 import state as state_module
 
 
@@ -94,7 +95,7 @@ def mock_supervisor_api(mocker):
         mock_response.status = 200
         url = request.full_url if hasattr(request, "full_url") else str(request)
         if "services/mqtt" in url:
-            data = {
+            data: object = {
                 "data": {
                     "host": "core-mosquitto",
                     "port": 1883,
@@ -127,7 +128,7 @@ def reset_global_state():
     context.lasterror_serial = None
     context.lasterror_mqtt = None
     context.lasterror_share = None
-    context.config = None
+    context.config = ConfigModel()
     context.s0pcm_firmware = "Unknown"
     context.recovery_event = asyncio.Event()
     context.trigger_event = asyncio.Event()
