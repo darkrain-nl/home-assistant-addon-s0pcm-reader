@@ -1,13 +1,13 @@
 [project]
 name = "s0pcm-reader"
-version = "5.0.9"
+version = "5.0.10-b0"
 description = "S0PCM Reader Home Assistant App"
-requires-python = ">=3.14"
+requires-python = ">=3.15"
 dependencies = [
     "pyyaml==6.0.3",
     "serialx==1.15.1",
     "aiomqtt>=2.5.1",
-    "pydantic==2.14.1",
+    "pydantic==2.14.2",
 ]
 
 [dependency-groups]
@@ -27,7 +27,7 @@ exclude-newer = "3 days"
 [tool.ruff]
 # Same as Home Assistant
 line-length = 120
-target-version = "py314"
+target-version = "py315"
 src = ["rootfs/usr/src"]
 
 [tool.ruff.lint]
