@@ -2,7 +2,6 @@
 
 import asyncio
 import datetime
-import json
 import logging
 import os
 import re
@@ -23,6 +22,13 @@ class HaEntityState(BaseModel):
 
     entity_id: str
     state: str
+
+
+class DiscoveryConfig(BaseModel):
+    """Describe the fields read from an MQTT discovery config."""
+
+    unique_id: str = ""
+    state_topic: str = ""
 
 
 type EntityStateList = list[HaEntityState]
@@ -91,15 +97,11 @@ class StateRecoverer:
         try:
             # Extract custom meter names from discovery config topics.
             if "/config" in topic:
-                decoded = json.loads(payload.decode())
-                unique_id = decoded.get("unique_id", "")
-                state_topic = decoded.get("state_topic", "")
-
-                match_id = re.search(rf"s0pcm_{base_topic}_(\d+)", unique_id)
+                config = DiscoveryConfig.model_validate_json(payload)
+                match_id = re.search(rf"s0pcm_{base_topic}_(\d+)", config.unique_id)
                 if match_id:
                     meter_id = int(match_id.group(1))
-                    name_part = state_topic.replace(f"{base_topic}/", "")
-                    name = name_part.split("/")[0]
+                    name = config.state_topic.replace(f"{base_topic}/", "").split("/")[0]
                     if name and name != str(meter_id) and name.lower() != "none":
                         self.recovered_names[meter_id] = name
                         logger.debug(f"Recovery: Mapped ID {meter_id} to Name '{name}'")

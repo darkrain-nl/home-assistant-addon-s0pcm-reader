@@ -1,6 +1,7 @@
 """Unit tests for configuration loading and validation."""
 
 import json
+import logging
 import os
 from pathlib import Path
 import sys
@@ -10,6 +11,7 @@ import pytest
 
 import config as config_module
 import state as state_module
+from utils import MqttService
 
 
 @pytest.fixture(autouse=True)
@@ -106,13 +108,37 @@ class TestConfigCoverage:
     async def test_read_config_mqtt_discovery_log(self, mocker):
         """Verify logger outputs when MQTT discovery is active."""
         with (
-            patch("config.get_supervisor_config", new_callable=AsyncMock, return_value={"host": "1.2.3.4"}),
+            patch("config.get_mqtt_service", new_callable=AsyncMock, return_value=MqttService(host="1.2.3.4")),
             patch("config.logger.info") as mock_logger,
         ):
-            await config_module.read_config()
+            model = await config_module.read_config()
 
+            assert model.mqtt.host == "1.2.3.4"
             found = any("Using MQTT service discovery" in str(c) for c in mock_logger.call_args_list)
             assert found
+
+    async def test_read_config_custom_host_skips_discovery(self, mocker):
+        """Verify a custom MQTT host bypasses Supervisor discovery."""
+        mocker.patch.object(Path, "exists", return_value=True)
+        mocker.patch.object(Path, "read_text", return_value=json.dumps({"mqtt": {"host": "broker.lan"}}))
+        mock_discovery = mocker.patch("config.get_mqtt_service", new_callable=AsyncMock)
+        model = await config_module.read_config()
+        assert model.mqtt.host == "broker.lan"
+        assert model.mqtt.username is None
+        mock_discovery.assert_not_called()
+
+    async def test_read_config_logging_ready_before_discovery(self, mocker):
+        """Verify logging is configured before Supervisor discovery runs."""
+        mocker.patch.object(Path, "exists", return_value=True)
+        mocker.patch.object(Path, "read_text", return_value=json.dumps({"log_level": "debug"}))
+        levels = []
+        mocker.patch(
+            "config.get_mqtt_service",
+            new_callable=AsyncMock,
+            side_effect=lambda: levels.append(logging.getLogger().level),
+        )
+        await config_module.read_config()
+        assert levels == [logging.DEBUG]
 
     async def test_read_config_returns_model(self):
         """Verify read_config returns populated ConfigModel."""

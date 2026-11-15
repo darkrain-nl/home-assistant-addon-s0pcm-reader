@@ -212,16 +212,15 @@ def run():
                     exit(1)
 
         # Phase 2 Operations
-        elif state["phase"] == 2:
-            if (
-                state["broker_restarted"]
-                and state["app_reconnected"]
-                and state["error_reported"]
-                and state["error_cleared"]
-                and state["post_recovery_increments"] >= 2
-            ):
-                logger.info("🎉 PHASE 2 PASSED! ALL CHECKS PASSED!")
-                exit(0)
+        elif state["phase"] == 2 and (
+            state["broker_restarted"]
+            and state["app_reconnected"]
+            and state["error_reported"]
+            and state["error_cleared"]
+            and state["post_recovery_increments"] >= 2
+        ):
+            logger.info("🎉 PHASE 2 PASSED! ALL CHECKS PASSED!")
+            exit(0)
 
         time.sleep(1)
 

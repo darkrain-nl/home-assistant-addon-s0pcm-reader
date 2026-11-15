@@ -5,18 +5,14 @@ import logging
 import os
 from pathlib import Path
 import re
-from typing import Any
 import urllib.error
 import urllib.parse
 import urllib.request
 
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr, ValidationError
 import yaml
 
 logger = logging.getLogger(__name__)
-
-# Type aliases for JSON dictionaries.
-type JsonDict = dict[str, Any]
 
 
 class SupervisorResponse[T](BaseModel):
@@ -29,6 +25,21 @@ class CoreInfo(BaseModel):
     """Describe the Supervisor core info payload."""
 
     version: str | None = None
+
+
+class LocalConfig(BaseModel):
+    """Describe the version field of a local config.yaml."""
+
+    version: str
+
+
+class MqttService(BaseModel):
+    """Describe the Supervisor MQTT service payload."""
+
+    host: str | None = None
+    port: int | None = None
+    username: SecretStr | None = None
+    password: SecretStr | None = None
 
 
 async def get_version() -> str:
@@ -53,9 +64,8 @@ async def get_version() -> str:
             if path.exists():
                 try:
                     with path.open() as f:
-                        if (config_yaml := yaml.safe_load(f)) and "version" in config_yaml:
-                            return f"{config_yaml['version']} (local)"
-                except OSError, yaml.YAMLError:
+                        return f"{LocalConfig.model_validate(yaml.safe_load(f)).version} (local)"
+                except OSError, yaml.YAMLError, ValidationError:
                     pass
         return None
 
@@ -66,27 +76,28 @@ async def get_version() -> str:
     return "dev"
 
 
-async def get_supervisor_config(service: str) -> JsonDict:
-    """Fetch service configuration dictionary from Supervisor API."""
+async def get_mqtt_service() -> MqttService | None:
+    """Fetch MQTT service credentials from the Supervisor API."""
     token = os.getenv("SUPERVISOR_TOKEN")
     if not token:
-        return {}
+        return None
 
-    url = f"http://supervisor/services/{service}"
+    url = "http://supervisor/services/mqtt"
     headers = {"Authorization": f"Bearer {token}"}
     try:
         req = urllib.request.Request(url, headers=headers)
 
-        def _fetch() -> JsonDict:
+        def _fetch() -> MqttService | None:
             with urllib.request.urlopen(req, timeout=5) as response:
                 if response.status == 200:
-                    return SupervisorResponse[JsonDict].model_validate_json(response.read()).data
-            return {}
+                    return SupervisorResponse[MqttService].model_validate_json(response.read()).data
+                logger.warning(f"Supervisor MQTT discovery returned HTTP {response.status}")
+            return None
 
         return await asyncio.to_thread(_fetch)
     except (urllib.error.URLError, ValueError, OSError) as e:
-        logger.debug(f"Supervisor API discovery for {service} failed: {e}")
-    return {}
+        logger.warning(f"Supervisor MQTT discovery failed: {e}")
+    return None
 
 
 def parse_localized_number(value_str: str) -> float | None:

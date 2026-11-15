@@ -4,17 +4,55 @@ import argparse
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any, Final
 
-from pydantic import BaseModel, Field, SecretStr, TypeAdapter
+from pydantic import BaseModel, Field, SecretStr
 import serialx
 
 from constants import ConnectionStatus
-from utils import get_supervisor_config
+from utils import MqttService, get_mqtt_service
 
 logger = logging.getLogger(__name__)
 
-OPTIONS_ADAPTER: Final = TypeAdapter(dict[str, Any])
+
+class MqttOptions(BaseModel):
+    """Describe the mqtt section of options.json."""
+
+    host: str | None = None
+    port: int | None = None
+    username: SecretStr | None = None
+    password: SecretStr | None = None
+    client_id: str | None = None
+    base_topic: str = "s0pcmreader"
+    protocol: str = "5.0"
+
+
+class AdvancedOptions(BaseModel):
+    """Describe the advanced section of options.json."""
+
+    discovery: bool = True
+    discovery_prefix: str = "homeassistant"
+    retain: bool = True
+    split_topic: bool = True
+    recovery_wait: int = 7
+
+
+class SecurityOptions(BaseModel):
+    """Describe the security section of options.json."""
+
+    tls: bool = False
+    tls_check_peer: bool = False
+    tls_port: int = 8883
+    tls_ca: str = ""
+
+
+class AppOptions(BaseModel):
+    """Describe the app options.json file."""
+
+    device: str | None = None
+    log_level: str | None = None
+    mqtt: MqttOptions = Field(default_factory=MqttOptions)
+    advanced: AdvancedOptions = Field(default_factory=AdvancedOptions)
+    security: SecurityOptions = Field(default_factory=SecurityOptions)
 
 
 class LogConfig(BaseModel):
@@ -131,76 +169,67 @@ async def read_config(
     """Read configuration from options.json or Supervisor."""
     options_path = Path("/data/options.json")
 
-    def _read_options() -> dict[str, Any]:
+    def _read_options() -> AppOptions:
         if options_path.exists():
             try:
-                return OPTIONS_ADAPTER.validate_json(options_path.read_text())
+                return AppOptions.model_validate_json(options_path.read_text())
             except Exception as e:
                 logger.error(f"Failed to load {options_path}: {e}")
-        return {}
+        return AppOptions()
 
-    ha_options = await asyncio.to_thread(_read_options)
+    options = await asyncio.to_thread(_read_options)
 
-    mqtt_service = {}
-    if not ha_options.get("mqtt_host"):
-        mqtt_service = await get_supervisor_config("mqtt")
-        if mqtt_service:
-            logger.info("Using MQTT service discovery for connection settings.")
-
-    mqtt_opts = ha_options.get("mqtt", {})
-    adv_opts = ha_options.get("advanced", {})
-    sec_opts = ha_options.get("security", {})
-
-    mqtt_version_str = str(mqtt_opts.get("protocol", "5.0"))
-
-    tls_ca = sec_opts.get("tls_ca", "")
-    if tls_ca:
-        tls_ca_path = Path(tls_ca)
-        if not tls_ca_path.is_absolute():
-            tls_ca = str(config_dir / tls_ca)
-
-    device_opt = ha_options.get("device")
-    resolved_port = await _auto_detect_serial_port() if device_opt in [None, "", "null"] else device_opt
-
-    model = ConfigModel(
-        log=LogConfig(level=(ha_options.get("log_level") or "INFO").upper()),
-        serial=SerialConfig(port=resolved_port),
-        mqtt=MqttConfig(
-            host=mqtt_opts.get("host") or mqtt_service.get("host", "127.0.0.1"),
-            port=mqtt_opts.get("port") or mqtt_service.get("port", 1883),
-            tls_port=sec_opts.get("tls_port", 8883),
-            username=mqtt_opts.get("username") or mqtt_service.get("username"),
-            password=mqtt_opts.get("password") or mqtt_service.get("password"),
-            base_topic=mqtt_opts.get("base_topic", "s0pcmreader"),
-            client_id=mqtt_opts.get("client_id") if mqtt_opts.get("client_id") not in [None, "", "None"] else None,
-            version=mqtt_version_str,
-            retain=adv_opts.get("retain", True),
-            split_topic=adv_opts.get("split_topic", True),
-            discovery=adv_opts.get("discovery", True),
-            discovery_prefix=adv_opts.get("discovery_prefix", "homeassistant"),
-            tls=sec_opts.get("tls", False),
-            tls_ca=tls_ca,
-            tls_check_peer=sec_opts.get("tls_check_peer", False),
-            recovery_wait=adv_opts.get("recovery_wait", 7),
-        ),
-    )
-
+    # Configure logging first so discovery failures are visible.
+    log_level = (options.log_level or "INFO").upper()
     root_logger = logging.getLogger()
-    root_logger.setLevel(model.log.level)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
+    root_logger.setLevel(log_level)
 
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
 
     stream = logging.StreamHandler()
-    stream.setLevel(model.log.level)
-    stream.setFormatter(formatter)
+    stream.setLevel(log_level)
+    stream.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
     root_logger.addHandler(stream)
 
     # Suppress serialx byte-level debug logging.
     logging.getLogger("serialx").setLevel(logging.WARNING)
 
     logger.info(f"Start: s0pcm-reader - version: {version}")
+
+    mqtt_service = MqttService()
+    if not options.mqtt.host and (discovered := await get_mqtt_service()) is not None:
+        logger.info("Using MQTT service discovery for connection settings.")
+        mqtt_service = discovered
+
+    tls_ca = options.security.tls_ca
+    if tls_ca and not Path(tls_ca).is_absolute():
+        tls_ca = str(config_dir / tls_ca)
+
+    model = ConfigModel(
+        log=LogConfig(level=log_level),
+        serial=SerialConfig(
+            port=options.device if options.device and options.device != "null" else await _auto_detect_serial_port()
+        ),
+        mqtt=MqttConfig(
+            host=options.mqtt.host or mqtt_service.host or "127.0.0.1",
+            port=options.mqtt.port or mqtt_service.port or 1883,
+            tls_port=options.security.tls_port,
+            username=options.mqtt.username or mqtt_service.username,
+            password=options.mqtt.password or mqtt_service.password,
+            base_topic=options.mqtt.base_topic,
+            client_id=options.mqtt.client_id if options.mqtt.client_id not in ("", "None") else None,
+            version=options.mqtt.protocol,
+            retain=options.advanced.retain,
+            split_topic=options.advanced.split_topic,
+            discovery=options.advanced.discovery,
+            discovery_prefix=options.advanced.discovery_prefix,
+            tls=options.security.tls,
+            tls_ca=tls_ca,
+            tls_check_peer=options.security.tls_check_peer,
+            recovery_wait=options.advanced.recovery_wait,
+        ),
+    )
 
     # Log configuration with sanitized secrets.
     config_log = model.model_dump(mode="json")

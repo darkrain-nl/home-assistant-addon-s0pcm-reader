@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 import json
 import logging
 import ssl
-from typing import Any
 
 import aiomqtt
 
@@ -38,7 +37,7 @@ class MqttTaskState:
     global_discovery_sent: bool = False
     discovered_meters: dict[int, str] = field(default_factory=dict)
     recovery_complete: bool = False
-    last_diagnostics: dict[str, Any] = field(default_factory=dict)
+    last_diagnostics: dict[str, str] = field(default_factory=dict)
     last_info_payload: str | None = None
     last_error_msg: str | None = None
 
@@ -177,6 +176,16 @@ async def _publish_diagnostics(
         logger.error(f"Failed to publish info state to MQTT: {e}")
 
 
+def _counters(mstate: state_module.MeterState) -> dict[MqttTopicSuffix, int]:
+    """Map counter topic suffixes to their meter values."""
+    return {
+        MqttTopicSuffix.TOTAL: mstate.total,
+        MqttTopicSuffix.TODAY: mstate.today,
+        MqttTopicSuffix.YESTERDAY: mstate.yesterday,
+        MqttTopicSuffix.PULSECOUNT: mstate.pulsecount,
+    }
+
+
 async def _publish_measurements(
     context: state_module.AppContext,
     client: aiomqtt.Client,
@@ -195,28 +204,21 @@ async def _publish_measurements(
 
         instancename = mstate.name if mstate.name else str(mid)
         prev_mstate = previous_snapshot.meters.get(mid) if previous_snapshot else None
+        counters = _counters(mstate)
+        prev_counters = _counters(prev_mstate) if prev_mstate else {}
 
         # Publish raw counter topics for recovery and diagnostics.
-        for topic_field in [
-            MqttTopicSuffix.TOTAL,
-            MqttTopicSuffix.TODAY,
-            MqttTopicSuffix.YESTERDAY,
-            MqttTopicSuffix.PULSECOUNT,
-        ]:
-            val = getattr(mstate, topic_field)
-            old_val = getattr(prev_mstate, topic_field) if prev_mstate else None
-            if val != old_val:
+        for topic_field, val in counters.items():
+            if val != prev_counters.get(topic_field):
                 topic = f"{context.config.mqtt.base_topic}/{mid}/{topic_field}"
                 await client.publish(topic, val, retain=True)
                 logger.debug(f"MQTT Publish: topic='{topic}', value='{val}'")
 
         # Publish user-facing topics.
-        jsondata = {}
+        jsondata: dict[str, int] = {}
         for topic_field in [MqttTopicSuffix.TOTAL, MqttTopicSuffix.TODAY, MqttTopicSuffix.YESTERDAY]:
-            val = getattr(mstate, topic_field)
-            old_val = getattr(prev_mstate, topic_field) if prev_mstate else -1
-
-            if val != old_val or (prev_mstate and mstate.name != prev_mstate.name):
+            val = counters[topic_field]
+            if val != prev_counters.get(topic_field, -1) or (prev_mstate and mstate.name != prev_mstate.name):
                 if context.config.mqtt.split_topic:
                     topic = f"{context.config.mqtt.base_topic}/{instancename}/{topic_field}"
                     await client.publish(topic, val, retain=context.config.mqtt.retain)
@@ -226,9 +228,9 @@ async def _publish_measurements(
 
         if not prev_mstate or mstate.name != prev_mstate.name:
             topic = f"{context.config.mqtt.base_topic}/{mid}/name"
-            val = mstate.name if mstate.name else ""
-            await client.publish(topic, val, retain=True)
-            logger.debug(f"MQTT Publish Name: topic='{topic}', value='{val}'")
+            name = mstate.name or ""
+            await client.publish(topic, name, retain=True)
+            logger.debug(f"MQTT Publish Name: topic='{topic}', value='{name}'")
 
         if not context.config.mqtt.split_topic and jsondata:
             topic = f"{context.config.mqtt.base_topic}/{instancename}"

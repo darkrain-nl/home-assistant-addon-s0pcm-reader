@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.11] - 2026-11-15
+### Changed
+- **Code Quality**: App options and the Supervisor MQTT service are now read into typed models, so every option is type-checked. An `options.json` that fails validation now logs an error and starts with default settings.
+- **Code Quality**: Meter publishing and state recovery are now fully type-checked, with MQTT discovery configs validated by a typed model.
+
+### Fixed
+- **MQTT**: A custom MQTT host no longer picks up the Mosquitto App's credentials from Supervisor discovery. Leave the host empty to use auto-discovery.
+- **Logging**: Supervisor MQTT discovery failures are now logged as warnings with their cause, instead of silently falling back to `127.0.0.1`.
+
 ## [5.0.10] - 2026-11-06
 ### Changed
 - **Python**: Upgraded the runtime to Python 3.15.
