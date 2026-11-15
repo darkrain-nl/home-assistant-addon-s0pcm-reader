@@ -282,6 +282,50 @@ class TestPublishingLogic:
         payload = json_calls[0].args[1]
         assert '"today": 50' in payload
 
+    async def test_publish_measurements_first_snapshot_calls(self, mqtt_context):
+        """Verify every counter publishes on the first snapshot, zeros included."""
+        from mqtt_handler import _publish_measurements
+
+        mock_client = AsyncMock()
+        mqtt_context.config = make_test_config(split_topic=True)
+        state_snapshot = state_module.AppState()
+        state_snapshot.meters[1] = state_module.MeterState(name="Water", total=1000)
+
+        await _publish_measurements(mqtt_context, mock_client, state_snapshot, None)
+
+        assert [c.args[:2] for c in mock_client.publish.call_args_list if "/date" not in c.args[0]] == [
+            ("s0pcmreader/1/total", 1000),
+            ("s0pcmreader/1/today", 0),
+            ("s0pcmreader/1/yesterday", 0),
+            ("s0pcmreader/1/pulsecount", 0),
+            ("s0pcmreader/Water/total", 1000),
+            ("s0pcmreader/Water/today", 0),
+            ("s0pcmreader/Water/yesterday", 0),
+            ("s0pcmreader/1/name", "Water"),
+        ]
+
+    async def test_publish_measurements_changed_counters_only(self, mqtt_context):
+        """Verify only changed counters publish against a previous snapshot."""
+        from mqtt_handler import _publish_measurements
+
+        mock_client = AsyncMock()
+        mqtt_context.config = make_test_config(split_topic=True)
+        previous_snapshot = state_module.AppState()
+        previous_snapshot.meters[1] = state_module.MeterState(
+            name="Water", total=1000, today=50, yesterday=7, pulsecount=3
+        )
+        state_snapshot = previous_snapshot.model_copy(deep=True)
+        state_snapshot.meters[1].total = 1001
+        state_snapshot.meters[1].pulsecount = 4
+
+        await _publish_measurements(mqtt_context, mock_client, state_snapshot, previous_snapshot)
+
+        assert [c.args[:2] for c in mock_client.publish.call_args_list] == [
+            ("s0pcmreader/1/total", 1001),
+            ("s0pcmreader/1/pulsecount", 4),
+            ("s0pcmreader/Water/total", 1001),
+        ]
+
 
 async def test_handle_name_set_triggers_discovery(mqtt_context, mocker):
     """Test that setting a name triggers discovery for all meters."""
