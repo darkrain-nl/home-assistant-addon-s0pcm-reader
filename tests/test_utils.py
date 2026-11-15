@@ -97,8 +97,10 @@ async def test_get_mqtt_service_api_error(mocker):
     """Test Supervisor API handles errors gracefully."""
     mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
     mocker.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("API Error"))
+    mock_warning = mocker.patch("utils.logger.warning")
 
     assert await utils.get_mqtt_service() is None
+    assert "Supervisor MQTT discovery failed" in mock_warning.call_args[0][0]
 
 
 async def test_get_mqtt_service_status_not_200(mocker):
@@ -109,8 +111,10 @@ async def test_get_mqtt_service_status_not_200(mocker):
     mock_response.__enter__ = lambda self: self
     mock_response.__exit__ = lambda self, *args: None
     mocker.patch("urllib.request.urlopen", return_value=mock_response)
+    mock_warning = mocker.patch("utils.logger.warning")
 
     assert await utils.get_mqtt_service() is None
+    assert "returned HTTP 204" in mock_warning.call_args[0][0]
 
 
 async def test_get_ha_core_version_no_token(mocker):
