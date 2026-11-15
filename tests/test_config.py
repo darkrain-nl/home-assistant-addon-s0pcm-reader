@@ -10,6 +10,7 @@ import pytest
 
 import config as config_module
 import state as state_module
+from utils import MqttService
 
 
 @pytest.fixture(autouse=True)
@@ -106,11 +107,12 @@ class TestConfigCoverage:
     async def test_read_config_mqtt_discovery_log(self, mocker):
         """Verify logger outputs when MQTT discovery is active."""
         with (
-            patch("config.get_supervisor_config", new_callable=AsyncMock, return_value={"host": "1.2.3.4"}),
+            patch("config.get_mqtt_service", new_callable=AsyncMock, return_value=MqttService(host="1.2.3.4")),
             patch("config.logger.info") as mock_logger,
         ):
-            await config_module.read_config()
+            model = await config_module.read_config()
 
+            assert model.mqtt.host == "1.2.3.4"
             found = any("Using MQTT service discovery" in str(c) for c in mock_logger.call_args_list)
             assert found
 

@@ -64,13 +64,13 @@ async def test_get_version_yaml_no_version_key(mocker, tmp_path, monkeypatch):
     assert await utils.get_version() == "dev"
 
 
-async def test_get_supervisor_config_no_token(mocker):
-    """Test GetSupervisorConfig when token is missing."""
+async def test_get_mqtt_service_no_token(mocker):
+    """Test get_mqtt_service when token is missing."""
     mocker.patch.dict(os.environ, {}, clear=True)
-    assert await utils.get_supervisor_config("mqtt") == {}
+    assert await utils.get_mqtt_service() is None
 
 
-async def test_get_supervisor_config_success(mocker):
+async def test_get_mqtt_service_success(mocker):
     """Test successful Supervisor API config fetch."""
     mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
 
@@ -84,25 +84,25 @@ async def test_get_supervisor_config_success(mocker):
 
     mocker.patch("urllib.request.urlopen", return_value=mock_response)
 
-    result = await utils.get_supervisor_config("mqtt")
+    result = await utils.get_mqtt_service()
 
-    assert result["host"] == "core-mosquitto"
-    assert result["port"] == 1883
-    assert result["username"] == "mqtt_user"
+    assert result is not None
+    assert result.host == "core-mosquitto"
+    assert result.port == 1883
+    assert result.username is not None
+    assert result.username.get_secret_value() == "mqtt_user"
 
 
-async def test_get_supervisor_config_api_error(mocker):
+async def test_get_mqtt_service_api_error(mocker):
     """Test Supervisor API handles errors gracefully."""
     mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
     mocker.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("API Error"))
 
-    result = await utils.get_supervisor_config("mqtt")
-
-    assert result == {}
+    assert await utils.get_mqtt_service() is None
 
 
-async def test_get_supervisor_config_status_not_200(mocker):
-    """Verify empty dict returned when API returns non-200 status."""
+async def test_get_mqtt_service_status_not_200(mocker):
+    """Verify None returned when API returns non-200 status."""
     mocker.patch.dict(os.environ, {"SUPERVISOR_TOKEN": "test_token"})
     mock_response = MagicMock()
     mock_response.status = 204
@@ -110,8 +110,7 @@ async def test_get_supervisor_config_status_not_200(mocker):
     mock_response.__exit__ = lambda self, *args: None
     mocker.patch("urllib.request.urlopen", return_value=mock_response)
 
-    result = await utils.get_supervisor_config("mqtt")
-    assert result == {}
+    assert await utils.get_mqtt_service() is None
 
 
 async def test_get_ha_core_version_no_token(mocker):
