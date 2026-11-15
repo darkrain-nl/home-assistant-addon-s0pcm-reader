@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **MQTT**: A custom MQTT host no longer picks up the Mosquitto App's credentials from Supervisor discovery. Leave the host empty to use auto-discovery.
+- **Logging**: Supervisor MQTT discovery failures are now logged as warnings with their cause, instead of silently falling back to `127.0.0.1`.
 
 ## [5.0.10] - 2026-11-06
 ### Changed
