@@ -86,11 +86,12 @@ async def get_mqtt_service() -> MqttService | None:
             with urllib.request.urlopen(req, timeout=5) as response:
                 if response.status == 200:
                     return SupervisorResponse[MqttService].model_validate_json(response.read()).data
+                logger.warning(f"Supervisor MQTT discovery returned HTTP {response.status}")
             return None
 
         return await asyncio.to_thread(_fetch)
     except (urllib.error.URLError, ValueError, OSError) as e:
-        logger.debug(f"Supervisor API discovery for mqtt failed: {e}")
+        logger.warning(f"Supervisor MQTT discovery failed: {e}")
     return None
 
 

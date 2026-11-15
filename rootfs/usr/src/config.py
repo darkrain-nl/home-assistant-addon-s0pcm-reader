@@ -179,6 +179,24 @@ async def read_config(
 
     options = await asyncio.to_thread(_read_options)
 
+    # Configure logging first so discovery failures are visible.
+    log_level = (options.log_level or "INFO").upper()
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    stream = logging.StreamHandler()
+    stream.setLevel(log_level)
+    stream.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
+    root_logger.addHandler(stream)
+
+    # Suppress serialx byte-level debug logging.
+    logging.getLogger("serialx").setLevel(logging.WARNING)
+
+    logger.info(f"Start: s0pcm-reader - version: {version}")
+
     mqtt_service = MqttService()
     if not options.mqtt.host and (discovered := await get_mqtt_service()) is not None:
         logger.info("Using MQTT service discovery for connection settings.")
@@ -189,7 +207,7 @@ async def read_config(
         tls_ca = str(config_dir / tls_ca)
 
     model = ConfigModel(
-        log=LogConfig(level=(options.log_level or "INFO").upper()),
+        log=LogConfig(level=log_level),
         serial=SerialConfig(
             port=options.device if options.device and options.device != "null" else await _auto_detect_serial_port()
         ),
@@ -212,23 +230,6 @@ async def read_config(
             recovery_wait=options.advanced.recovery_wait,
         ),
     )
-
-    root_logger = logging.getLogger()
-    root_logger.setLevel(model.log.level)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
-
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-
-    stream = logging.StreamHandler()
-    stream.setLevel(model.log.level)
-    stream.setFormatter(formatter)
-    root_logger.addHandler(stream)
-
-    # Suppress serialx byte-level debug logging.
-    logging.getLogger("serialx").setLevel(logging.WARNING)
-
-    logger.info(f"Start: s0pcm-reader - version: {version}")
 
     # Log configuration with sanitized secrets.
     config_log = model.model_dump(mode="json")
