@@ -14,10 +14,10 @@ configuration:
         description: "The port for MQTT connections. Leave empty for default (1883 or 8883 for TLS)."
       username:
         name: "MQTT Username"
-        description: "Username for MQTT broker authentication. Leave empty to use HA OS auto-discovery."
+        description: "Username for MQTT broker authentication. Leave empty, together with MQTT Host, to use HA OS auto-discovery."
       password:
         name: "MQTT Password"
-        description: "Password for MQTT broker authentication. Leave empty to use HA OS auto-discovery."
+        description: "Password for MQTT broker authentication. Leave empty, together with MQTT Host, to use HA OS auto-discovery."
       client_id:
         name: "MQTT Client ID"
         description: "Unique identifier for this MQTT client. Leave empty to auto-generate an ID."

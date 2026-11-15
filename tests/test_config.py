@@ -116,6 +116,16 @@ class TestConfigCoverage:
             found = any("Using MQTT service discovery" in str(c) for c in mock_logger.call_args_list)
             assert found
 
+    async def test_read_config_custom_host_skips_discovery(self, mocker):
+        """Verify a custom MQTT host bypasses Supervisor discovery."""
+        mocker.patch.object(Path, "exists", return_value=True)
+        mocker.patch.object(Path, "read_text", return_value=json.dumps({"mqtt": {"host": "broker.lan"}}))
+        mock_discovery = mocker.patch("config.get_mqtt_service", new_callable=AsyncMock)
+        model = await config_module.read_config()
+        assert model.mqtt.host == "broker.lan"
+        assert model.mqtt.username is None
+        mock_discovery.assert_not_called()
+
     async def test_read_config_returns_model(self):
         """Verify read_config returns populated ConfigModel."""
         model = await config_module.read_config()

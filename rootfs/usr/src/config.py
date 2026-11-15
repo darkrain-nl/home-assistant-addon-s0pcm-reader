@@ -179,10 +179,10 @@ async def read_config(
 
     options = await asyncio.to_thread(_read_options)
 
-    if (mqtt_service := await get_mqtt_service()) is None:
-        mqtt_service = MqttService()
-    else:
+    mqtt_service = MqttService()
+    if not options.mqtt.host and (discovered := await get_mqtt_service()) is not None:
         logger.info("Using MQTT service discovery for connection settings.")
+        mqtt_service = discovered
 
     tls_ca = options.security.tls_ca
     if tls_ca and not Path(tls_ca).is_absolute():
