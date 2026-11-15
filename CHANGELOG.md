@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.12-b0] - 2026-11-15
+### Changed
+- **Repository**: All text files, including the AppArmor profile, now use LF line endings, enforced by `.gitattributes`. The profile's content is unchanged.
+
 ## [5.0.11] - 2026-11-15
 ### Changed
 - **Code Quality**: App options and the Supervisor MQTT service are now read into typed models, so every option is type-checked. An `options.json` that fails validation now logs an error and starts with default settings.
