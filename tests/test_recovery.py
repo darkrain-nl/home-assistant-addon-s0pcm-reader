@@ -65,6 +65,26 @@ class TestMQTTMessageParsing:
 
         assert 3 not in recoverer.recovered_names
 
+    def test_process_message_discovery_topic_without_state_topic(self, recoverer):
+        """Test a discovery config without state_topic stores no name."""
+        topic = "homeassistant/sensor/s0pcmreader/s0pcm_s0pcmreader_4_total/config"
+        payload = json.dumps({"unique_id": "s0pcm_s0pcmreader_4_total"}).encode()
+
+        recoverer._process_message(topic, payload)
+
+        assert 4 not in recoverer.recovered_names
+
+    def test_process_message_discovery_topic_wrong_type(self, recoverer):
+        """Test a discovery config with a non-string unique_id is skipped."""
+        topic = "homeassistant/sensor/s0pcmreader/s0pcm_s0pcmreader_5_total/config"
+        payload = json.dumps({"unique_id": 5, "state_topic": "s0pcmreader/Gas/total"}).encode()
+
+        with patch("recovery.logger.debug") as mock_debug:
+            recoverer._process_message(topic, payload)
+
+        assert recoverer.recovered_names == {}
+        assert "Recovery parse error" in mock_debug.call_args[0][0]
+
     def test_process_message_data_topic_total(self, recoverer):
         """Test parsing total value from MQTT data topic."""
         recoverer._process_message("s0pcmreader/1/total", b"1234567")
