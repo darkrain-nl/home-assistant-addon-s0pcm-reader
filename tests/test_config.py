@@ -1,6 +1,7 @@
 """Unit tests for configuration loading and validation."""
 
 import json
+import logging
 import os
 from pathlib import Path
 import sys
@@ -125,6 +126,19 @@ class TestConfigCoverage:
         assert model.mqtt.host == "broker.lan"
         assert model.mqtt.username is None
         mock_discovery.assert_not_called()
+
+    async def test_read_config_logging_ready_before_discovery(self, mocker):
+        """Verify logging is configured before Supervisor discovery runs."""
+        mocker.patch.object(Path, "exists", return_value=True)
+        mocker.patch.object(Path, "read_text", return_value=json.dumps({"log_level": "debug"}))
+        levels = []
+        mocker.patch(
+            "config.get_mqtt_service",
+            new_callable=AsyncMock,
+            side_effect=lambda: levels.append(logging.getLogger().level),
+        )
+        await config_module.read_config()
+        assert levels == [logging.DEBUG]
 
     async def test_read_config_returns_model(self):
         """Verify read_config returns populated ConfigModel."""
