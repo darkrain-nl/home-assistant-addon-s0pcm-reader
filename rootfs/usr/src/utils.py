@@ -9,7 +9,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, SecretStr, ValidationError
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,12 @@ class CoreInfo(BaseModel):
     """Describe the Supervisor core info payload."""
 
     version: str | None = None
+
+
+class LocalConfig(BaseModel):
+    """Describe the version field of a local config.yaml."""
+
+    version: str
 
 
 class MqttService(BaseModel):
@@ -58,9 +64,8 @@ async def get_version() -> str:
             if path.exists():
                 try:
                     with path.open() as f:
-                        if (config_yaml := yaml.safe_load(f)) and "version" in config_yaml:
-                            return f"{config_yaml['version']} (local)"
-                except OSError, yaml.YAMLError:
+                        return f"{LocalConfig.model_validate(yaml.safe_load(f)).version} (local)"
+                except OSError, yaml.YAMLError, ValidationError:
                     pass
         return None
 
