@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 import json
 import logging
 import ssl
-from typing import Any
 
 import aiomqtt
 
@@ -38,7 +37,7 @@ class MqttTaskState:
     global_discovery_sent: bool = False
     discovered_meters: dict[int, str] = field(default_factory=dict)
     recovery_complete: bool = False
-    last_diagnostics: dict[str, Any] = field(default_factory=dict)
+    last_diagnostics: dict[str, str] = field(default_factory=dict)
     last_info_payload: str | None = None
     last_error_msg: str | None = None
 
